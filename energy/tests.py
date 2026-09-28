@@ -14,7 +14,7 @@ from django.conf import settings
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from energy import forecasting, household, pv, tariffs, weather
+from energy import forecasting, household, pse, pv, tariffs, weather
 from energy.charts import build_history_chart, build_overview_chart
 from energy.data import load_annual, load_history, load_weather_history
 from energy.presentation import device_name, event_names
@@ -38,14 +38,18 @@ def clean_test_dir(path: Path) -> None:
         shutil.rmtree(path, ignore_errors=True)
 
 
-def write_weather(path: Path, start: datetime, hours: int, temp: float = 5.0) -> None:
+def write_weather(
+    path: Path, start: datetime, hours: int, temp: float = 5.0, radiation: float = 0.0
+) -> None:
     """Zapisuje prosty plik z danymi pogodowymi dla testu."""
     with path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(weather.WEATHER_COLUMNS)
         for offset in range(hours):
             stamp = start + timedelta(hours=offset)
-            writer.writerow([stamp.strftime("%Y-%m-%d %H:%M:%S"), f"{temp:.1f}", "50", "0.0"])
+            writer.writerow(
+                [stamp.strftime("%Y-%m-%d %H:%M:%S"), f"{temp:.1f}", "50", f"{radiation:.1f}"]
+            )
 
 
 def write_consumption(path: Path, start: datetime, hours: int, base: str = "1.000") -> None:
@@ -244,6 +248,46 @@ class TariffTests(SimpleTestCase):
         stamps = [datetime(2026, 9, 28, hour) for hour in (2, 12, 19)]
         cost = tariffs.energy_cost(stamps, [Decimal("2"), Decimal("2"), Decimal("2")])
         self.assertEqual(cost, Decimal("0.18") * 2 + Decimal("0.28") * 2 + Decimal("0.40") * 2)
+
+    def test_tariff_config_fixed_dynamic_margin_and_fallback(self):
+        moment = datetime(2026, 9, 28, 19)
+        fixed = tariffs.TariffConfig()
+        self.assertEqual(fixed.price_at(moment, None), (Decimal("0.40"), True))
+
+        custom = tariffs.TariffConfig(fixed_prices=(Decimal("0.5"),) * 4)
+        self.assertEqual(custom.price_at(moment, None), (Decimal("0.5"), True))
+
+        tauron = next(p for p in tariffs.PROVIDERS if p.id == "tauron")
+        self.assertEqual(tauron.margin_pln, Decimal("0.1097"))
+        self.assertEqual(tauron.margin, Decimal("0.02551"))
+
+        dynamic_prices = {moment: Decimal("0.20")}
+        config = tariffs.TariffConfig(mode=tariffs.MODE_DYNAMIC, provider_id="tauron")
+        self.assertEqual(
+            config.price_at(moment, dynamic_prices),
+            (Decimal("0.20") + tauron.margin, False),
+        )
+
+        missing_hour = datetime(2026, 9, 28, 20)
+        self.assertEqual(config.price_at(missing_hour, dynamic_prices), (Decimal("0.40"), True))
+        self.assertEqual(
+            tariffs.dynamic_coverage([moment, missing_hour], dynamic_prices), Decimal("0.5")
+        )
+
+    def test_pse_aggregates_quarters_and_converts_currency(self):
+        rows = [
+            {"period": "00:00 - 00:15", "business_date": "2026-09-25", "rce_pln": "100"},
+            {"period": "00:15 - 00:30", "business_date": "2026-09-25", "rce_pln": "200"},
+            {"period": "00:30 - 00:45", "business_date": "2026-09-25", "rce_pln": "300"},
+            {"period": "00:45 - 01:00", "business_date": "2026-09-25", "rce_pln": "400"},
+            {"period": "01:00 - 02:00", "business_date": "2026-09-25", "rce_pln": "430"},
+        ]
+        parsed = pse.parse_rce_rows(rows)
+        self.assertEqual(parsed[datetime(2026, 9, 25, 0)], Decimal("250"))
+        self.assertEqual(parsed[datetime(2026, 9, 25, 1)], Decimal("430"))
+
+        prices_eur = pse.hourly_prices_eur(rows, Decimal("4.30"))
+        self.assertEqual(prices_eur[datetime(2026, 9, 25, 1)], Decimal("0.1"))
 
 
 class ForecastingTests(SimpleTestCase):
@@ -884,6 +928,224 @@ class ViewTests(SimpleTestCase):
         self.assertContains(response_en, "Average daily household use")
         self.assertContains(response_en, "Purchase price")
 
+    def test_settings_page_saves_tariff_to_session_and_cookie(self):
+        response = self.client.get(reverse("settings"))
+        self.assertContains(response, "Taryfa energii")
+        self.assertContains(response, "Tauron")
+        self.assertContains(response, "Brak pobranych cen dynamicznych")
+
+        payload = {
+            "mode": "dynamic",
+            "provider": "tauron",
+            "price_0": "0.20",
+            "price_1": "0.30",
+            "price_2": "0.45",
+            "price_3": "0.30",
+            "next": "/symulator-pv/",
+        }
+        saved = self.client.post(reverse("settings"), payload)
+        self.assertEqual(saved.status_code, 302)
+        self.assertEqual(saved.url, "/symulator-pv/")
+        session_tariff = self.client.session["tariff"]
+        self.assertEqual(session_tariff["mode"], "dynamic")
+        self.assertEqual(session_tariff["provider"], "tauron")
+        self.assertEqual(session_tariff["fixed"], ["0.20", "0.30", "0.45", "0.30"])
+        cookie_payload = json.loads(saved.cookies["tariff"].value)
+        self.assertEqual(cookie_payload["provider"], "tauron")
+
+        selected_date = datetime.now().date().isoformat()
+        return_to_prices = self.client.post(
+            reverse("settings") + f"?date={selected_date}",
+            {key: value for key, value in payload.items() if key != "next"},
+        )
+        self.assertEqual(return_to_prices.status_code, 302)
+        self.assertEqual(return_to_prices.url, f"/ustawienia/?date={selected_date}")
+
+        invalid = self.client.post(reverse("settings"), {**payload, "price_2": "99"})
+        self.assertEqual(invalid.status_code, 200)
+        self.assertContains(invalid, "Taryfa energii")
+
+        response_en = self.client.get(reverse("settings"), HTTP_COOKIE="django_language=en")
+        self.assertContains(response_en, "Energy tariff")
+
+    def test_settings_page_shows_selected_day_and_tariff_mode(self):
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        tomorrow = today + timedelta(days=1)
+        prices = {today + timedelta(hours=h): Decimal("0.50") for h in range(24)}
+        prices.update({tomorrow + timedelta(hours=h): Decimal("0.60") for h in range(24)})
+        pse.write_prices_json(prices, self.data_dir / pse.PRICES_FILENAME)
+
+        fixed = self.client.get(reverse("settings"))
+        self.assertContains(
+            fixed, 'id="tariffDynamicPreview" aria-labelledby="tariff-preview-heading" hidden'
+        )
+        self.assertContains(fixed, 'id="tariffFixedPanel" >')
+
+        response = self.client.get(
+            reverse("settings"), {"mode": "dynamic", "date": today.date().isoformat()}
+        )
+        self.assertContains(response, "Ceny godzinowe")
+        self.assertEqual(response.context["market_count"], 24)
+        self.assertEqual(len(response.context["selected_prices"]), 24)
+        self.assertContains(response, "0,50000")
+        self.assertNotContains(response, "0,60000")
+        self.assertContains(response, 'id="tariffFixedPanel" hidden')
+        self.assertContains(
+            response, 'id="tariffDynamicPreview" aria-labelledby="tariff-preview-heading">'
+        )
+        self.assertContains(response, '<summary class="tariff-preview-heading">')
+        self.assertContains(response, "date=" + today.date().isoformat() + "&amp;expand=1")
+
+        expanded = self.client.get(
+            reverse("settings"),
+            {"mode": "dynamic", "date": today.date().isoformat(), "expand": "1"},
+        )
+        self.assertContains(
+            expanded, 'id="tariffDynamicPreview" aria-labelledby="tariff-preview-heading" open>'
+        )
+        self.assertContains(expanded, 'name="expand" value="1"')
+
+        next_day = self.client.get(
+            reverse("settings"), {"mode": "dynamic", "date": tomorrow.date().isoformat()}
+        )
+        self.assertEqual(next_day.context["selected_date_iso"], tomorrow.date().isoformat())
+        self.assertContains(next_day, "0,60000")
+        self.assertNotContains(next_day, "0,50000")
+
+        tauron = self.client.get(
+            reverse("settings"),
+            {"mode": "dynamic", "date": today.date().isoformat()},
+            HTTP_COOKIE='tariff={"mode": "dynamic", "provider": "tauron"}',
+        )
+        self.assertContains(tauron, "0,52551")
+
+    def test_settings_date_range_and_missing_market_hours(self):
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        past = today - timedelta(days=200)
+        prices = {past + timedelta(hours=h): Decimal("0.21") for h in range(24)}
+        prices.update({today + timedelta(hours=h): Decimal("0.40") for h in range(1, 24)})
+        pse.write_prices_json(prices, self.data_dir / pse.PRICES_FILENAME)
+
+        historical = self.client.get(
+            reverse("settings"), {"mode": "dynamic", "date": past.date().isoformat()}
+        )
+        self.assertEqual(historical.context["market_count"], 24)
+        self.assertContains(historical, "0,21000")
+        self.assertEqual(historical.context["selected_date_iso"], past.date().isoformat())
+
+        current = self.client.get(
+            reverse("settings"), {"mode": "dynamic", "date": today.date().isoformat()}
+        )
+        self.assertEqual(current.context["market_count"], 23)
+        self.assertEqual(current.context["fallback_count"], 1)
+        self.assertTrue(current.context["selected_prices"][0]["fallback"])
+        self.assertEqual(current.context["selected_prices"][0]["price"], Decimal("0.18"))
+        self.assertContains(current, "Brak ceny PSE dla 1 z 24 godzin")
+
+        for invalid_date in ("nonsense", (today - timedelta(days=366)).date().isoformat()):
+            invalid = self.client.get(
+                reverse("settings"), {"mode": "dynamic", "date": invalid_date}
+            )
+            self.assertEqual(invalid.context["selected_date_iso"], today.date().isoformat())
+            self.assertContains(invalid, "Wybierz dziś, jutro lub datę z ostatnich 365 dni")
+
+        english = self.client.get(
+            reverse("settings"),
+            {"mode": "dynamic", "date": today.date().isoformat()},
+            HTTP_COOKIE="django_language=en",
+        )
+        self.assertContains(english, "Hourly prices")
+        self.assertContains(english, "Fixed fallback")
+
+    def test_topbar_links_to_settings(self):
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, "Ustawienia")
+        self.assertContains(response, reverse("settings"))
+
+    def test_preferences_move_language_and_convert_tariff_rates(self):
+        dashboard = self.client.get(reverse("dashboard"))
+        self.assertNotContains(dashboard, 'class="lang-switcher"')
+
+        saved = self.client.post(
+            reverse("settings"),
+            {"intent": "preferences", "language": "en", "currency": "PLN"},
+        )
+        self.assertEqual(saved.status_code, 302)
+        self.assertEqual(saved.cookies["django_language"].value, "en")
+        self.assertEqual(saved.cookies["display_currency"].value, "PLN")
+        page = self.client.get(reverse("settings"), {"mode": "dynamic"})
+        self.assertContains(page, "Language and currency")
+        self.assertContains(page, "0.77400")
+        self.assertContains(page, "zł/kWh")
+        self.assertEqual(page.context["form"].initial["price_0"], Decimal("0.77400"))
+
+        tariff = self.client.post(
+            reverse("settings"),
+            {
+                "mode": "fixed",
+                "provider": "standard",
+                "price_0": "0.86",
+                "price_1": "1.29",
+                "price_2": "1.72",
+                "price_3": "1.29",
+            },
+        )
+        self.assertEqual(tariff.status_code, 302)
+        self.assertEqual(
+            self.client.session["tariff"]["fixed"],
+            ["0.2000", "0.3000", "0.4000", "0.3000"],
+        )
+
+    def test_dkk_battery_input_uses_dkk_but_calculates_eur(self):
+        self.client.post(
+            reverse("settings"),
+            {"intent": "preferences", "language": "pl", "currency": "DKK"},
+        )
+        settings_page = self.client.get(reverse("settings"), {"mode": "dynamic"})
+        self.assertEqual(settings_page.context["form"].initial["price_0"], Decimal("1.34287"))
+        self.assertContains(settings_page, "1,34287")
+        self.assertContains(settings_page, "kr/kWh")
+        response = self.client.get(
+            reverse("pv_simulator"),
+            {
+                "kwp": "5",
+                "miesiac": "6",
+                "magazyn_kwh": "10",
+                "magazyn_moc_kw": "5",
+                "magazyn_koszt_eur": "7460.38",
+            },
+        )
+        self.assertEqual(response.context["storage"].cost_eur, Decimal("1000"))
+        self.assertContains(response, "Cena zakupu [kr]")
+        self.assertContains(response, "kr/kWp")
+
+    def test_pv_simulator_uses_dynamic_tariff_and_reports_fallback(self):
+        write_weather(
+            self.data_dir / weather.YEAR_WEATHER_FILENAME, ANNUAL_START, 14 * 24, radiation=800.0
+        )
+        params = {"kwp": "5", "miesiac": "6"}
+        fixed = self.client.get(reverse("pv_simulator"), params)
+        self.assertContains(fixed, "Taryfa stała")
+
+        session = self.client.session
+        session["tariff"] = {"mode": "dynamic", "provider": "tauron", "fixed": None}
+        session.save()
+
+        missing = self.client.get(reverse("pv_simulator"), params)
+        self.assertContains(missing, "liczę taryfą stałą")
+
+        annual, _, _ = load_annual()
+        prices = {record.timestamp: Decimal("0.20") for record in annual}
+        pse.write_prices_json(prices, self.data_dir / pse.PRICES_FILENAME)
+
+        dynamic = self.client.get(reverse("pv_simulator"), params)
+        self.assertContains(dynamic, "Taryfa dynamiczna")
+        self.assertContains(dynamic, "Tauron")
+        self.assertNotEqual(
+            dynamic.context["selected"].variant_a.savings,
+            fixed.context["selected"].variant_a.savings,
+        )
+
     def test_missing_data_shows_neutral_status(self):
         (self.data_dir / household.HISTORY_FILENAME).unlink()
         response = self.client.get(reverse("dashboard"))
@@ -959,6 +1221,23 @@ class ApiTests(TestCase):
         self.assertEqual(data["highest_tariff_hours"], list(range(17, 22)))
         self.assertEqual(len(data["timeline"]), 24)
         self.assertNotIn("recommended_action", data["timeline"][0])
+
+    def test_api_tariff_reflects_dynamic_prices_with_fallback_flag(self):
+        res = self.client.get(reverse("api_smart_schedule_today"))
+        timeline = res.json()["data"]["timeline"]
+        self.assertTrue(all(item["is_fallback"] for item in timeline))
+
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        prices = {today + timedelta(hours=h): Decimal("0.50") for h in range(24)}
+        pse.write_prices_json(prices, self.data_dir / pse.PRICES_FILENAME)
+
+        self.client.cookies.load(
+            {"tariff": json.dumps({"mode": "dynamic", "provider": "standard"})}
+        )
+        res_dynamic = self.client.get(reverse("api_smart_schedule_today"))
+        timeline_dynamic = res_dynamic.json()["data"]["timeline"]
+        self.assertFalse(any(item["is_fallback"] for item in timeline_dynamic))
+        self.assertEqual(timeline_dynamic[0]["price_per_kwh"], 0.5)
 
     def test_api_descriptions_follow_explicit_language(self):
         summary = self.client.get(reverse("api_dashboard_summary"), {"lang": "en"})

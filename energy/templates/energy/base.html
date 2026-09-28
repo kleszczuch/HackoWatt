@@ -52,11 +52,7 @@
           <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>{% if is_en %}Hourly data{% else %}Godziny{% endif %}</a>
           <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>{% if is_en %}PV simulator{% else %}Symulator PV{% endif %}</a>
         </nav>
-        <div class="lang-switcher" role="group" aria-label="{% if is_en %}Language{% else %}Język{% endif %}">
-          <a href="{% url 'change_language' 'pl' %}?next={{ request.get_full_path|urlencode }}" class="lang-btn {% if not is_en %}active{% endif %}" title="Polski" aria-label="Przełącz na język polski">PL</a>
-          <span class="lang-divider" aria-hidden="true">|</span>
-          <a href="{% url 'change_language' 'en' %}?next={{ request.get_full_path|urlencode }}" class="lang-btn {% if is_en %}active{% endif %}" title="English" aria-label="Switch to English">EN</a>
-        </div>
+        <a class="lang-btn settings-btn" href="{% url 'settings' %}?next={{ request.get_full_path|urlencode }}" title="{% if is_en %}Settings{% else %}Ustawienia{% endif %}">⚙ {% if is_en %}Settings{% else %}Ustawienia{% endif %}</a>
       </div>
     </header>
 
@@ -71,7 +67,7 @@
       {% block content %}{% endblock %}
       {% endif %}
     </main>
-    <footer>{% if is_en %}eko-dziki · simulated energy scenarios · weather: Open-Meteo · EUR costs are estimates{% else %}eko-dziki · symulowane scenariusze energii · pogoda: Open-Meteo · koszty w EUR są szacunkami{% endif %}</footer>
+    <footer>{% if is_en %}eko-dziki · simulated energy scenarios · weather: Open-Meteo · costs in {{ current_currency }} are estimates{% else %}eko-dziki · symulowane scenariusze energii · pogoda: Open-Meteo · koszty w {{ current_currency }} są szacunkami{% endif %}</footer>
   </div>
   <script>
     (function() {
