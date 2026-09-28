@@ -65,15 +65,26 @@ _DUSK = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ConsumptionHour:
     timestamp: datetime
     categories: tuple[Decimal, ...]
-    events: str
+    events: str = ""
+    total: Decimal = Decimal(0)
 
-    @property
-    def total(self) -> Decimal:
-        return sum(self.categories, Decimal(0))
+    def __init__(
+        self,
+        timestamp: datetime,
+        categories: tuple[Decimal, ...],
+        events: str = "",
+        total: Decimal | None = None,
+    ):
+        object.__setattr__(self, "timestamp", timestamp)
+        object.__setattr__(self, "categories", categories)
+        object.__setattr__(self, "events", events)
+        if total is None:
+            total = sum(categories, Decimal(0))
+        object.__setattr__(self, "total", total)
 
 
 @dataclass(frozen=True)

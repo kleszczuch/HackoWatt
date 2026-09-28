@@ -1,17 +1,17 @@
-"""Polecenie Django uruchamiające cały cykl: uv sync, fetch_tariff_prices, prepare_data oraz runserver 0.0.0.0:8000."""
+"""Polecenie Django: uv sync, fetch_tariff_prices, prepare_data oraz runserver 0.0.0.0:8000."""
 
+import shutil
 import ssl
+import subprocess
+import sys
+from pathlib import Path
+
 try:
     _create_unverified_https_context = ssl._create_unverified_context
 except AttributeError:
     pass
 else:
     ssl._create_default_https_context = _create_unverified_https_context
-
-import shutil
-import subprocess
-import sys
-from pathlib import Path
 
 from django.conf import settings
 from django.core.management import call_command
@@ -65,10 +65,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                "\n"
-                + "=" * 62
-                + "\n  EkoDzik / HackoWatt: Kompleksowy rozruch (all)\n"
-                + "=" * 62
+                "\n" + "=" * 62 + "\n  EkoDzik / HackoWatt: Kompleksowy rozruch (all)\n" + "=" * 62
             )
         )
 
@@ -132,5 +129,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS("\nZatrzymano serwer."))
         else:
             self.stdout.write(
-                self.style.SUCCESS("\n[OK] Zakończono pomyślnie. Serwer nie został uruchomiony (--no-server).")
+                self.style.SUCCESS(
+                    "\n[OK] Zakończono pomyślnie. Serwer nie został uruchomiony (--no-server)."
+                )
             )

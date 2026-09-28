@@ -91,22 +91,27 @@ PROVIDERS = (
 DEFAULT_PROVIDER = PROVIDERS[0]
 
 
+_DEFAULT_HOURLY_PRICES: tuple[Decimal, ...] = tuple(
+    next(price for start, end, price in TARIFF_PERIODS if start <= h < end) for h in range(24)
+)
+
+
 def price_for_hour(hour: int) -> Decimal:
     """Zwraca cenę energii dla konkretnej godziny w oparciu o taryfę godzinową."""
     if not 0 <= hour <= 23:
         raise ValueError(f"Godzina poza zakresu 0–23: {hour}")
-    for start, end, price in TARIFF_PERIODS:
-        if start <= hour < end:
-            return price
-    raise AssertionError("Taryfa nie pokrywa pełnej doby.")
+    return _DEFAULT_HOURLY_PRICES[hour]
 
 
 def energy_cost(timestamps: list[datetime], amounts_kwh: list[Decimal]) -> Decimal:
     """Oblicza koszt energii na podstawie godzinowej taryfy i zużycia w kWh."""
     if len(timestamps) != len(amounts_kwh):
         raise ValueError("Liczba znaczników czasu i wartości kWh musi być równa.")
-    pairs = zip(timestamps, amounts_kwh, strict=True)
-    return sum((price_for_hour(ts.hour) * amount for ts, amount in pairs), Decimal(0))
+    prices = _DEFAULT_HOURLY_PRICES
+    return sum(
+        (prices[ts.hour] * amount for ts, amount in zip(timestamps, amounts_kwh, strict=True)),
+        Decimal(0),
+    )
 
 
 @dataclass(frozen=True)
@@ -141,26 +146,51 @@ class TariffConfig:
         return self.price_for_hour(moment.hour), True
 
 
+_DYNAMIC_PAYLOAD_CACHE: dict[tuple[str, int], dict] = {}
+_DYNAMIC_PRICES_CACHE: dict[tuple[str, int], dict[datetime, Decimal]] = {}
+
+
 def load_dynamic_payload(path: Path | str) -> dict | None:
     """Wczytuje cały plik cen dynamicznych (metadane i ceny) albo zwraca None."""
+    p = Path(path)
     try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        mtime = p.stat().st_mtime_ns
+    except OSError:
+        return None
+    cache_key = (str(p.resolve()), mtime)
+    if cache_key in _DYNAMIC_PAYLOAD_CACHE:
+        return dict(_DYNAMIC_PAYLOAD_CACHE[cache_key])
+    try:
+        payload = json.loads(p.read_text(encoding="utf-8"))
     except OSError, json.JSONDecodeError:
         return None
-    return payload if isinstance(payload, dict) else None
+    if isinstance(payload, dict):
+        _DYNAMIC_PAYLOAD_CACHE[cache_key] = payload
+        return dict(payload)
+    return None
 
 
 def load_dynamic_prices(path: Path | str) -> dict[datetime, Decimal] | None:
     """Wczytuje ceny dynamiczne z JSON zapisanego przez fetch_tariff_prices."""
-    payload = load_dynamic_payload(path)
+    p = Path(path)
+    try:
+        mtime = p.stat().st_mtime_ns
+    except OSError:
+        return None
+    cache_key = (str(p.resolve()), mtime)
+    if cache_key in _DYNAMIC_PRICES_CACHE:
+        return dict(_DYNAMIC_PRICES_CACHE[cache_key])
+
+    payload = load_dynamic_payload(p)
     if payload is None:
         return None
     try:
         prices = payload["prices"]
-        return {
-            datetime.strptime(label, TIMESTAMP_FORMAT): Decimal(str(value))
-            for label, value in prices.items()
+        result = {
+            datetime.fromisoformat(label): Decimal(str(value)) for label, value in prices.items()
         }
+        _DYNAMIC_PRICES_CACHE[cache_key] = result
+        return dict(result)
     except KeyError, TypeError, ValueError, InvalidOperation:
         return None
 
