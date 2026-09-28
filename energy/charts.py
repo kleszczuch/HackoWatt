@@ -75,7 +75,7 @@ def _base_layout(figure: go.Figure, height: int, lang: str = "en") -> go.Figure:
         showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font={"color": CHARCOAL},
+        font={"color": CHARCOAL, "size": 9},
         hoverlabel={"bgcolor": "#FFFFFF", "bordercolor": SLATE, "font_color": CHARCOAL},
         separators=", " if lang == "pl" else ".,",
     )
@@ -407,10 +407,10 @@ def build_tariff_price_chart(
             text=label,
             showarrow=False,
             yanchor="top",
-            font={"color": CHARCOAL, "size": 12},
+            font={"color": CHARCOAL, "size": 15},
             bgcolor="rgba(255,255,255,0.9)",
             bordercolor=line_color,
             borderpad=4,
         )
-    figure.update_layout(font={"color": CHARCOAL, "size": 13})
+    figure.update_layout(font={"color": CHARCOAL, "size": 16})
     return figure
