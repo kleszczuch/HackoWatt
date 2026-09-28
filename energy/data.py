@@ -36,7 +36,17 @@ class DemoDataError(ValueError):
 
 
 def _data_dir() -> Path:
-    return settings.DEMO_DATA_DIR
+    base = settings.DEMO_DATA_DIR
+    if (base / HISTORY_FILENAME).is_file():
+        return base
+    default_scenario = base / "scenario_4"
+    if (default_scenario / HISTORY_FILENAME).is_file():
+        return default_scenario
+    for sc in ("scenario_1", "scenario_2", "scenario_3", "scenario_5"):
+        candidate = base / sc
+        if (candidate / HISTORY_FILENAME).is_file():
+            return candidate
+    return base
 
 
 def _missing() -> FileNotFoundError:

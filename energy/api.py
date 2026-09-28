@@ -23,6 +23,7 @@ from energy import data, household, pv, tariffs
 from energy.charts import CATEGORY_LABELS
 from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm
+from energy.scenarios import SCENARIOS, get_active_scenario, get_scenario_data_dir
 
 
 def api_success(data_payload: Any, status: int = 200) -> JsonResponse:
@@ -157,8 +158,14 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
         }
         for hour, price in enumerate(prices)
     ]
+    scen = get_active_scenario(request)
     return api_success(
         {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
             "current_hour": {
                 "hour": now_hour,
                 "status_code": current_code,
@@ -180,9 +187,12 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
 
 @require_http_methods(["GET"])
 @require_api_secret
+@handle_data_errors
 def devices_guidance(request: HttpRequest) -> JsonResponse:
     """Rzeczywiste liczby cykli i energii w wygenerowanym roku modelowym."""
-    records, _, events = data.load_annual()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    records, _, events = data.load_annual(data_dir)
     devices = []
     for device, display_name in (
         ("Zmywarka", "Zmywarka"),
@@ -207,7 +217,17 @@ def devices_guidance(request: HttpRequest) -> JsonResponse:
     for label, index in (("Komputery i RTV", 4), ("Gotowanie", 3)):
         total = sum((record.categories[index] for record in records), Decimal(0))
         devices.append({"device": label, "annual_energy_kwh": _to_float(total)})
-    return api_success({"devices": devices, "pv_window": "09:00–15:00"})
+    return api_success(
+        {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
+            "devices": devices,
+            "pv_window": "09:00–15:00",
+        }
+    )
 
 
 # ----------------------------------------------------------------------
@@ -220,10 +240,12 @@ def devices_guidance(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def dashboard_summary(request: HttpRequest) -> JsonResponse:
     """Zwraca skonsolidowany status na ekran główny aplikacji mobilnej."""
-    history = data.load_history()
-    forecast = data.load_forecast()
-    weather_history = data.load_weather_history()
-    weather_forecast = data.load_weather_forecast()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    history = data.load_history(data_dir)
+    forecast = data.load_forecast(data_dir)
+    weather_history = data.load_weather_history(data_dir)
+    weather_forecast = data.load_weather_forecast(data_dir)
 
     last_hour = history[-1]
     weather_by_time = {w.timestamp: w for w in weather_history}
@@ -270,7 +292,7 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
         period_label = "Standardowa stawka dzienna"
         period_color = "yellow"
 
-    annual_records, annual_weather, annual_events = data.load_annual()
+    annual_records, annual_weather, annual_events = data.load_annual(data_dir)
     pv_preview = pv.simulate(annual_records, annual_weather, annual_events, Decimal(5))
 
     # Dominująca kategoria w ostatniej godzinie
@@ -287,6 +309,14 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
 
     return api_success(
         {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+                "country_code": scen.get("country_code", "DK"),
+                "flag": scen.get("flag_emoji", "🇩🇰"),
+                "household": scen.get("household", {}),
+            },
             "last_reading": {
                 "timestamp": last_hour.timestamp.isoformat(),
                 "total_kwh": _to_float(last_hour.total),
@@ -323,8 +353,10 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def consumption_history(request: HttpRequest) -> JsonResponse:
     """Pobiera historię zużycia energii z paginacją i filtrem dat."""
-    history = data.load_history()
-    weather_history = data.load_weather_history()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    history = data.load_history(data_dir)
+    weather_history = data.load_weather_history(data_dir)
     weather_by_time = {w.timestamp: w for w in weather_history}
 
     start_param = request.GET.get("start")
@@ -390,6 +422,11 @@ def consumption_history(request: HttpRequest) -> JsonResponse:
 
     return api_success(
         {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
             "pagination": {
                 "page": page_obj.number,
                 "page_size": page_size,
@@ -429,8 +466,10 @@ def consumption_forecast(request: HttpRequest) -> JsonResponse:
         )
 
     horizon_hours = int(horizon_form.cleaned_data["horyzont"])
-    forecast = data.load_forecast()
-    weather_forecast = data.load_weather_forecast()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    forecast = data.load_forecast(data_dir)
+    weather_forecast = data.load_weather_forecast(data_dir)
 
     forecast_slice = forecast[:horizon_hours]
     weather_by_time = {w.timestamp: w for w in weather_forecast}
@@ -476,6 +515,11 @@ def consumption_forecast(request: HttpRequest) -> JsonResponse:
 
     return api_success(
         {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
             "horizon_hours": horizon_hours,
             "total_kwh": _to_float(total_kwh),
             "categories_totals": cat_sums,
@@ -515,9 +559,14 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
 
     now_hour = datetime.now().hour
     current_price = tariffs.price_for_hour(now_hour)
-
+    scen = get_active_scenario(request)
     return api_success(
         {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
             "currency": tariffs.CURRENCY,
             "current_hour": now_hour,
             "current_price_eur": _to_float(current_price),
@@ -553,7 +602,9 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def pv_simulate_api(request: HttpRequest) -> JsonResponse:
     """Symuluje instalację PV o zadanej mocy kWp z porównaniem wariantów A i B."""
-    records, weather_annual, events = data.load_annual()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    records, weather_annual, events = data.load_annual(data_dir)
     params, err = _parse_params(request)
     if err:
         return api_error(err, code="INVALID_PARAMS", status=400)
@@ -593,14 +644,7 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
         form.cleaned_data["magazyn_moc_kw"],
         form.cleaned_data["magazyn_koszt_eur"],
     )
-    storage = pv.StorageConfig(
-        form.cleaned_data["magazyn_kwh"],
-        form.cleaned_data["magazyn_moc_kw"],
-        form.cleaned_data["magazyn_koszt_eur"],
-    )
 
-    sim_result = pv.simulate(records, weather_annual, events, kwp, storage)
-    effects = pv.device_effects(records, weather_annual, events, kwp, storage)
     sim_result = pv.simulate(records, weather_annual, events, kwp, storage)
     effects = pv.device_effects(records, weather_annual, events, kwp, storage)
 
@@ -615,6 +659,11 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
         payback_diff = var_a.payback_years - var_b.payback_years
 
     response_data: dict[str, Any] = {
+        "scenario": {
+            "id": scen["id"],
+            "name": scen["name"],
+            "city": scen["city"],
+        },
         "kwp": _to_float(kwp, 1),
         "currency": tariffs.CURRENCY,
         "storage_capacity_kwh": _to_float(storage.capacity_kwh),
@@ -659,7 +708,6 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
     if include_profile:
         try:
             week = pv.representative_week(records, weather_annual, events, kwp, month, storage)
-            week = pv.representative_week(records, weather_annual, events, kwp, month, storage)
             response_data["week_profile"] = {
                 "month": month,
                 "timestamps": [t.isoformat() for t in week.timestamps],
@@ -683,7 +731,9 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def pv_variants_list(request: HttpRequest) -> JsonResponse:
     """Zwraca tabelę porównawczą typowych mocy instalacji PV (2..10 kWp)."""
-    records, weather_annual, events = data.load_annual()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    records, weather_annual, events = data.load_annual(data_dir)
     comparison = pv.compare_variants(records, weather_annual, events)
 
     items = []
@@ -703,7 +753,17 @@ def pv_variants_list(request: HttpRequest) -> JsonResponse:
             }
         )
 
-    return api_success({"currency": tariffs.CURRENCY, "variants": items})
+    return api_success(
+        {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
+            "currency": tariffs.CURRENCY,
+            "variants": items,
+        }
+    )
 
 
 # ----------------------------------------------------------------------
@@ -716,7 +776,9 @@ def pv_variants_list(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def flexible_events_list(request: HttpRequest) -> JsonResponse:
     """Zwraca listę zarejestrowanych cykli pracy urządzeń elastycznych."""
-    events = data.load_history_events()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    events = data.load_history_events(data_dir)
 
     device_filter = request.GET.get("device", "").strip()
     if device_filter:
@@ -754,6 +816,11 @@ def flexible_events_list(request: HttpRequest) -> JsonResponse:
 
     return api_success(
         {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
             "pagination": {
                 "page": page_obj.number,
                 "page_size": page_size,
@@ -770,6 +837,7 @@ def flexible_events_list(request: HttpRequest) -> JsonResponse:
 
 @require_http_methods(["GET", "POST"])
 @require_api_secret
+@handle_data_errors
 def shift_simulation(request: HttpRequest) -> JsonResponse:
     """Kalkulator korzyści z przesunięcia pracy urządzenia (dostępny przez prosty GET lub POST)."""
     params, parse_err = _parse_params(request)
@@ -817,7 +885,9 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
     target_cost = target_price * energy_kwh
     savings_per_cycle = orig_cost - target_cost
 
-    _, _, annual_events = data.load_annual()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    _, _, annual_events = data.load_annual(data_dir)
     annual_cycles = sum(event.device == device for event in annual_events)
     annual_savings = savings_per_cycle * annual_cycles
 
@@ -826,6 +896,11 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
 
     return api_success(
         {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
             "device": device,
             "energy_kwh": _to_float(energy_kwh),
             "original_hour": orig_h,
@@ -859,20 +934,30 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def system_assumptions(request: HttpRequest) -> JsonResponse:
     """Zwraca parametry symulacji, urządzeń i koszty taryfowe."""
-    history = data.load_history()
-    forecast = data.load_forecast()
-    records, _, _ = data.load_annual()
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    history = data.load_history(data_dir)
+    forecast = data.load_forecast(data_dir)
+    records, _, _ = data.load_annual(data_dir)
+
+    default_household = {
+        "residents_count": 6,
+        "profile": (
+            "Trzypokoleniowy dom: dziadkowie w ciągu dnia, pracujący rodzice, dzieci po szkole"
+        ),
+        "heating_type": "Pompa ciepła (reaguje na temperaturę zewnętrzną)",
+    }
 
     return api_success(
         {
-            "location": "Kopenhaga, Dania",
-            "household": {
-                "residents_count": 6,
-                "profile": (
-                    "Trzypokoleniowy dom: dziadkowie w ciągu dnia, "
-                    "pracujący rodzice, dzieci po szkole"
-                ),
-                "heating_type": "Pompa ciepła (reaguje na temperaturę zewnętrzną)",
+            "location": scen["city"],
+            "household": scen.get("household", default_household),
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+                "country_code": scen.get("country_code", "DK"),
+                "flag": scen.get("flag_emoji", "🇩🇰"),
             },
             "device_profiles": {
                 name: {
@@ -906,5 +991,68 @@ def system_assumptions(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def system_metrics(request: HttpRequest) -> JsonResponse:
     """Zwraca metryki dokładności modelu prognostycznego wobec baseline'u."""
-    metrics_data = data.load_metrics()
-    return api_success(metrics_data)
+    data_dir = get_scenario_data_dir(request)
+    scen = get_active_scenario(request)
+    metrics_data = data.load_metrics(data_dir)
+    return api_success(
+        {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
+            **metrics_data,
+        }
+    )
+
+
+# ----------------------------------------------------------------------
+# 10. Scenariusze symulacji
+# ----------------------------------------------------------------------
+
+
+@require_http_methods(["GET"])
+@require_api_secret
+def scenarios_list(request: HttpRequest) -> JsonResponse:
+    """Zwraca listę wszystkich 5 dostępnych scenariuszy symulacji."""
+    active = get_active_scenario(request)
+    items = [
+        {
+            "id": s["id"],
+            "name": s["name"],
+            "title": s.get("title", ""),
+            "city": s["city"],
+            "city_short": s.get("city_short", ""),
+            "country_code": s.get("country_code", ""),
+            "flag": s.get("flag_emoji", ""),
+            "lat": s["lat"],
+            "lon": s["lon"],
+            "timezone": s["timezone"],
+            "household": s.get("household", {}),
+            "is_active": s["id"] == active["id"],
+        }
+        for s in SCENARIOS.values()
+    ]
+    return api_success({"active_scenario_id": active["id"], "scenarios": items})
+
+
+@require_http_methods(["GET"])
+@require_api_secret
+def active_scenario_info(request: HttpRequest) -> JsonResponse:
+    """Zwraca metadane aktualnie wybranego scenariusza symulacji."""
+    active = get_active_scenario(request)
+    return api_success(
+        {
+            "id": active["id"],
+            "name": active["name"],
+            "title": active.get("title", ""),
+            "city": active["city"],
+            "city_short": active.get("city_short", ""),
+            "country_code": active.get("country_code", ""),
+            "flag": active.get("flag_emoji", ""),
+            "lat": active["lat"],
+            "lon": active["lon"],
+            "timezone": active["timezone"],
+            "household": active.get("household", {}),
+        }
+    )

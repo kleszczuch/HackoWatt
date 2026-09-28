@@ -3,6 +3,7 @@
 import csv
 import io
 import json
+import shutil
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -33,9 +34,8 @@ def make_test_dir() -> Path:
 
 def clean_test_dir(path: Path) -> None:
     """Usuwa katalog testowy po zakończeniu testu."""
-    for child in path.iterdir():
-        child.unlink()
-    path.rmdir()
+    if path.exists():
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def write_weather(path: Path, start: datetime, hours: int, temp: float = 5.0) -> None:
@@ -1066,3 +1066,70 @@ class ApiTests(TestCase):
     def test_unsupported_methods_return_405(self):
         res = self.client.delete(reverse("api_consumption_history"))
         self.assertEqual(res.status_code, 405)
+
+    def test_scenarios_list_and_active_endpoint(self):
+        # 1. Lista scenariuszy
+        res = self.client.get(reverse("api_scenarios_list"))
+        self.assertEqual(res.status_code, 200)
+        data = res.json()["data"]
+        self.assertEqual(len(data["scenarios"]), 5)
+        self.assertEqual(data["active_scenario_id"], 4)
+        active_entry = next(s for s in data["scenarios"] if s["id"] == 4)
+        self.assertTrue(active_entry["is_active"])
+        self.assertIn("🇩🇰", active_entry["flag"])
+        self.assertEqual(active_entry["city"], "Kopenhaga, Dania")
+
+        # 2. Aktywny scenariusz - domyślnie 4
+        res_act = self.client.get(reverse("api_active_scenario"))
+        self.assertEqual(res_act.status_code, 200)
+        act_data = res_act.json()["data"]
+        self.assertEqual(act_data["id"], 4)
+        self.assertEqual(act_data["city"], "Kopenhaga, Dania")
+
+        # 3. Zmiana aktywnego scenariusza przez parametr ?scenario=1
+        res_s1 = self.client.get(reverse("api_active_scenario"), {"scenario": "1"})
+        self.assertEqual(res_s1.status_code, 200)
+        s1_data = res_s1.json()["data"]
+        self.assertEqual(s1_data["id"], 1)
+        self.assertEqual(s1_data["city"], "Warszawa, Polska")
+
+        # 4. Zmiana aktywnego scenariusza przez nagłówek HTTP X-Scenario-ID: 2
+        res_s2 = self.client.get(reverse("api_active_scenario"), headers={"X-Scenario-ID": "2"})
+        self.assertEqual(res_s2.status_code, 200)
+        s2_data = res_s2.json()["data"]
+        self.assertEqual(s2_data["id"], 2)
+        self.assertEqual(s2_data["city"], "Katowice, Polska")
+
+    def test_scenario_data_dir_loading_in_api(self):
+        # Tworzymy dane dla scenariusza 1 w katalogu testowym
+        scen1_dir = self.data_dir / "scenario_1"
+        scen1_dir.mkdir(parents=True, exist_ok=True)
+        prepare_fixture_dir(scen1_dir)
+
+        # Wywołujemy dashboard/summary dla scenariusza 1
+        res = self.client.get(reverse("api_dashboard_summary"), {"scenario": "1"})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()["data"]
+        self.assertEqual(data["scenario"]["id"], 1)
+        self.assertEqual(data["scenario"]["city"], "Warszawa, Polska")
+        self.assertIn("last_reading", data)
+
+        # Wywołujemy devices/guidance z nagłówkiem X-Scenario-ID: 1
+        res_dev = self.client.get(reverse("api_devices_guidance"), headers={"X-Scenario-ID": "1"})
+        self.assertEqual(res_dev.status_code, 200)
+        self.assertEqual(res_dev.json()["data"]["scenario"]["id"], 1)
+
+        # Wywołujemy system/assumptions z ?scenario=1
+        res_assump = self.client.get(reverse("api_system_assumptions"), {"scenario": "1"})
+        self.assertEqual(res_assump.status_code, 200)
+        assump_data = res_assump.json()["data"]
+        self.assertEqual(assump_data["scenario"]["id"], 1)
+        self.assertEqual(assump_data["household"]["residents_count"], 1)
+
+    def test_scenarios_require_bearer_token(self):
+        client = self.client_class()
+        res_list = client.get(reverse("api_scenarios_list"))
+        self.assertEqual(res_list.status_code, 401)
+
+        res_active = client.get(reverse("api_active_scenario"))
+        self.assertEqual(res_active.status_code, 401)

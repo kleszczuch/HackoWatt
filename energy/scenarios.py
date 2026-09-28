@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from django.conf import settings
 
 FLAG_SVGS = {
@@ -58,6 +60,11 @@ SCENARIOS = {
         "lon": 21.0122,
         "timezone": "Europe/Warsaw",
         "folder": "scenario_1",
+        "household": {
+            "residents_count": 1,
+            "profile": "Singielka w Warszawie: praca zdalna, aktywny tryb życia",
+            "heating_type": "Klimatyzacja / sieć ciepłownicza",
+        },
     },
     2: {
         "id": 2,
@@ -72,6 +79,11 @@ SCENARIOS = {
         "lon": 19.0238,
         "timezone": "Europe/Warsaw",
         "folder": "scenario_2",
+        "household": {
+            "residents_count": 4,
+            "profile": "Śląski dom rodzinny: 4 osoby, praca zmianowa, stabilne obciążenie",
+            "heating_type": "Kocioł gazowy / pompa ciepła",
+        },
     },
     3: {
         "id": 3,
@@ -86,6 +98,11 @@ SCENARIOS = {
         "lon": 2.1699,
         "timezone": "Europe/Madrid",
         "folder": "scenario_3",
+        "household": {
+            "residents_count": 2,
+            "profile": "Luxury Under Control: 2 osoby, willa z basenem, sauną i ładowarką EV",
+            "heating_type": "Klimatyzacja inwerterowa / pompa ciepła",
+        },
     },
     4: {
         "id": 4,
@@ -100,6 +117,13 @@ SCENARIOS = {
         "lon": 12.5683,
         "timezone": "Europe/Copenhagen",
         "folder": "scenario_4",
+        "household": {
+            "residents_count": 6,
+            "profile": (
+                "Trzypokoleniowy dom: dziadkowie w ciągu dnia, pracujący rodzice, dzieci po szkole"
+            ),
+            "heating_type": "Pompa ciepła (reaguje na temperaturę zewnętrzną)",
+        },
     },
     5: {
         "id": 5,
@@ -114,17 +138,46 @@ SCENARIOS = {
         "lon": -9.1393,
         "timezone": "Europe/Lisbon",
         "folder": "scenario_5",
+        "household": {
+            "residents_count": 2,
+            "profile": "Home Alone – But Not Really: 2 osoby pracujące zdalnie z psem",
+            "heating_type": "Klimatyzacja / ogrzewanie elektryczne",
+        },
     },
 }
 
 
-def get_active_scenario(request):
-    """Pobiera aktywny scenariusz z sesji użytkownika (domyślnie 4 - Kopenhaga)."""
-    scen_id = request.session.get("active_scenario", 4)
-    return SCENARIOS.get(scen_id, SCENARIOS[4])
+def get_active_scenario(request) -> dict:
+    """Pobiera aktywny scenariusz z żądania (parametr URL, nagłówek HTTP, sesja, domyślnie 4)."""
+    if request is not None:
+        get_params = getattr(request, "GET", {})
+        param = get_params.get("scenario") or get_params.get("scenario_id")
+        if param is not None:
+            try:
+                scen_id = int(param)
+                if scen_id in SCENARIOS:
+                    return SCENARIOS[scen_id]
+            except Exception:
+                pass
+
+        headers = getattr(request, "headers", {})
+        header_val = headers.get("X-Scenario-ID") or headers.get("X-Scenario")
+        if header_val is not None:
+            try:
+                scen_id = int(header_val)
+                if scen_id in SCENARIOS:
+                    return SCENARIOS[scen_id]
+            except Exception:
+                pass
+
+        if hasattr(request, "session"):
+            scen_id = request.session.get("active_scenario", 4)
+            return SCENARIOS.get(scen_id, SCENARIOS[4])
+
+    return SCENARIOS[4]
 
 
-def get_scenario_data_dir(request):
+def get_scenario_data_dir(request) -> Path:
     """Zwraca ścieżkę do folderu data wybranego scenariusza."""
     scen = get_active_scenario(request)
     path = settings.DEMO_DATA_DIR / scen["folder"]
