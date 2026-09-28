@@ -176,10 +176,17 @@ uv sync
 ```bash
 uv run python manage.py migrate
 ```
+---
+
+## 4. Pobierz ceny dla taryfy dynamicznej
+
+```bash
+uv run python manage.py fetch_tariff_prices
+```
 
 ---
 
-## 4. Przygotuj dane demonstracyjne
+## 5. Przygotuj dane demonstracyjne
 
 ```bash
 uv run python manage.py prepare_data
@@ -191,7 +198,7 @@ Ponowne uruchomienie tej komendy odświeża dane.
 
 ---
 
-## 5. Uruchom aplikację
+## 6. Uruchom aplikację
 
 ```bash
 uv run python manage.py runserver 127.0.0.1:8000
@@ -201,6 +208,12 @@ Następnie otwórz:
 
 ```text
 http://127.0.0.1:8000/
+```
+
+Dla użycia aplikacji mobilnej na telefonie użyj komendy:
+
+```bash
+uv run python manage.py runserver 0.0.0.0:8000
 ```
 
 ---
