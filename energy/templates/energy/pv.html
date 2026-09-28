@@ -116,22 +116,51 @@
   </table></div>
 </section>
 
-<section class="panel chart-panel" aria-labelledby="reco-heading">
-  <div class="section-heading"><div><p class="eyebrow">PRAKTYCZNE REKOMENDACJE</p><h2 id="reco-heading">Co przesunąć w godziny produkcji PV</h2></div><span class="muted">Efekt roczny dla instalacji {{ kwp }} kWp</span></div>
+<section class="panel chart-panel" aria-labelledby="reco-heading" style="padding: 24px; border-radius: 12px; background-color: #f8fafc; border: 1px solid #e2e8f0;">
+  <div class="section-heading" style="margin-bottom: 24px;">
+    <div>
+      <p class="eyebrow" style="color: #64748b; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.05em; text-transform: uppercase;">Praktyczne Rekomendacje</p>
+      <h2 id="reco-heading" style="color: #0f172a; margin-top: 4px;">Jak oszczędzać bez utraty komfortu?</h2>
+    </div>
+    <span class="muted" style="color: #64748b; font-size: 0.9rem;">Efekt roczny dla instalacji <strong>{{ kwp }} kWp</strong></span>
+  </div>
+  
   <div class="explanation-list">
     {% for effect in effects %}
-    <div class="explanation">
-      <strong>{{ effect.device }}:</strong>
+    <!-- Warunkowy kolor paska bocznego: Pomarańczowy (jest co poprawiać) lub Zielony (jest idealnie) -->
+    {% if effect.moved_kwh > 0 %}
+        <div class="explanation" style="border-left: 4px solid #f59e0b; padding: 16px; margin-bottom: 20px; background: white; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        {% else %}
+        <div class="explanation" style="border-left: 4px solid #10b981; padding: 16px; margin-bottom: 20px; background: white; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        {% endif %}
+      
+      <!-- Tytuł urządzenia + Nasz nowy Headline z views.py -->
+      <h3 style="margin-top: 0; font-size: 1.1rem; color: #1e293b;">
+        <strong>{{ effect.device }}</strong>: {{ effect.advice.headline }}
+      </h3>
+      
+      <!-- Nasze porady wygenerowane w views.py -->
+      <div style="margin-top: 12px; line-height: 1.5; color: #475569;">
+        <p style="margin: 4px 0;">🎯 <strong>Co warto zrobić:</strong> {{ effect.advice.action }}</p>
+        <p style="margin: 4px 0;">🛋️ <strong>Twój komfort:</strong> {{ effect.advice.comfort }}</p>
+      </div>
+      
+      <!-- Box pokazujący twarde dane (tylko jeśli jest jakaś oszczędność do zdobycia) -->
       {% if effect.moved_kwh > 0 %}
-      uruchamiaj w oknie 9:00–15:00 zamiast wieczorem — przeniesiesz ok. {{ effect.moved_kwh|floatformat:0 }} kWh/rok;
-      z sieci kupisz o ok. {{ effect.grid_saved_kwh|floatformat:0 }} kWh/rok mniej, czyli ok. {{ effect.money_saved|floatformat:0 }} €/rok oszczędności.
-      {% else %}
-      zwykle już pracuje w godzinach produkcji PV — nie ma czego przesuwać.
+      <div style="margin-top: 16px; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 12px 16px; border-radius: 8px; color: #065f46; font-size: 0.95rem;">
+        💡 Przeniesiesz <strong>~{{ effect.moved_kwh|floatformat:0 }} kWh/rok</strong> ze słabych godzin bezpośrednio w słoneczne.<br/>
+        Ominiesz konieczność kupowania <strong>{{ effect.grid_saved_kwh|floatformat:0 }} kWh</strong> z sieci, 
+        co obniży rachunki o <strong style="font-size: 1.1rem;">ok. {{ effect.money_saved|floatformat:0 }} € w skali roku</strong>!
+      </div>
       {% endif %}
+      
     </div>
     {% endfor %}
-    <div class="explanation"><strong>Wskazówka:</strong> największy efekt daje zmywanie po obiedzie w weekendy i pranie rozpoczęte rano z końcem w południe, gdy produkcja jest najwyższa.</div>
+    
+    <!-- Tip dla "Domu pełnego pokoleń" -->
+    <div class="explanation" style="margin-top: 24px; padding: 16px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #f1f5f9;">
+      <strong>Wskazówka ogólna dla dużej rodziny:</strong> Jako dom wielopokoleniowy macie supermoc – ktoś najczęściej jest w domu!
+      Jeśli dziadkowie włączą energochłonne sprzęty wokół południa, zdejmują obowiązek domowy z młodszych, a darmowa energia słoneczna zostaje w pełni skonsumowana. To klasyczna sytuacja <em>win-win</em>!
+    </div>
   </div>
 </section>
-{% endif %}
-{% endblock %}
