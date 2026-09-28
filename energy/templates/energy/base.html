@@ -11,28 +11,36 @@
 </head>
 <body>
   <div class="shell">
-    <header class="topbar">
+    
+    <!-- GÓRNY PASEK (TOPBAR) - tutaj dodaliśmy flex, żeby rozmieścić elementy obok siebie -->
+    <header class="topbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+      
+      <!-- 1. Logo / Brand -->
       <a class="brand" href="{% url 'dashboard' %}" aria-label="eko-dziki – home">
         <img class="brand-icon" src="{% static 'energy/Logo.webp' %}" alt="" width="48" height="48"><span>eko-dziki</span>
       </a>
+      
+      <!-- 2. SELEKTOR SCENARIUSZU (W ŚRODKU TOPBARA) -->
+      <div class="scenario-selector" style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase;">Scenariusz:</span>
+        <select onchange="location = this.value;" style="padding: 5px 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
+          <option value="{% url 'switch_scenario' 1 %}" {% if request.session.active_scenario == 1 %}selected{% endif %}>🇵🇱 1. Warszawa (Aleksandra)</option>
+          <option value="{% url 'switch_scenario' 2 %}" {% if request.session.active_scenario == 2 %}selected{% endif %}>🇵🇱 2. Katowice (Marek i Ania)</option>
+          <option value="{% url 'switch_scenario' 3 %}" {% if request.session.active_scenario == 3 %}selected{% endif %}>🇪🇸 3. Barcelona (Smart Luxury)</option>
+          <option value="{% url 'switch_scenario' 4 %}" {% if request.session.active_scenario == 4 or not request.session.active_scenario %}selected{% endif %}>🇩🇰 4. Kopenhaga (Dom Pokoleń)</option>
+          <option value="{% url 'switch_scenario' 5 %}" {% if request.session.active_scenario == 5 %}selected{% endif %}>🇵🇹 5. Lizbona (Ola, Tomek i Pies)</option>
+        </select>
+      </div>
+
+      <!-- 3. Główne linki nawigacyjne (Po prawej) -->
       <nav class="topnav" aria-label="Main navigation">
         <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
         <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>Hourly data</a>
         <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>PV simulator</a>
         <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>Assumptions</a>
       </nav>
+
     </header>
-    
-<div class="scenario-selector" style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
-  <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">AKTYWNY SCENARIUSZ:</span>
-  <select onchange="location = this.value;" style="padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: white; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
-    <option value="{% url 'switch_scenario' 1 %}" {% if request.session.active_scenario == 1 %}selected{% endif %}>🇵🇱 1. Warszawa (Aleksandra)</option>
-    <option value="{% url 'switch_scenario' 2 %}" {% if request.session.active_scenario == 2 %}selected{% endif %}>🇵🇱 2. Katowice (Marek i Ania)</option>
-    <option value="{% url 'switch_scenario' 3 %}" {% if request.session.active_scenario == 3 %}selected{% endif %}>🇪🇸 3. Barcelona (Smart Luxury)</option>
-    <option value="{% url 'switch_scenario' 4 %}" {% if request.session.active_scenario == 4 or not request.session.active_scenario %}selected{% endif %}>🇩🇰 4. Kopenhaga (Dom Pokoleń)</option>
-    <option value="{% url 'switch_scenario' 5 %}" {% if request.session.active_scenario == 5 %}selected{% endif %}>🇵🇹 5. Lizbona (Ola, Tomek i Pies)</option>
-  </select>
-</div>
 
     <main>
       {% if data_error %}
@@ -45,7 +53,8 @@
       {% block content %}{% endblock %}
       {% endif %}
     </main>
-    <footer>eko-dziki · Scenario 4: A House Full of Generations · weather: Open-Meteo, Copenhagen · EUR costs are estimates</footer>
+    
+    <footer>eko-dziki · Multi-scenario energy system · weather: Open-Meteo · EUR costs are estimates</footer>
   </div>
 </body>
 </html>

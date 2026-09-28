@@ -2,20 +2,21 @@
 {% block title %}eko-dziki · Energy dashboard{% endblock %}
 {% block content %}
 <div class="dashboard">
-  <header class="dashboard-heading">
-    <div>
-      <p class="eyebrow">SCENARIO 4 · COPENHAGEN</p>
-      <h1>Energy in a home <span>for three generations</span></h1>
-      <p>Energy use simulated with real weather data and an XGBoost forecast · demo data, not meter readings</p>
-    </div>
-    <div class="dashboard-actions">
-      <a class="button secondary" href="{% url 'hourly_history' %}?dni={{ simulation_days }}">Explore hourly data →</a>
-      <a class="button primary" href="{% url 'pv_simulator' %}">What could rooftop solar deliver? →</a>
-    </div>
-  </header>
+<header class="dashboard-heading">
+  <div>
+    <p class="eyebrow">SCENARIO {{ active_scenario.id }} · {{ active_scenario.city|upper }}</p>
+    
+    <h1>Energy in a home <span>{{ active_scenario.title }}</span></h1>
+    
+    <p>Energy use simulated with real weather data and an XGBoost forecast · demo data, not meter readings</p>
+  </div>
+  <div class="dashboard-actions">
+    <a class="button secondary" href="{% url 'hourly_history' %}?dni={{ simulation_days }}">Explore hourly data →</a>
+    <a class="button primary" href="{% url 'pv_simulator' %}">What could rooftop solar deliver?</a>
+  </div>
+</header>
 
-  <div class="dashboard-controls" aria-label="Data ranges">
-    <div class="range-control">
+  <div class="dashboard-controls" aria-label="Data ranges">    <div class="range-control">
       <span>Simulation · last</span>
       <nav class="range-options" aria-label="Simulation period">
         {% for days in simulation_options %}<a href="?dni={{ days }}&amp;horyzont={{ horizon_hours }}" {% if days == simulation_days %}class="selected" aria-current="page"{% endif %}>{{ days }} d</a>{% endfor %}
