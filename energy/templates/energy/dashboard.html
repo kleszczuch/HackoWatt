@@ -1,0 +1,115 @@
+{% load static %}
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HackoWatt · Zużycie energii</title>
+  <link rel="stylesheet" href="{% static 'energy/dashboard.css' %}">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="{% url 'dashboard' %}" aria-label="HackoWatt — strona główna">
+        <span class="brand-icon">⚡</span><span>Hacko<span class="brand-accent">Watt</span></span>
+      </a>
+      <span class="top-label">Panel zużycia energii</span>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div>
+          <p class="eyebrow">DANE DEMONSTRACYJNE</p>
+          <h1>Zużycie energii<br><span>w Twoim domu</span></h1>
+          <p class="lead">Przeglądaj godzinowe wartości sześciu kategorii i zobacz, jak wygląda prognoza kolejnych 90 dni.</p>
+        </div>
+        <div class="intro-aside">
+          <span class="pulse"></span>
+          <strong>Symulacja + prognoza</strong>
+          <small>Rok 2026 i kolejne 90 dni</small>
+        </div>
+      </section>
+
+      {% if data_error %}
+      <section class="panel empty-state" role="status">
+        <span class="empty-icon">◌</span>
+        <h2>Dane nie są jeszcze gotowe</h2>
+        <p>{{ data_error }}</p>
+        <code>uv run python manage.py prepare_demo_data</code>
+      </section>
+      {% else %}
+      <section class="notice" aria-label="Pochodzenie danych">
+        <span class="notice-icon">i</span>
+        <p><strong>To są dane demonstracyjne.</strong> Historia 2026 jest syntetyczna, a wartości po niej są prognozą modelu XGBoost. Nie są to odczyty licznika ani podstawa rozliczenia.</p>
+      </section>
+
+      <section class="panel filter-panel" aria-labelledby="filter-heading">
+        <div class="section-heading compact">
+          <div><p class="eyebrow">WYBIERZ OKRES</p><h2 id="filter-heading">Zakres szczegółów</h2></div>
+          <span class="muted">Wykresy godzinowe i tabela</span>
+        </div>
+        <form class="filter-form" method="get" action="{% url 'dashboard' %}">
+          <div class="field"><label for="{{ form.start.id_for_label }}">Od</label>{{ form.start }}</div>
+          <div class="field"><label for="{{ form.end.id_for_label }}">Do</label>{{ form.end }}</div>
+          <button class="button primary" type="submit">Pokaż dane <span aria-hidden="true">→</span></button>
+          {% if form.is_valid %}<a class="button secondary" href="{% url 'export_csv' %}?start={{ start }}&amp;end={{ end }}">Pobierz CSV</a>{% endif %}
+        </form>
+        {% if form.errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}{{ form.start.errors }}{{ form.end.errors }}</div>{% endif %}
+      </section>
+
+      {% if form.is_valid %}
+      {% if selected_count %}<section class="metrics" aria-label="Podsumowanie wybranego okresu">
+        <article class="metric"><span>Łączne zużycie</span><strong>{{ selected_total|floatformat:3 }} <small>kWh</small></strong><p>W wybranym okresie</p></article>
+        <article class="metric"><span>Symulacja</span><strong>{{ selected_history_total|floatformat:3 }} <small>kWh</small></strong><p>{{ history_count }} godzin w całym roku</p></article>
+        <article class="metric"><span>Prognoza</span><strong>{{ selected_forecast_total|floatformat:3 }} <small>kWh</small></strong><p>{{ forecast_count }} godzin prognozy</p></article>
+        <article class="metric"><span>Rekordy w okresie</span><strong>{{ selected_count }}</strong><p>Dokładne dane godzinowe</p></article>
+      </section>{% endif %}
+
+      <section class="panel chart-panel" aria-labelledby="overview-heading">
+        <div class="section-heading"><div><p class="eyebrow">PEŁNY HORYZONT</p><h2 id="overview-heading">Zużycie dzień po dniu</h2></div><span class="muted">Suma wszystkich kategorii · kWh/dzień</span></div>
+        <div class="plot">{{ overview_chart|safe }}</div>
+      </section>
+
+      {% if selected_count %}
+      <section class="panel chart-panel" aria-labelledby="details-heading">
+        <div class="section-heading"><div><p class="eyebrow">ROZBICIE NA KATEGORIE</p><h2 id="details-heading">Szczegółowe wykresy</h2></div><span class="muted">Wartości godzinowe · kWh</span></div>
+        <div class="plot">{{ detail_chart|safe }}</div>
+      </section>
+      {% else %}
+      <section class="panel no-results"><h2>Brak danych w wybranym okresie</h2><p>Wybierz daty od 1 stycznia 2026 do końca prognozy.</p></section>
+      {% endif %}
+
+      <section class="panel table-panel" aria-labelledby="table-heading">
+        <div class="section-heading"><div><p class="eyebrow">DOKŁADNE WARTOŚCI</p><h2 id="table-heading">Dane godzinowe</h2></div><span class="muted">{{ selected_count }} rekordów · wszystkie wartości w kWh</span></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Data i godzina</th><th>Źródło</th>{% for label in category_labels %}<th>{{ label }}</th>{% endfor %}<th>Razem</th></tr></thead>
+            <tbody>
+              {% for record in page %}
+              <tr>
+                <td class="timestamp">{{ record.timestamp|date:"d.m.Y H:i" }}</td>
+                <td><span class="tag {% if record.kind == 'Prognoza' %}forecast{% endif %}">{{ record.kind }}</span></td>
+                {% for value in record.category_cells %}<td class="number">{{ value }}</td>{% endfor %}
+                <td class="number total">{{ record.total }}</td>
+              </tr>
+              {% empty %}<tr><td colspan="9" class="table-empty">Brak godzin dla tego zakresu.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if page.paginator.num_pages > 1 %}
+        <nav class="pagination" aria-label="Strony tabeli">
+          <span>Strona {{ page.number }} z {{ page.paginator.num_pages }}</span>
+          <div>
+            {% if page.has_previous %}<a class="button secondary" href="?start={{ start }}&amp;end={{ end }}&amp;page={{ page.previous_page_number }}">← Poprzednia</a>{% endif %}
+            {% if page.has_next %}<a class="button secondary" href="?start={{ start }}&amp;end={{ end }}&amp;page={{ page.next_page_number }}">Następna →</a>{% endif %}
+          </div>
+        </nav>
+        {% endif %}
+      </section>
+      {% endif %}
+      {% endif %}
+    </main>
+    <footer>HackoWatt · demonstracyjny panel energii</footer>
+  </div>
+</body>
+</html>

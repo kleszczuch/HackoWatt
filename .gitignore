@@ -1,0 +1,18 @@
+# Python / środowisko
+.venv/
+.uv-cache/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+
+# Baza i dane
+db.sqlite3
+data/*.csv
+data/test-*/
+
+# Pliki agentowe i planowanie (poza repozytorium)
+.ai/
+AGENTS.md
+Project_openspec/
+stacks/
+openspec/
