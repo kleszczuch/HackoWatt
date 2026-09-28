@@ -19,10 +19,12 @@ EVENT_NAMES_EN = {
     "zmywarka": "dishwasher",
     "pralka": "washing machine",
     "suszarka": "tumble dryer",
+    "tryb opieki nad psem": "dog care routine",
+    "wyjazd / nieobecność": "trip / absence",
+    "pompa basenu": "pool pump",
+    "sauna": "sauna",
+    "ładowanie EV": "EV charging",
 }
-
-DEVICE_NAMES = DEVICE_NAMES_EN
-EVENT_NAMES = EVENT_NAMES_EN
 
 DEVICE_NAMES = DEVICE_NAMES_EN
 EVENT_NAMES = EVENT_NAMES_EN

@@ -26,8 +26,14 @@ from energy.charts import (
 )
 from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm
+from energy.language import selected_language
 from energy.presentation import device_name, event_names
-from energy.scenarios import SCENARIOS, get_active_scenario, get_scenario_data_dir
+from energy.scenarios import (
+    SCENARIOS,
+    get_active_scenario,
+    get_scenario_data_dir,
+    localized_scenario,
+)
 from energy.tariffs import CURRENCY
 
 PLOTLY_CONFIG = {
@@ -56,8 +62,7 @@ def switch_scenario_view(request: HttpRequest, scenario_id: int) -> HttpResponse
 
 
 def _current_lang(request: HttpRequest) -> str:
-    lang = request.session.get("django_language") or request.COOKIES.get("django_language") or "pl"
-    return lang if lang in ("pl", "en") else "pl"
+    return selected_language(request)
 
 
 def change_language(request: HttpRequest, lang_code: str) -> HttpResponse:
@@ -158,7 +163,7 @@ def _simulation_days(request: HttpRequest) -> int:
 def dashboard(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
     data_dir = get_scenario_data_dir(request)
-    active_scenario = get_active_scenario(request)
+    active_scenario = localized_scenario(get_active_scenario(request), lang)
     try:
         history = data.load_history(data_dir)
         forecast = data.load_forecast(data_dir)
@@ -320,8 +325,8 @@ def get_behavioral_advice(device_name: str, moved_kwh: Decimal, lang: str = "pl"
             return {
                 "headline": "Darmowe pranie",
                 "action": (
-                    "Skoro dziadkowie lub osoby na Home Office są rano w domu, nastawiajcie pranie "
-                    "w okolicach 10:00 - 12:00."
+                    "Skoro dziadkowie lub osoby pracujące zdalnie są rano w domu, "
+                    "nastawiajcie pranie w okolicach 10:00 - 12:00."
                 ),
                 "comfort": (
                     "Pralka skończy cykl w dzień, co ułatwi szybkie suszenie ubrań "

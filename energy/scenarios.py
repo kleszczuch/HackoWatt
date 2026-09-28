@@ -48,9 +48,13 @@ SCENARIOS = {
     1: {
         "id": 1,
         "name": "Warszawa · Aleksandra",
-        "title": "Always on the Move (Singielka)",
+        "title_pl": "Zawsze w ruchu (singielka)",
+        "title_en": "Always on the Move (Single Woman)",
         "city": "Warszawa, Polska",
+        "city_en": "Warsaw, Poland",
         "city_short": "Warszawa",
+        "city_short_en": "Warsaw",
+        "name_en": "Warsaw · Aleksandra",
         "country_code": "PL",
         "flag_emoji": "🇵🇱",
         "flag_svg": FLAG_SVGS["PL"],
@@ -62,9 +66,13 @@ SCENARIOS = {
     2: {
         "id": 2,
         "name": "Katowice · Marek i Ania",
-        "title": "A Silesian Family Home (Praca zmianowa)",
+        "title_pl": "Śląski dom rodzinny (praca zmianowa)",
+        "title_en": "A Silesian Family Home (Shift Work)",
         "city": "Katowice, Polska",
+        "city_en": "Katowice, Poland",
         "city_short": "Katowice",
+        "city_short_en": "Katowice",
+        "name_en": "Katowice · Marek and Ania",
         "country_code": "PL",
         "flag_emoji": "🇵🇱",
         "flag_svg": FLAG_SVGS["PL"],
@@ -76,9 +84,13 @@ SCENARIOS = {
     3: {
         "id": 3,
         "name": "Barcelona · Anna i Robert",
-        "title": "Luxury Under Control (Sauna, Basen, EV)",
+        "title_pl": "Luksus pod kontrolą (sauna, basen, auto elektryczne)",
+        "title_en": "Luxury Under Control (Sauna, Pool, EV)",
         "city": "Barcelona, Hiszpania",
+        "city_en": "Barcelona, Spain",
         "city_short": "Barcelona",
+        "city_short_en": "Barcelona",
+        "name_en": "Barcelona · Anna and Robert",
         "country_code": "ES",
         "flag_emoji": "🇪🇸",
         "flag_svg": FLAG_SVGS["ES"],
@@ -90,9 +102,13 @@ SCENARIOS = {
     4: {
         "id": 4,
         "name": "Kopenhaga · Dom Pokoleń",
-        "title": "A House Full of Generations (3 pokolenia)",
+        "title_pl": "Dom pełen pokoleń (trzy pokolenia)",
+        "title_en": "A House Full of Generations (Three Generations)",
         "city": "Kopenhaga, Dania",
+        "city_en": "Copenhagen, Denmark",
         "city_short": "Kopenhaga",
+        "city_short_en": "Copenhagen",
+        "name_en": "Copenhagen · Multigenerational Home",
         "country_code": "DK",
         "flag_emoji": "🇩🇰",
         "flag_svg": FLAG_SVGS["DK"],
@@ -104,9 +120,13 @@ SCENARIOS = {
     5: {
         "id": 5,
         "name": "Lizbona · Ola i Tomek",
-        "title": "Home Alone – But Not Really (Z psem)",
+        "title_pl": "Nigdy sami w domu (z psem)",
+        "title_en": "Never Home Alone (With a Dog)",
         "city": "Lizbona, Portugalia",
+        "city_en": "Lisbon, Portugal",
         "city_short": "Lizbona",
+        "city_short_en": "Lisbon",
+        "name_en": "Lisbon · Ola and Tomek",
         "country_code": "PT",
         "flag_emoji": "🇵🇹",
         "flag_svg": FLAG_SVGS["PT"],
@@ -116,6 +136,17 @@ SCENARIOS = {
         "folder": "scenario_5",
     },
 }
+
+
+def localized_scenario(scenario: dict, lang: str) -> dict:
+    """Return display labels without changing the source scenario definition."""
+    result = scenario.copy()
+    result["title"] = scenario[f"title_{lang}"]
+    if lang == "en":
+        result["name"] = scenario["name_en"]
+        result["city"] = scenario["city_en"]
+        result["city_short"] = scenario["city_short_en"]
+    return result
 
 
 def get_active_scenario(request):

@@ -8,10 +8,6 @@
       <h1>{% if is_en %}Energy in a home <span>{{ active_scenario.title }}</span>{% else %}Energia w domu <span>{{ active_scenario.name }}</span>{% endif %}</h1>
       <p>{% if is_en %}Energy use simulated with real weather data and an XGBoost forecast · demo data, not meter readings{% else %}Symulacja zużycia na realnej pogodzie i prognoza XGBoost · dane demonstracyjne, nie odczyty licznika{% endif %}</p>
     </div>
-    <div class="dashboard-actions">
-      <a class="button secondary" href="{% url 'hourly_history' %}?dni={{ simulation_days }}">{% if is_en %}Explore hourly data →{% else %}Przegląd godzinowy →{% endif %}</a>
-      <a class="button primary" href="{% url 'pv_simulator' %}">{% if is_en %}What could rooftop solar deliver? →{% else %}Ile da dach z panelami? →{% endif %}</a>
-    </div>
   </header>
 
   <div class="dashboard-controls" aria-label="{% if is_en %}Data ranges{% else %}Zakresy danych{% endif %}">
@@ -32,7 +28,7 @@
   <section class="dashboard-kpis" aria-label="{% if is_en %}Key figures{% else %}Najważniejsze dane{% endif %}">
     <article class="dashboard-kpi"><span>{% if is_en %}Simulation · {{ selected_count }} h{% else %}Symulacja · {{ selected_count }} h{% endif %}</span><strong>{{ selected_total|floatformat:1 }} <small>kWh</small></strong><p>{{ start }} – {{ end }}</p></article>
     <article class="dashboard-kpi forecast-kpi"><span>{% if is_en %}Forecast · {{ horizon_hours }} h{% else %}Prognoza · {{ horizon_hours }} h{% endif %}</span><strong>{{ forecast_total|floatformat:1 }} <small>kWh</small></strong><p>{% if is_en %}Expected consumption{% else %}Oczekiwane zużycie{% endif %}</p></article>
-    <article class="dashboard-kpi"><span>{% if is_en %}Model error · MAE{% else %}Błąd modelu · MAE{% endif %}</span><strong>{{ metrics.mae_model|floatformat:3 }} <small>kWh</small></strong><p>Baseline: {{ metrics.mae_baseline|floatformat:3 }} kWh · MAPE {{ metrics.mape_model|floatformat:1 }}%</p></article>
+    <article class="dashboard-kpi"><span>{% if is_en %}Model error · MAE{% else %}Błąd modelu · MAE{% endif %}</span><strong>{{ metrics.mae_model|floatformat:3 }} <small>kWh</small></strong><p>{% if is_en %}Reference forecast{% else %}Prognoza odniesienia{% endif %}: {{ metrics.mae_baseline|floatformat:3 }} kWh · MAPE {{ metrics.mape_model|floatformat:1 }}%</p></article>
   </section>
 
   <div class="dashboard-charts">
@@ -52,8 +48,8 @@
   </section>
 
   <details class="panel backtest-details" id="backtest-details">
-    <summary>{% if is_en %}Model versus baseline on the final week of history <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · view chart</span>{% else %}Model kontra baseline na końcu historii <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · zobacz wykres</span>{% endif %}</summary>
-    <p>{% if is_en %}Final 7 days of history · forecast made without seeing actual demand. Model MAPE: {{ metrics.mape_model|floatformat:1 }}%, baseline {{ metrics.mape_baseline|floatformat:1 }}%.{% else %}Ostatnie 7 dni historii · prognoza „na ślepo”. MAPE modelu {{ metrics.mape_model|floatformat:1 }}%, baseline'u {{ metrics.mape_baseline|floatformat:1 }}%.{% endif %}</p>
+    <summary>{% if is_en %}Model versus reference forecast on the final week of history <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · view chart</span>{% else %}Model i prognoza odniesienia na końcu historii <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · zobacz wykres</span>{% endif %}</summary>
+    <p>{% if is_en %}Final 7 days of simulated history · forecast made without seeing the simulated demand. Model MAPE: {{ metrics.mape_model|floatformat:1 }}%, reference forecast {{ metrics.mape_baseline|floatformat:1 }}%.{% else %}Ostatnie 7 dni symulowanej historii · prognoza „na ślepo”. MAPE modelu {{ metrics.mape_model|floatformat:1 }}%, prognozy odniesienia {{ metrics.mape_baseline|floatformat:1 }}%.{% endif %}</p>
     <div class="plot">{{ backtest_chart|safe }}</div>
   </details>
   <script>

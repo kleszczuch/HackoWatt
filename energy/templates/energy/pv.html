@@ -19,20 +19,47 @@
   <p>{% if is_en %}<strong>These figures are estimates.</strong> Annual consumption comes from the same generator as the 35-day history, run against 12 months of observed weather. PV costs €1,300/kWp, exported electricity earns €0.08/kWh, and annual PV operating costs are 1%. Battery cost comes from the price entered below.{% else %}<strong>To są szacunki.</strong> Roczne zużycie pochodzi z tego samego generatora co 35-dniowa historia, uruchomionego na 12 miesiącach realnej pogody. Koszt PV 1300 €/kWp, eksport 0,08 €/kWh, koszt operacyjny PV 1% rocznie. Cena magazynu pochodzi z wartości podanej w formularzu.{% endif %}</p>
 </section>
 
-<section class="panel filter-panel" aria-labelledby="pv-form-heading">
-  <div class="section-heading compact">
+<details class="panel filter-panel collapsible-panel" aria-labelledby="pv-form-heading" {% if not form.is_valid %}open{% endif %}>
+  <summary class="section-heading compact">
     <div>
-      <p class="eyebrow">{% if is_en %}CHOOSE A SCENARIO{% else %}WYBIERZ WARIANT{% endif %}</p>
+      <p class="eyebrow">{% if is_en %}CHOOSE PV SETTINGS{% else %}WYBIERZ USTAWIENIA PV{% endif %}</p>
       <h2 id="pv-form-heading">{% if is_en %}PV capacity and chart month{% else %}Moc instalacji i miesiąc wykresu{% endif %}</h2>
     </div>
-  </div>
+  </summary>
   <form class="filter-form" method="get" action="{% url 'pv_simulator' %}">
-    <div class="field"><label for="{{ form.kwp.id_for_label }}">{% if is_en %}Capacity [kWp] · 1–150{% else %}Moc [kWp] · 1–150{% endif %}</label>{{ form.kwp }}</div>
+    <div class="field"><label for="{{ form.kwp.id_for_label }}">{% if is_en %}Capacity [kWp] · 1–150{% else %}Moc [kWp] · 1–150{% endif %}</label>{{ form.kwp }}
+      <div class="suggestions" data-target="{{ form.kwp.id_for_label }}">
+        <button type="button" class="suggestion-chip" data-value="25">25</button>
+        <button type="button" class="suggestion-chip" data-value="50">50</button>
+        <button type="button" class="suggestion-chip" data-value="75">75</button>
+        <button type="button" class="suggestion-chip" data-value="100">100</button>
+        <button type="button" class="suggestion-chip" data-value="125">125</button>
+        <button type="button" class="suggestion-chip" data-value="150">150</button>
+      </div>
+    </div>
     <div class="field"><label for="{{ form.miesiac.id_for_label }}">{% if is_en %}Chart month{% else %}Miesiąc wykresu{% endif %}</label>{{ form.miesiac }}</div>
     <fieldset class="pv-storage-fields">
       <legend>{% if is_en %}Battery storage · optional{% else %}Magazyn energii · opcjonalnie{% endif %}</legend>
-      <div class="field"><label for="{{ form.magazyn_kwh.id_for_label }}">{% if is_en %}Capacity [kWh] · up to 5,000{% else %}Pojemność [kWh] · do 5000{% endif %}</label>{{ form.magazyn_kwh }}</div>
-      <div class="field"><label for="{{ form.magazyn_moc_kw.id_for_label }}">{% if is_en %}Power [kW] · up to 150{% else %}Moc [kW] · do 150{% endif %}</label>{{ form.magazyn_moc_kw }}</div>
+      <div class="field"><label for="{{ form.magazyn_kwh.id_for_label }}">{% if is_en %}Capacity [kWh] · up to 5,000{% else %}Pojemność [kWh] · do 5000{% endif %}</label>{{ form.magazyn_kwh }}
+        <div class="suggestions" data-target="{{ form.magazyn_kwh.id_for_label }}">
+          <button type="button" class="suggestion-chip" data-value="5">5</button>
+          <button type="button" class="suggestion-chip" data-value="10">10</button>
+          <button type="button" class="suggestion-chip" data-value="20">20</button>
+          <button type="button" class="suggestion-chip" data-value="50">50</button>
+          <button type="button" class="suggestion-chip" data-value="100">100</button>
+          <button type="button" class="suggestion-chip" data-value="500">500</button>
+        </div>
+      </div>
+      <div class="field"><label for="{{ form.magazyn_moc_kw.id_for_label }}">{% if is_en %}Power [kW] · up to 150{% else %}Moc [kW] · do 150{% endif %}</label>{{ form.magazyn_moc_kw }}
+        <div class="suggestions" data-target="{{ form.magazyn_moc_kw.id_for_label }}">
+          <button type="button" class="suggestion-chip" data-value="3">3</button>
+          <button type="button" class="suggestion-chip" data-value="5">5</button>
+          <button type="button" class="suggestion-chip" data-value="10">10</button>
+          <button type="button" class="suggestion-chip" data-value="25">25</button>
+          <button type="button" class="suggestion-chip" data-value="50">50</button>
+          <button type="button" class="suggestion-chip" data-value="100">100</button>
+        </div>
+      </div>
       <div class="field"><label for="{{ form.magazyn_koszt_eur.id_for_label }}">{% if is_en %}Purchase price [€]{% else %}Cena zakupu [€]{% endif %}</label>{{ form.magazyn_koszt_eur }}</div>
       <p>{% if is_en %}Enter 0 kWh and €0 for no battery. Round-trip efficiency is 90%; the battery charges only from surplus solar power. The 100% coverage search varies PV capacity using the battery settings entered here. Large systems are theoretical scenarios; this calculator does not check roof space or quoted prices.{% else %}0 kWh i 0 € oznacza brak magazynu. Sprawność obiegu: 90%; magazyn ładuje się tylko z nadwyżki PV. Dobór do 100% zmienia moc PV przy podanych parametrach magazynu. Duże instalacje są scenariuszem teoretycznym; kalkulator nie sprawdza powierzchni dachu ani cen ofertowych.{% endif %}</p>
     </fieldset>
@@ -41,25 +68,25 @@
     <button class="button secondary" type="submit" name="cel" value="payback">{% if is_en %}Shortest payback (B){% else %}Najkrótszy zwrot (B){% endif %}</button>
   </form>
   {% if form.errors %}<div class="form-errors" role="alert">{{ form.kwp.errors }}{{ form.miesiac.errors }}{{ form.magazyn_kwh.errors }}{{ form.magazyn_moc_kw.errors }}{{ form.magazyn_koszt_eur.errors }}</div>{% endif %}
-</section>
+</details>
 
 {% if form.is_valid %}
 {% if auto_goal %}
 <section class="panel pv-auto-result" role="status" aria-label="{% if is_en %}Automatic sizing result{% else %}Wynik automatycznego doboru{% endif %}">
   {% if auto_goal == "coverage" %}
     {% if capacity_choice.target_met %}
-      <strong>{% if is_en %}100% coverage under scenario B at {{ kwp }} kWp.{% else %}100% pokrycia w wariancie B przy {{ kwp }} kWp.{% endif %}</strong>
+      <strong>{% if is_en %}100% coverage under variant B at {{ kwp }} kWp.{% else %}100% pokrycia w wariancie B przy {{ kwp }} kWp.{% endif %}</strong>
       <span>{% if is_en %}This is the smallest capacity that meets the target between 1 and 150 kWp, in 0.1 kWp steps, with the selected battery. The 100% result applies to this model year and is not a guarantee for every year.{% else %}To najmniejsza moc osiągająca cel w zakresie 1–150 kWp co 0,1 kWp przy wskazanym magazynie. 100% dotyczy tego roku modelowego, nie gwarancji na każdy rok.{% endif %}</span>
     {% else %}
       <strong>{% if is_en %}100% coverage is not achievable with the selected battery.{% else %}100% pokrycia nie jest osiągalne przy wskazanym magazynie.{% endif %}</strong>
-      <span>{% if is_en %}The highest coverage under scenario B is {{ selected.coverage_b|floatformat:1 }}% at {{ kwp }} kWp; remaining grid purchases: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/year. {% if annual_energy_shortfall %}Even at {{ max_kwp }} kWp, annual PV output ({{ max_production_kwh|floatformat:0 }} kWh) is lower than household consumption ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Annual output is sufficient, but the selected battery capacity or power cannot cover hours and seasons with little sunlight. Increase its capacity or power and calculate again.{% else %}Annual output is sufficient, but without a battery the household still buys electricity outside solar production hours. Enter a battery capacity, power and price, then calculate again.{% endif %}{% else %}Najwyższe pokrycie w wariancie B to {{ selected.coverage_b|floatformat:1 }}% przy {{ kwp }} kWp; pozostały zakup z sieci: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/rok. {% if annual_energy_shortfall %}Nawet przy {{ max_kwp }} kWp roczna produkcja PV ({{ max_production_kwh|floatformat:0 }} kWh) jest mniejsza od zużycia budynku ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Produkcja roczna wystarcza, lecz wskazana pojemność lub moc magazynu nie pokrywa godzin i sezonów o słabym słońcu. Zwiększ magazyn albo jego moc i przelicz ponownie.{% else %}Produkcja roczna wystarcza, lecz bez magazynu dom nadal pobiera prąd poza godzinami produkcji. Dodaj pojemność, moc i cenę magazynu, a następnie przelicz ponownie.{% endif %}{% endif %}</span>
+      <span>{% if is_en %}The highest coverage under variant B is {{ selected.coverage_b|floatformat:1 }}% at {{ kwp }} kWp; remaining grid purchases: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/year. {% if annual_energy_shortfall %}Even at {{ max_kwp }} kWp, annual PV output ({{ max_production_kwh|floatformat:0 }} kWh) is lower than household consumption ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Annual output is sufficient, but the selected battery capacity or power cannot cover hours and seasons with little sunlight. Increase its capacity or power and calculate again.{% else %}Annual output is sufficient, but without a battery the household still buys electricity outside solar production hours. Enter a battery capacity, power and price, then calculate again.{% endif %}{% else %}Najwyższe pokrycie w wariancie B to {{ selected.coverage_b|floatformat:1 }}% przy {{ kwp }} kWp; pozostały zakup z sieci: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/rok. {% if annual_energy_shortfall %}Nawet przy {{ max_kwp }} kWp roczna produkcja PV ({{ max_production_kwh|floatformat:0 }} kWh) jest mniejsza od zużycia budynku ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Produkcja roczna wystarcza, lecz wskazana pojemność lub moc magazynu nie pokrywa godzin i sezonów o słabym słońcu. Zwiększ magazyn albo jego moc i przelicz ponownie.{% else %}Produkcja roczna wystarcza, lecz bez magazynu dom nadal pobiera prąd poza godzinami produkcji. Dodaj pojemność, moc i cenę magazynu, a następnie przelicz ponownie.{% endif %}{% endif %}</span>
     {% endif %}
   {% elif capacity_choice.kwp %}
-    <strong>{% if is_en %}Shortest payback under scenario B: {{ selected.variant_b.payback_years|floatformat:1 }} years at {{ kwp }} kWp.{% else %}Najkrótszy zwrot wariantu B: {{ selected.variant_b.payback_years|floatformat:1 }} lat przy {{ kwp }} kWp.{% endif %}</strong>
+    <strong>{% if is_en %}Shortest payback under variant B: {{ selected.variant_b.payback_years|floatformat:1 }} years at {{ kwp }} kWp.{% else %}Najkrótszy zwrot wariantu B: {{ selected.variant_b.payback_years|floatformat:1 }} lat przy {{ kwp }} kWp.{% endif %}</strong>
     <span>{% if is_en %}Capacities from 1 to 15 kWp were compared in 0.1 kWp steps; ties favor the smaller system.{% else %}Porównano moce 1–15 kWp co 0,1 kWp; przy takim samym zwrocie wybrano mniejszą instalację.{% endif %}</span>
   {% else %}
     <strong>{% if is_en %}No positive payback between 1 and 15 kWp.{% else %}Brak dodatniego zwrotu w zakresie 1–15 kWp.{% endif %}</strong>
-    <span>{% if is_en %}With these inputs, none of the tested capacities generates positive annual net savings under scenario B.{% else %}Przy tych danych żadna badana moc nie daje dodatnich rocznych oszczędności netto w wariancie B.{% endif %}</span>
+    <span>{% if is_en %}With these inputs, none of the tested capacities generates positive annual net savings under variant B.{% else %}Przy tych danych żadna badana moc nie daje dodatnich rocznych oszczędności netto w wariancie B.{% endif %}</span>
   {% endif %}
 </section>
 {% endif %}
@@ -90,21 +117,21 @@
   <div><span>{% if is_en %}Average daily household use{% else %}Średnie dzienne zużycie budynku{% endif %}</span><strong>{{ daily_average_kwh|floatformat:1 }} kWh</strong><small>{% if is_en %}from {{ consumption_kwh|floatformat:0 }} kWh in the model year{% else %}z {{ consumption_kwh|floatformat:0 }} kWh w roku modelowym{% endif %}</small></div>
   {% if battery_enabled %}
   <div><span>{% if is_en %}Battery · capacity and power{% else %}Magazyn · pojemność i moc{% endif %}</span><strong>{{ storage.capacity_kwh }} kWh · {{ storage.power_kw }} kW</strong><small>{% if is_en %}purchase price {{ storage.cost_eur|floatformat:0 }} € included in the investment{% else %}zakup {{ storage.cost_eur|floatformat:0 }} € w inwestycji{% endif %}</small></div>
-  <div><span>{% if is_en %}Energy delivered by battery{% else %}Energia oddana z magazynu{% endif %}</span><strong>{{ selected.variant_b.battery_delivered_kwh|floatformat:0 }} kWh/{% if is_en %}year{% else %}rok{% endif %}</strong><small>{% if is_en %}scenario B · after 10% losses{% else %}wariant B · po stratach 10%{% endif %}</small></div>
+  <div><span>{% if is_en %}Energy delivered by battery{% else %}Energia oddana z magazynu{% endif %}</span><strong>{{ selected.variant_b.battery_delivered_kwh|floatformat:0 }} kWh/{% if is_en %}year{% else %}rok{% endif %}</strong><small>{% if is_en %}variant B · after 10% losses{% else %}wariant B · po stratach 10%{% endif %}</small></div>
   {% else %}
   <div><span>{% if is_en %}Battery storage{% else %}Magazyn energii{% endif %}</span><strong>{% if is_en %}No battery{% else %}Bez magazynu{% endif %}</strong><small>{% if is_en %}Enter a capacity and purchase price to compare.{% else %}Wpisz pojemność i cenę zakupu, aby porównać.{% endif %}</small></div>
   {% endif %}
   <div><span>{% if is_en %}Remaining grid purchases · B{% else %}Pozostały zakup z sieci · B{% endif %}</span><strong>{{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/{% if is_en %}year{% else %}rok{% endif %}</strong><small>{% if is_en %}100% coverage requires 0 kWh bought from the grid{% else %}100% pokrycia wymaga 0 kWh zakupu{% endif %}</small></div>
 </section>
 
-<section class="panel table-panel" aria-labelledby="variants-heading">
-  <div class="section-heading">
+<details class="panel table-panel collapsible-panel" aria-labelledby="variants-heading">
+  <summary class="section-heading">
     <div>
       <p class="eyebrow">{% if is_en %}CAPACITY COMPARISON{% else %}PORÓWNANIE MOCY{% endif %}</p>
       <h2 id="variants-heading">{% if is_en %}PV system options{% else %}Warianty instalacji{% endif %}</h2>
     </div>
     <span class="muted">{% if is_en %}A: current schedule · B: shifted appliances{% if battery_enabled %} · battery {{ storage.capacity_kwh }} kWh{% endif %}{% else %}A: obecne nawyki · B: po przesunięciu urządzeń{% if battery_enabled %} · magazyn {{ storage.capacity_kwh }} kWh{% endif %}{% endif %}</span>
-  </div>
+  </summary>
   <div class="table-scroll">
     <table>
       <thead>
@@ -134,7 +161,7 @@
       </tbody>
     </table>
   </div>
-</section>
+</details>
 
 <section class="panel chart-panel" aria-labelledby="week-heading">
   <div class="section-heading">
@@ -147,14 +174,14 @@
   <div class="plot">{{ pv_chart|safe }}</div>
 </section>
 
-<section class="panel table-panel" aria-labelledby="daily-heading">
-  <div class="section-heading">
+<details class="panel table-panel collapsible-panel" aria-labelledby="daily-heading">
+  <summary class="section-heading">
     <div>
       <p class="eyebrow">{% if is_en %}DAILY BALANCE{% else %}BILANS DZIENNY{% endif %}</p>
       <h2 id="daily-heading">{% if is_en %}Household use in the selected week{% else %}Zużycie budynku w wybranym tygodniu{% endif %}</h2>
     </div>
     <span class="muted">{% if is_en %}Hourly totals for each day · kWh{% else %}Suma godzin każdego dnia · kWh{% endif %}</span>
-  </div>
+  </summary>
   <div class="table-scroll">
     <table>
       <thead>
@@ -179,16 +206,16 @@
       </tbody>
     </table>
   </div>
-</section>
+</details>
 
-<section class="panel chart-panel" aria-labelledby="reco-heading">
-  <div class="section-heading">
+<details class="panel chart-panel collapsible-panel" aria-labelledby="reco-heading">
+  <summary class="section-heading">
     <div>
       <p class="eyebrow">{% if is_en %}APPLIANCE CALCULATIONS{% else %}OBLICZENIE DLA URZĄDZEŃ{% endif %}</p>
       <h2 id="reco-heading">{% if is_en %}Effect of shifting appliance use{% else %}Efekt zmiany godziny pracy{% endif %}</h2>
     </div>
     <span class="muted">{% if is_en %}Annual result for {{ kwp }} kWp and the selected battery{% else %}Roczny wynik dla {{ kwp }} kWp i wskazanego magazynu{% endif %}</span>
-  </div>
+  </summary>
   <div class="device-results">
     {% for effect in effects %}
     <article class="device-result">
@@ -205,7 +232,19 @@
     {% endfor %}
   </div>
   <p class="device-note">{% if is_en %}Each appliance is compared separately with scenario A. The target hour has the highest solar irradiance between 9:00 and 15:00. A positive result means a benefit; shifting within this window may also reduce grid purchases.{% else %}Każde urządzenie porównano osobno z wariantem A. Godzina docelowa ma najwyższe promieniowanie w oknie 9:00–15:00. Dodatni wynik oznacza korzyść; zmiana w obrębie tego okna też może zmniejszyć zakup.{% endif %}</p>
-</section>
+</details>
 
 {% endif %}
+<script>
+  document.querySelectorAll('.suggestions').forEach(function (group) {
+    var input = document.getElementById(group.dataset.target);
+    if (!input) return;
+    group.querySelectorAll('.suggestion-chip').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        input.value = chip.dataset.value;
+        input.focus();
+      });
+    });
+  });
+</script>
 {% endblock %}
