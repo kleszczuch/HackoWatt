@@ -513,11 +513,11 @@ class ViewTests(SimpleTestCase):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Zużycie i temperatura")
-        self.assertContains(response, "Model kontra baseline")
+        self.assertContains(response, "Model i prognoza odniesienia")
         self.assertContains(response, "Szczyt:")
         self.assertContains(response, "0,123")
-        self.assertContains(response, "Przegląd godzinowy")
-        self.assertContains(response, "Ile da dach z panelami?")
+        self.assertNotContains(response, "Przegląd godzinowy")
+        self.assertNotContains(response, "Ile da dach z panelami?")
         self.assertNotContains(response, "Historia godzinowa")
         self.assertEqual(response.context["selected_count"], 7 * 24)
         self.assertEqual(response.context["selected_total"], Decimal(7 * 24))
@@ -525,10 +525,14 @@ class ViewTests(SimpleTestCase):
         response_en = self.client.get(reverse("dashboard"), HTTP_COOKIE="django_language=en")
         self.assertEqual(response_en.status_code, 200)
         self.assertContains(response_en, "Energy use and temperature")
-        self.assertContains(response_en, "Model versus baseline")
+        self.assertContains(response_en, "Model versus reference forecast")
+        self.assertContains(response_en, "COPENHAGEN, DENMARK")
+        self.assertContains(response_en, "A House Full of Generations (Three Generations)")
+        self.assertNotContains(response_en, "3 pokolenia")
+        self.assertContains(response_en, "0.123")
         self.assertContains(response_en, "Peak:")
-        self.assertContains(response_en, "Explore hourly data")
-        self.assertContains(response_en, "What could rooftop solar deliver?")
+        self.assertNotContains(response_en, "Explore hourly data")
+        self.assertNotContains(response_en, "What could rooftop solar deliver?")
 
     def test_charts_keep_hover_and_allow_horizontal_pan_without_wheel_zoom(self):
         records = load_history()[-24:]
@@ -659,6 +663,25 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(rows_en[0][-1], "Events")
         self.assertEqual(rows_en[1][1], "Simulation")
 
+    def test_hourly_history_has_collapsible_filters_and_table(self):
+        response = self.client.get(
+            reverse("hourly_history"), {"start": "2026-09-20", "end": "2026-09-21"}
+        )
+        self.assertContains(
+            response,
+            '<details class="panel filter-panel collapsible-panel" '
+            'aria-labelledby="filter-heading" >',
+        )
+        self.assertContains(
+            response,
+            '<details class="panel table-panel collapsible-panel" aria-labelledby="table-heading">',
+        )
+
+        invalid = self.client.get(
+            reverse("hourly_history"), {"start": "2026-09-21", "end": "2026-09-20"}
+        )
+        self.assertContains(invalid, 'aria-labelledby="filter-heading" open>')
+
     def test_polish_demo_labels_are_translated_for_presentation(self):
         self.assertEqual(device_name("Zmywarka", lang="en"), "Dishwasher")
         self.assertEqual(device_name("Zmywarka", lang="pl"), "Zmywarka")
@@ -670,6 +693,59 @@ class ViewTests(SimpleTestCase):
             event_names("goście; pralka; praca zdalna", lang="pl"),
             "goście; pralka; praca zdalna",
         )
+        self.assertEqual(
+            event_names(
+                "tryb opieki nad psem; wyjazd / nieobecność; pompa basenu; sauna; ładowanie EV",
+                lang="en",
+            ),
+            "dog care routine; trip / absence; pool pump; sauna; EV charging",
+        )
+
+    def test_chart_dates_and_decimals_follow_language(self):
+        records = load_history()[-24:]
+        weather_rows = load_weather_history()[-24:]
+        chart_pl = build_overview_chart(records, weather_rows, lang="pl")
+        chart_en = build_overview_chart(records, weather_rows, lang="en")
+        self.assertEqual(chart_pl.layout.separators, ", ")
+        self.assertEqual(chart_pl.layout.xaxis.hoverformat, "%d.%m.%Y %H:%M")
+        self.assertEqual(chart_en.layout.separators, ".,")
+        self.assertIsNone(chart_en.layout.xaxis.tickformat)
+
+    def test_new_events_are_english_in_table_chart_and_csv(self):
+        history_path = self.data_dir / household.HISTORY_FILENAME
+        with history_path.open(encoding="utf-8", newline="") as source:
+            rows = list(csv.reader(source))
+        rows[1][-1] = "pompa basenu; ładowanie EV"
+        with history_path.open("w", encoding="utf-8", newline="") as output:
+            csv.writer(output).writerows(rows)
+
+        response = self.client.get(
+            reverse("hourly_history"),
+            {"start": "2026-09-15", "end": "2026-09-15"},
+            HTTP_COOKIE="django_language=en",
+        )
+        self.assertContains(response, "pool pump; EV charging")
+        chart = build_history_chart(load_history()[:24], load_weather_history()[:24], lang="en")
+        event_trace = next(trace for trace in chart.data if trace.name == "Events")
+        self.assertIn("pool pump; EV charging", event_trace.text)
+
+        export = self.client.get(
+            reverse("export_csv"),
+            {"start": "2026-09-15", "end": "2026-09-15"},
+            HTTP_COOKIE="django_language=en",
+        )
+        csv_rows = list(csv.reader(io.StringIO(export.content.decode("utf-8-sig"))))
+        self.assertEqual(csv_rows[1][-1], "pool pump; EV charging")
+
+    def test_builtin_form_errors_follow_selected_language(self):
+        params = {"kwp": "bad"}
+        response_en = self.client.get(
+            reverse("pv_simulator"), params, HTTP_COOKIE="django_language=en"
+        )
+        self.assertContains(response_en, "Enter a number.")
+        self.assertNotContains(response_en, "Wpisz liczbę.")
+        response_pl = self.client.get(reverse("pv_simulator"), params)
+        self.assertContains(response_pl, "Wpisz liczbę.")
 
     def test_hourly_history_uses_exact_rolling_period_from_dashboard(self):
         response = self.client.get(reverse("hourly_history"), {"dni": "3", "page": 2})
@@ -703,6 +779,38 @@ class ViewTests(SimpleTestCase):
         self.assertContains(response_en, "Effect of shifting appliance use")
         self.assertContains(response_en, "Find 100% coverage")
         self.assertContains(response_en, "Shortest payback (B)")
+
+    def test_pv_form_has_suggestion_chips_and_collapsible_sections(self):
+        response = self.client.get(reverse("pv_simulator"))
+        self.assertContains(response, 'data-target="id_kwp"')
+        self.assertContains(response, 'class="suggestion-chip" data-value="25"')
+        self.assertContains(response, 'class="suggestion-chip" data-value="150"')
+        self.assertContains(response, 'data-target="id_magazyn_kwh"')
+        self.assertContains(response, 'class="suggestion-chip" data-value="500"')
+        self.assertContains(response, 'data-target="id_magazyn_moc_kw"')
+        self.assertNotContains(response, 'data-target="id_magazyn_koszt_eur"')
+
+        self.assertContains(
+            response,
+            '<details class="panel filter-panel collapsible-panel" '
+            'aria-labelledby="pv-form-heading" >',
+        )
+        self.assertContains(
+            response,
+            '<details class="panel table-panel collapsible-panel" '
+            'aria-labelledby="variants-heading">',
+        )
+        self.assertContains(
+            response,
+            '<details class="panel table-panel collapsible-panel" aria-labelledby="daily-heading">',
+        )
+        self.assertContains(
+            response,
+            '<details class="panel chart-panel collapsible-panel" aria-labelledby="reco-heading">',
+        )
+
+        invalid = self.client.get(reverse("pv_simulator"), {"kwp": "bad"})
+        self.assertContains(invalid, 'aria-labelledby="pv-form-heading" open>')
 
     def test_pv_auto_choices_show_result_and_preserve_manual_mode(self):
         coverage = self.client.get(reverse("pv_simulator"), {"cel": "coverage", "miesiac": "6"})
@@ -800,7 +908,7 @@ class ViewTests(SimpleTestCase):
         res_en = self.client.get(reverse("dashboard"), HTTP_COOKIE="django_language=en")
         self.assertContains(res_en, '<html lang="en">')
         self.assertContains(res_en, "Dashboard")
-        self.assertContains(res_en, "Explore hourly data")
+        self.assertContains(res_en, "Hourly data →")
 
         # Switch back to Polish
         res_switch_pl = self.client.get(
@@ -851,6 +959,49 @@ class ApiTests(TestCase):
         self.assertEqual(data["highest_tariff_hours"], list(range(17, 22)))
         self.assertEqual(len(data["timeline"]), 24)
         self.assertNotIn("recommended_action", data["timeline"][0])
+
+    def test_api_descriptions_follow_explicit_language(self):
+        summary = self.client.get(reverse("api_dashboard_summary"), {"lang": "en"})
+        self.assertEqual(summary.status_code, 200)
+        payload = summary.json()["data"]
+        self.assertIn(
+            payload["tariff"]["period_label"],
+            {
+                "Afternoon peak (expensive)",
+                "Night valley (very cheap)",
+                "Day rate (PV window)",
+                "Standard day rate",
+            },
+        )
+        self.assertEqual(payload["last_reading"]["dominant_category"]["label"], "Base load")
+
+        via_header = self.client.get(
+            reverse("api_tariffs_info"), HTTP_ACCEPT_LANGUAGE="en-US,en;q=0.9"
+        )
+        self.assertEqual(via_header.status_code, 200)
+        self.assertEqual(
+            via_header.json()["data"]["periods"][0]["label"], "Night valley (lowest rate)"
+        )
+
+        invalid = self.client.get(
+            reverse("api_consumption_forecast"), {"horizon": "50", "lang": "en"}
+        )
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("Invalid forecast horizon", invalid.json()["error"]["message"])
+
+        devices = self.client.get(reverse("api_devices_guidance"), {"lang": "en"})
+        self.assertEqual(devices.json()["data"]["devices"][0]["device"], "Dishwasher")
+
+        pv_result = self.client.get(reverse("api_pv_simulate"), {"lang": "en"})
+        self.assertEqual(pv_result.json()["data"]["variant_a"]["name"], "Current routine")
+
+        assumptions = self.client.get(reverse("api_system_assumptions"), {"lang": "en"})
+        self.assertEqual(assumptions.json()["data"]["location"], "Copenhagen, Denmark")
+
+        shifted = self.client.get(
+            reverse("api_shift_simulation"), {"device": "Pralka", "lang": "en"}
+        )
+        self.assertIn("Tariff cost per cycle", shifted.json()["data"]["recommendation"])
 
     def test_devices_guidance_endpoint(self):
         res = self.client.get(reverse("api_devices_guidance"))

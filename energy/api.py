@@ -20,9 +20,15 @@ from django.views.decorators.http import require_http_methods
 from dotenv import load_dotenv
 
 from energy import data, household, pv, tariffs
-from energy.charts import CATEGORY_LABELS
+from energy.charts import CATEGORY_LABELS_EN, CATEGORY_LABELS_PL
 from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm
+from energy.language import selected_language
+from energy.presentation import device_name, event_names
+
+
+def _tr(request: HttpRequest, pl: str, en: str) -> str:
+    return en if selected_language(request) == "en" else pl
 
 
 def api_success(data_payload: Any, status: int = 200) -> JsonResponse:
@@ -70,8 +76,13 @@ def require_api_secret(view_func):
     def _wrapped_view(request: HttpRequest, *args, **kwargs):
         if not check_api_secret(request):
             return api_error(
-                "Wymagana autoryzacja za pomocą tokenu Bearer "
-                "(nagłówek: Authorization: Bearer <token>).",
+                _tr(
+                    request,
+                    "Wymagana autoryzacja za pomocą tokenu Bearer "
+                    "(nagłówek: Authorization: Bearer <token>).",
+                    "Bearer token authorization is required "
+                    "(header: Authorization: Bearer <token>).",
+                ),
                 code="UNAUTHORIZED",
                 status=401,
             )
@@ -87,9 +98,13 @@ def handle_data_errors(view_func):
     def _wrapped_view(request: HttpRequest, *args, **kwargs):
         try:
             return view_func(request, *args, **kwargs)
-        except (FileNotFoundError, data.DemoDataError) as exc:
+        except FileNotFoundError, data.DemoDataError:
             return api_error(
-                f"Błąd danych demonstracyjnych: {exc}",
+                _tr(
+                    request,
+                    "Dane demonstracyjne są niedostępne lub niepoprawne.",
+                    "Demo data is unavailable or invalid.",
+                ),
                 code="DATA_NOT_FOUND",
                 status=503,
             )
@@ -112,10 +127,14 @@ def _parse_params(request: HttpRequest) -> tuple[dict, str | None]:
     try:
         data_dict = json.loads(request.body.decode("utf-8"))
         if not isinstance(data_dict, dict):
-            return {}, "Ciało żądania musi być obiektem JSON."
+            return {}, _tr(
+                request,
+                "Ciało żądania musi być obiektem JSON.",
+                "Request body must be a JSON object.",
+            )
         return data_dict, None
-    except json.JSONDecodeError as exc:
-        return {}, f"Niepoprawny format JSON: {exc}"
+    except json.JSONDecodeError:
+        return {}, _tr(request, "Niepoprawny format JSON.", "Invalid JSON.")
 
 
 # ----------------------------------------------------------------------
@@ -140,10 +159,10 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
 
     def band(price: Decimal) -> tuple[str, str]:
         if price == low:
-            return "green", "Najniższa stawka"
+            return "green", _tr(request, "Najniższa stawka", "Lowest rate")
         if price == high:
-            return "red", "Najwyższa stawka"
-        return "yellow", "Stawka pośrednia"
+            return "red", _tr(request, "Najwyższa stawka", "Highest rate")
+        return "yellow", _tr(request, "Stawka pośrednia", "Intermediate rate")
 
     current_code, current_title = band(prices[now_hour])
     timeline = [
@@ -197,16 +216,25 @@ def devices_guidance(request: HttpRequest) -> JsonResponse:
         )
         devices.append(
             {
-                "device": display_name,
+                "device": _tr(
+                    request,
+                    display_name,
+                    "Tumble dryer" if device == "Suszarka" else device_name(device, lang="en"),
+                ),
                 "annual_events": len(selected),
                 "annual_energy_kwh": _to_float(total),
                 "energy_per_cycle_kwh": _to_float(total / len(selected)) if selected else None,
                 "energy_started_outside_pv_window_kwh": _to_float(outside),
             }
         )
-    for label, index in (("Komputery i RTV", 4), ("Gotowanie", 3)):
+    for label, label_en, index in (
+        ("Komputery i RTV", "Computers and TV", 4),
+        ("Gotowanie", "Cooking", 3),
+    ):
         total = sum((record.categories[index] for record in records), Decimal(0))
-        devices.append({"device": label, "annual_energy_kwh": _to_float(total)})
+        devices.append(
+            {"device": _tr(request, label, label_en), "annual_energy_kwh": _to_float(total)}
+        )
     return api_success({"devices": devices, "pv_window": "09:00–15:00"})
 
 
@@ -244,7 +272,7 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
     forecast_24h_sum = sum((r.total for r in forecast_24h), Decimal(0))
 
     # Wyjaśnienia szczytów
-    peaks = explain_peaks(forecast_24h, weather_24h, top=1)
+    peaks = explain_peaks(forecast_24h, weather_24h, top=1, lang=selected_language(request))
     next_peak = None
     if peaks:
         peak = peaks[0]
@@ -258,16 +286,16 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
     current_hour_idx = datetime.now().hour
     current_price = tariffs.price_for_hour(current_hour_idx)
     if current_price >= Decimal("0.40"):
-        period_label = "Szczyt popołudniowy (drogo)"
+        period_label = _tr(request, "Szczyt popołudniowy (drogo)", "Afternoon peak (expensive)")
         period_color = "red"
     elif current_price <= Decimal("0.18"):
-        period_label = "Dolina nocna (bardzo tanio)"
+        period_label = _tr(request, "Dolina nocna (bardzo tanio)", "Night valley (very cheap)")
         period_color = "green"
     elif 9 <= current_hour_idx < 15:
-        period_label = "Taryfa dzienna (okno modelu PV)"
+        period_label = _tr(request, "Taryfa dzienna (okno modelu PV)", "Day rate (PV window)")
         period_color = "green"
     else:
-        period_label = "Standardowa stawka dzienna"
+        period_label = _tr(request, "Standardowa stawka dzienna", "Standard day rate")
         period_color = "yellow"
 
     annual_records, annual_weather, annual_events = data.load_annual()
@@ -276,8 +304,11 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
     # Dominująca kategoria w ostatniej godzinie
     max_cat_idx = max(range(len(last_hour.categories)), key=lambda i: last_hour.categories[i])
     category_key = household.CATEGORIES[max_cat_idx]
+    category_labels = (
+        CATEGORY_LABELS_EN if selected_language(request) == "en" else CATEGORY_LABELS_PL
+    )
     category_label = (
-        CATEGORY_LABELS[max_cat_idx] if max_cat_idx < len(CATEGORY_LABELS) else category_key
+        category_labels[max_cat_idx] if max_cat_idx < len(category_labels) else category_key
     )
     dominant_category = {
         "key": category_key,
@@ -292,7 +323,7 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
                 "total_kwh": _to_float(last_hour.total),
                 "temperature_c": last_weather.temperature if last_weather else None,
                 "dominant_category": dominant_category,
-                "events": last_hour.events,
+                "events": event_names(last_hour.events, lang=selected_language(request)),
             },
             "tariff": {
                 "current_hour": current_hour_idx,
@@ -331,10 +362,10 @@ def consumption_history(request: HttpRequest) -> JsonResponse:
     end_param = request.GET.get("end")
 
     if start_param or end_param:
-        form = DateRangeForm(request.GET)
+        form = DateRangeForm(request.GET, lang=selected_language(request))
         if not form.is_valid():
             return api_error(
-                "Niepoprawny zakres dat.",
+                _tr(request, "Niepoprawny zakres dat.", "Invalid date range."),
                 code="INVALID_DATE_RANGE",
                 status=400,
                 details=form.errors.get_json_data(),
@@ -354,11 +385,30 @@ def consumption_history(request: HttpRequest) -> JsonResponse:
         page_num = int(page_param)
         page_size = int(page_size_param)
         if page_num < 1:
-            raise ValueError("Numer strony musi być większy lub równy 1.")
+            raise ValueError(
+                _tr(
+                    request,
+                    "Numer strony musi być większy lub równy 1.",
+                    "Page number must be at least 1.",
+                )
+            )
         if page_size < 1 or page_size > 168:
-            raise ValueError("Rozmiar strony 'page_size' musi wynosić od 1 do 168.")
+            raise ValueError(
+                _tr(
+                    request,
+                    "Rozmiar strony 'page_size' musi wynosić od 1 do 168.",
+                    "Page size must be between 1 and 168.",
+                )
+            )
     except (ValueError, TypeError) as exc:
-        return api_error(str(exc), code="INVALID_PAGINATION", status=400)
+        message = (
+            str(exc)
+            if str(exc).startswith(("Numer strony", "Page number", "Rozmiar strony", "Page size"))
+            else _tr(
+                request, "Niepoprawne parametry stronicowania.", "Invalid pagination parameters."
+            )
+        )
+        return api_error(message, code="INVALID_PAGINATION", status=400)
 
     paginator = Paginator(filtered_history, page_size)
     try:
@@ -384,7 +434,7 @@ def consumption_history(request: HttpRequest) -> JsonResponse:
                     name: _to_float(r.categories[i]) for i, name in enumerate(household.CATEGORIES)
                 },
                 "temperature_c": w.temperature if w else None,
-                "events": r.events,
+                "events": event_names(r.events, lang=selected_language(request)),
             }
         )
 
@@ -420,10 +470,14 @@ def consumption_history(request: HttpRequest) -> JsonResponse:
 def consumption_forecast(request: HttpRequest) -> JsonResponse:
     """Pobiera prognozę zużycia energii dla zadanego horyzontu (24, 72, 168 h)."""
     horizon_param = request.GET.get("horizon", request.GET.get("horyzont", "24"))
-    horizon_form = HorizonForm({"horyzont": horizon_param})
+    horizon_form = HorizonForm({"horyzont": horizon_param}, lang=selected_language(request))
     if not horizon_form.is_valid():
         return api_error(
-            "Niepoprawny horyzont prognozy. Dopuszczalne wartości to: 24, 72, 168.",
+            _tr(
+                request,
+                "Niepoprawny horyzont prognozy. Dopuszczalne wartości to: 24, 72, 168.",
+                "Invalid forecast horizon. Allowed values: 24, 72, 168.",
+            ),
             code="INVALID_HORIZON",
             status=400,
         )
@@ -445,7 +499,7 @@ def consumption_forecast(request: HttpRequest) -> JsonResponse:
     }
 
     # Wyjaśnienia szczytów
-    peaks = explain_peaks(forecast_slice, weather_slice, top=3)
+    peaks = explain_peaks(forecast_slice, weather_slice, top=3, lang=selected_language(request))
     peaks_payload = [
         {
             "timestamp": p.timestamp.isoformat(),
@@ -496,13 +550,15 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
     """Zwraca harmonogram taryfowy, strefy cenowe i aktualne stawki."""
     periods = []
     for start_h, end_h, price in tariffs.TARIFF_PERIODS:
-        label = "Standardowa dzienna"
+        label = _tr(request, "Standardowa dzienna", "Standard day rate")
         if price >= Decimal("0.40"):
-            label = "Szczyt popołudniowy (najdroższa)"
+            label = _tr(
+                request, "Szczyt popołudniowy (najdroższa)", "Afternoon peak (highest rate)"
+            )
         elif price <= Decimal("0.18"):
-            label = "Dolina nocna (najtańsza)"
+            label = _tr(request, "Dolina nocna (najtańsza)", "Night valley (lowest rate)")
         elif start_h >= 22:
-            label = "Strefa wieczorna"
+            label = _tr(request, "Strefa wieczorna", "Evening period")
 
         periods.append(
             {
@@ -576,11 +632,12 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
             "magazyn_kwh": magazyn_kwh_val,
             "magazyn_moc_kw": magazyn_moc_kw_val,
             "magazyn_koszt_eur": magazyn_koszt_eur_val,
-        }
+        },
+        lang=selected_language(request),
     )
     if not form.is_valid():
         return api_error(
-            "Niepoprawne parametry symulacji PV.",
+            _tr(request, "Niepoprawne parametry symulacji PV.", "Invalid PV simulation settings."),
             code="INVALID_PV_PARAMS",
             status=400,
             details=form.errors.get_json_data(),
@@ -623,7 +680,7 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
         "annual_consumption_kwh": _to_float(sim_result.consumption_kwh),
         "annual_production_kwh": _to_float(sim_result.production_kwh),
         "variant_a": {
-            "name": "Obecne nawyki",
+            "name": _tr(request, "Obecne nawyki", "Current routine"),
             "self_consumption_kwh": _to_float(var_a.self_kwh),
             "exported_kwh": _to_float(var_a.exported_kwh),
             "grid_kwh": _to_float(var_a.grid_kwh),
@@ -632,7 +689,11 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
             "payback_years": _to_float(var_a.payback_years, 1),
         },
         "variant_b": {
-            "name": "Przesunięcie elastycznych urządzeń (okno 9:00–15:00)",
+            "name": _tr(
+                request,
+                "Przesunięcie elastycznych urządzeń (okno 9:00–15:00)",
+                "Shift flexible appliances (9:00–15:00 window)",
+            ),
             "self_consumption_kwh": _to_float(var_b.self_kwh),
             "exported_kwh": _to_float(var_b.exported_kwh),
             "grid_kwh": _to_float(var_b.grid_kwh),
@@ -647,7 +708,7 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
         },
         "device_recommendations": [
             {
-                "device": effect.device,
+                "device": device_name(effect.device, lang=selected_language(request)),
                 "moved_kwh": _to_float(effect.moved_kwh),
                 "grid_saved_kwh": _to_float(effect.grid_saved_kwh),
                 "money_saved_eur": _to_float(effect.money_saved, 2),
@@ -671,8 +732,10 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
             }
         except StopIteration:
             response_data["week_profile"] = None
-            response_data["week_profile_warning"] = (
-                f"Brak pełnego tygodnia danych dla miesiąca {month}."
+            response_data["week_profile_warning"] = _tr(
+                request,
+                f"Brak pełnego tygodnia danych dla miesiąca {month}.",
+                f"No complete week of data for month {month}.",
             )
 
     return api_success(response_data)
@@ -729,11 +792,30 @@ def flexible_events_list(request: HttpRequest) -> JsonResponse:
         page_num = int(page_param)
         page_size = int(page_size_param)
         if page_num < 1:
-            raise ValueError("Numer strony musi być większy lub równy 1.")
+            raise ValueError(
+                _tr(
+                    request,
+                    "Numer strony musi być większy lub równy 1.",
+                    "Page number must be at least 1.",
+                )
+            )
         if page_size < 1 or page_size > 100:
-            raise ValueError("Rozmiar strony 'page_size' musi wynosić od 1 do 100.")
+            raise ValueError(
+                _tr(
+                    request,
+                    "Rozmiar strony 'page_size' musi wynosić od 1 do 100.",
+                    "Page size must be between 1 and 100.",
+                )
+            )
     except (ValueError, TypeError) as exc:
-        return api_error(str(exc), code="INVALID_PAGINATION", status=400)
+        message = (
+            str(exc)
+            if str(exc).startswith(("Numer strony", "Page number", "Rozmiar strony", "Page size"))
+            else _tr(
+                request, "Niepoprawne parametry stronicowania.", "Invalid pagination parameters."
+            )
+        )
+        return api_error(message, code="INVALID_PAGINATION", status=400)
 
     paginator = Paginator(events, page_size)
     try:
@@ -743,7 +825,7 @@ def flexible_events_list(request: HttpRequest) -> JsonResponse:
 
     items = [
         {
-            "device": e.device,
+            "device": device_name(e.device, lang=selected_language(request)),
             "day": e.day.isoformat(),
             "start_hour": e.start_hour,
             "duration_h": e.duration_h,
@@ -780,7 +862,11 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
     if device not in household.DEVICE_PROFILES:
         valid_devices = ", ".join(household.DEVICE_PROFILES.keys())
         return api_error(
-            f"Nieobsługiwane urządzenie: '{device}'. Dozwolone: {valid_devices}",
+            _tr(
+                request,
+                f"Nieobsługiwane urządzenie: '{device}'. Dozwolone: {valid_devices}",
+                f"Unsupported device: '{device}'. Allowed identifiers: {valid_devices}",
+            ),
             code="INVALID_DEVICE",
             status=400,
         )
@@ -789,19 +875,50 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
         orig_h = int(params.get("original_hour", 19))
         target_h = int(params.get("target_hour", 12))
         if not (0 <= orig_h <= 23 and 0 <= target_h <= 23):
-            raise ValueError("Godziny muszą mieścić się w przedziale 0–23.")
+            raise ValueError(
+                _tr(
+                    request,
+                    "Godziny muszą mieścić się w przedziale 0–23.",
+                    "Hours must be between 0 and 23.",
+                )
+            )
     except (ValueError, TypeError) as exc:
-        return api_error(str(exc), code="INVALID_HOURS", status=400)
+        bound_message = _tr(
+            request,
+            "Godziny muszą mieścić się w przedziale 0–23.",
+            "Hours must be between 0 and 23.",
+        )
+        message = (
+            bound_message
+            if str(exc) == bound_message
+            else _tr(request, "Niepoprawna wartość godziny.", "Invalid hour value.")
+        )
+        return api_error(message, code="INVALID_HOURS", status=400)
 
     # Energia cyklu: podana przez użytkownika lub średnia z profilu urządzenia
     if "energy_kwh" in params and params["energy_kwh"] != "":
         try:
             energy_kwh = Decimal(str(params["energy_kwh"]))
             if energy_kwh <= 0 or energy_kwh > 20:
-                raise ValueError("Energia cyklu musi być dodatnia i nie większa niż 20 kWh.")
+                raise ValueError(
+                    _tr(
+                        request,
+                        "Energia cyklu musi być dodatnia i nie większa niż 20 kWh.",
+                        "Cycle energy must be above zero and at most 20 kWh.",
+                    )
+                )
         except (TypeError, ValueError, InvalidOperation) as exc:
+            allowed = _tr(
+                request,
+                "Energia cyklu musi być dodatnia i nie większa niż 20 kWh.",
+                "Cycle energy must be above zero and at most 20 kWh.",
+            )
             return api_error(
-                f"Niepoprawna wartość 'energy_kwh': {exc}",
+                allowed
+                if str(exc) == allowed
+                else _tr(
+                    request, "Niepoprawna wartość 'energy_kwh'.", "Invalid 'energy_kwh' value."
+                ),
                 code="INVALID_ENERGY",
                 status=400,
             )
@@ -837,13 +954,19 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
             "savings_per_cycle_eur": _to_float(savings_per_cycle),
             "estimated_annual_cycles": annual_cycles,
             "estimated_annual_savings_eur": _to_float(annual_savings, 2),
-            "annual_cycles_source": "liczba zdarzeń w roku modelowym",
+            "annual_cycles_source": _tr(
+                request, "liczba zdarzeń w roku modelowym", "number of events in the modeled year"
+            ),
             "in_pv_window": in_pv_window,
             "in_night_valley": in_night_valley,
-            "recommendation": (
+            "recommendation": _tr(
+                request,
                 f"Koszt jednego cyklu według taryfy: {_to_float(orig_cost, 3)} EUR "
                 f"o {orig_h}:00 i {_to_float(target_cost, 3)} EUR o {target_h}:00. "
-                "Porównanie nie uwzględnia produkcji PV w konkretnej godzinie."
+                "Porównanie nie uwzględnia produkcji PV w konkretnej godzinie.",
+                f"Tariff cost per cycle: {_to_float(orig_cost, 3)} EUR at {orig_h}:00 "
+                f"and {_to_float(target_cost, 3)} EUR at {target_h}:00. "
+                "This comparison excludes PV production at those hours.",
             ),
         }
     )
@@ -865,14 +988,21 @@ def system_assumptions(request: HttpRequest) -> JsonResponse:
 
     return api_success(
         {
-            "location": "Kopenhaga, Dania",
+            "location": _tr(request, "Kopenhaga, Dania", "Copenhagen, Denmark"),
             "household": {
                 "residents_count": 6,
-                "profile": (
+                "profile": _tr(
+                    request,
                     "Trzypokoleniowy dom: dziadkowie w ciągu dnia, "
-                    "pracujący rodzice, dzieci po szkole"
+                    "pracujący rodzice, dzieci po szkole",
+                    "Three-generation home: grandparents at home during the day, "
+                    "working parents, children after school",
                 ),
-                "heating_type": "Pompa ciepła (reaguje na temperaturę zewnętrzną)",
+                "heating_type": _tr(
+                    request,
+                    "Pompa ciepła (reaguje na temperaturę zewnętrzną)",
+                    "Heat pump (responds to outdoor temperature)",
+                ),
             },
             "device_profiles": {
                 name: {

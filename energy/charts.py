@@ -48,7 +48,7 @@ CATEGORY_FILLS = (
 CATEGORY_DASHES = ("solid", "solid", "dash", "solid", "dot", "dashdot")
 
 
-def _base_layout(figure: go.Figure, height: int) -> go.Figure:
+def _base_layout(figure: go.Figure, height: int, lang: str = "en") -> go.Figure:
     """Ustawia wspólny styl i właściwości osi dla wszystkich wykresów Plotly."""
     # 1. Automatycznie znajdujemy początek i koniec osi czasu w danych tego wykresu:
     all_x = []
@@ -75,6 +75,7 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": CHARCOAL},
         hoverlabel={"bgcolor": "#FFFFFF", "bordercolor": SLATE, "font_color": CHARCOAL},
+        separators=", " if lang == "pl" else ".,",
     )
 
     # 3. OŚ X: Odblokowujemy przesuwanie (fixedrange=False) i nakładamy TWARDE GRANICE
@@ -85,6 +86,8 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
     }
     if min_x is not None:
         xaxis_options.update(range=[min_x, max_x], minallowed=min_x, maxallowed=max_x)
+    if lang == "pl":
+        xaxis_options.update(tickformat="%H:%M<br>%d.%m.%Y", hoverformat="%d.%m.%Y %H:%M")
     figure.update_xaxes(**xaxis_options)
 
     # 4. OŚ Y: Pozostaje ZABLOKOWANA (fixedrange=True) - piki nigdy się nie utną!
@@ -162,7 +165,7 @@ def _consumption_with_temperature(
     )
     figure.update_yaxes(title_text="kWh", rangemode="tozero", secondary_y=False)
     figure.update_yaxes(title_text="°C", secondary_y=True)
-    return _base_layout(figure, height)
+    return _base_layout(figure, height, lang=lang)
 
 
 def build_history_chart(
@@ -221,7 +224,7 @@ def build_overview_chart(
     )
     figure.update_yaxes(title_text="kWh", rangemode="tozero", secondary_y=False)
     figure.update_yaxes(title_text="°C", secondary_y=True)
-    return _base_layout(figure, 250)
+    return _base_layout(figure, 250, lang=lang)
 
 
 def build_forecast_chart(
@@ -238,15 +241,15 @@ def build_backtest_chart(rows: list[BacktestRow], lang: str = "en") -> go.Figure
     figure = go.Figure()
     if lang == "en":
         trace_defs = (
-            ([row.actual for row in rows], "Actual (simulation)", CHARCOAL, "solid"),
+            ([row.actual for row in rows], "Simulated consumption", CHARCOAL, "solid"),
             ([row.model for row in rows], "Model XGBoost", SLATE, "dash"),
-            ([row.baseline for row in rows], "Baseline: last week", CHARCOAL, "dot"),
+            ([row.baseline for row in rows], "Reference: last week", CHARCOAL, "dot"),
         )
     else:
         trace_defs = (
-            ([row.actual for row in rows], "Rzeczywiste (symulacja)", CHARCOAL, "solid"),
+            ([row.actual for row in rows], "Zużycie symulowane", CHARCOAL, "solid"),
             ([row.model for row in rows], "Model XGBoost", SLATE, "dash"),
-            ([row.baseline for row in rows], "Baseline: tydzień temu", CHARCOAL, "dot"),
+            ([row.baseline for row in rows], "Odniesienie: tydzień temu", CHARCOAL, "dot"),
         )
     for values, label, color, dash in trace_defs:
         figure.add_trace(
@@ -260,7 +263,7 @@ def build_backtest_chart(rows: list[BacktestRow], lang: str = "en") -> go.Figure
             )
         )
     figure.update_yaxes(title_text="kWh", rangemode="tozero")
-    return _base_layout(figure, 320)
+    return _base_layout(figure, 320, lang=lang)
 
 
 def build_pv_chart(week: WeekProfile, kwp: Decimal, lang: str = "en") -> go.Figure:
@@ -307,4 +310,4 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal, lang: str = "en") -> go.Figu
             )
         )
     figure.update_yaxes(title_text="kWh", rangemode="tozero")
-    return _base_layout(figure, 380)
+    return _base_layout(figure, 380, lang=lang)
