@@ -1,118 +1,434 @@
-# eko-dziki – Scenariusz 4 „Dom pełen pokoleń”
+# Eko-dziki
 
-Lokalna aplikacja Django dla konkursowego scenariusza trzypokoleniowego domu
-w Kopenhadze: **35 dni godzinowej historii** zużycia z generatora zdarzeń
-domowników na **realnej pogodzie Open-Meteo**, **prognoza 24 h / 3 / 7 dni**
-z oceną błędu wobec baseline'u oraz **symulator fotowoltaiki** z dwoma
-wariantami zwrotu inwestycji.
+**Eko-dziki** to lokalna aplikacja do analizy i optymalizacji zużycia energii w domu. Łączy symulację zużycia energii, dane pogodowe, prognozowanie zapotrzebowania, analizę taryf oraz symulator instalacji fotowoltaicznej i magazynu energii.
 
-## Uruchomienie
+Aplikacja działa lokalnie jako projekt **Django** i udostępnia również REST API przeznaczone do komunikacji z aplikacją mobilną.
 
-Wymagany jest Python 3.14 i [uv](https://docs.astral.sh/uv/). W katalogu
-głównym projektu uruchom:
+**! dane dotyczące zużycia energii są danymi symulowanymi. Nie są to bezpośrednie odczyty z rzeczywistego licznika energii.**
 
-```powershell
+---
+
+## Najważniejsze funkcje
+
+### Dashboard
+
+Główny pulpit pozwala analizować:
+
+* zużycie energii w wybranym okresie,
+* trendy zużycia i temperatury,
+* godziny największego zapotrzebowania,
+* prognozę zużycia na **24 h, 3 dni i 7 dni**,
+* sumaryczne zużycie w kWh,
+* dokładność modelu prognostycznego względem baseline'u.
+
+Dostępne zakresy historii:
+
+`1 / 3 / 5 / 7 / 14 / 31 dni`
+
+---
+
+### Analiza godzinowa
+
+Widok `|godziny|` prezentuje szczegółowe dane godzinowe:
+
+* wykres zużycia,
+* tabelę danych,
+* kategorie zużycia,
+* filtrowanie po zakresie dat,
+* stronicowanie,
+* eksport danych do CSV.
+
+---
+
+### Symulator fotowoltaiki
+
+Widok `|symulator-pv|` pozwala sprawdzić wpływ instalacji PV na bilans energetyczny domu.
+
+Można analizować m.in.:
+
+* moc instalacji w kWp,
+* roczną produkcję energii,
+* pokrycie zapotrzebowania,
+* ilość energii pobieranej z sieci,
+* szacowane oszczędności,
+* czas zwrotu inwestycji,
+* wpływ zmiany godzin pracy urządzeń.
+
+Symulator porównuje dwa scenariusze:
+
+| Wariant                      | Opis                                                                         |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| **A — obecne nawyki**        | Urządzenia działają według obecnego modelu zużycia                           |
+| **B — przesunięcie zużycia** | Praca zmywarki, pralki i suszarki jest przesunięta na godziny **9:00–15:00** |
+
+System może również uwzględniać magazyn energii poprzez podanie:
+
+* pojemności `[kWh]`,
+* mocy `[kW]`,
+* ceny zakupu `[EUR]`.
+
+W bilansie magazynu uwzględniana jest sprawność obiegu na poziomie **90%**.
+
+---
+
+## Dane pogodowe
+
+Do generowania scenariusza wykorzystywane są rzeczywiste dane pogodowe z **Open-Meteo**.
+
+Pogoda wpływa m.in. na:
+
+* symulowane zużycie energii,
+* sezonowość zapotrzebowania,
+* produkcję energii z PV.
+
+Dane obejmują historię, prognozę oraz pełny rok modelowy.
+
+Jeżeli pobranie danych z Open-Meteo nie powiedzie się, aplikacja może wykorzystać wcześniej zapisane dane pogodowe.
+
+---
+
+## Prognozowanie zużycia
+
+Projekt wykorzystuje modele uczenia maszynowego do prognozowania zapotrzebowania energetycznego.
+
+W repozytorium znajdują się m.in. biblioteki:
+
+* `scikit-learn`
+* `xgboost`
+* `numpy`
+* `pandas`
+
+Model może generować prognozy dla:
+
+* **24 godzin**,
+* **72 godzin**,
+* **168 godzin**.
+
+Dostępne są również metryki oceny modelu, m.in. **MAE** i **MAPE**.
+
+---
+
+## Aplikacja mobilna
+
+Repozytorium zawiera aplikację mobilną jako **Git submodule**:
+
+```text
+mobile_app
+```
+
+Submodule wskazuje na:
+
+`https://github.com/allt3rr/HackoWattMobileApp`
+
+Po sklonowaniu repozytorium razem z submodułami:
+
+```bash
+git clone --recurse-submodules https://github.com/kleszczuch/HackoWatt.git
+```
+
+Jeżeli repozytorium zostało już sklonowane bez submodułów:
+
+```bash
+git submodule update --init --recursive
+```
+
+---
+
+# Uruchomienie
+
+## Wymagania
+
+Projekt wymaga:
+
+* **Python 3.14**
+* **uv**
+* dostępu do sieci podczas pierwszego przygotowania danych pogodowych
+
+Wersja Pythona jest określona bezpośrednio w `pyproject.toml`:
+
+```text
+>=3.14,<3.15
+```
+
+---
+
+## 1. Sklonuj repozytorium
+
+```bash
+git clone --recurse-submodules https://github.com/kleszczuch/HackoWatt.git
+cd HackoWatt
+```
+
+---
+
+## 2. Zainstaluj zależności
+
+Projekt wykorzystuje `uv` do zarządzania środowiskiem i zależnościami:
+
+```bash
 uv sync
+```
+
+---
+
+## 3. Wykonaj migracje Django
+
+```bash
 uv run python manage.py migrate
-uv run python manage.py prepare_data
+```
+
+---
+
+## 4. Przygotuj dane demonstracyjne
+
+```bash
+uv run python manage.py prepare_demo_data
+```
+
+Podczas tego kroku aplikacja może pobrać dane pogodowe z Open-Meteo i wygenerować dane potrzebne do działania dashboardu, prognoz oraz symulatora.
+
+Ponowne uruchomienie tej komendy odświeża dane.
+
+---
+
+## 5. Uruchom aplikację
+
+```bash
 uv run python manage.py runserver 127.0.0.1:8000
 ```
 
-Otwórz `http://127.0.0.1:8000/`. Komenda `prepare_data` generuje dane dla pięciu
-scenariuszy i wymaga dostępu do Open-Meteo przy pierwszym uruchomieniu.
-Wygenerowane pliki w `data/` są lokalne i nie są śledzone przez Git.
-Komenda `prepare_data --scenario 4` odświeża tylko scenariusz Kopenhagi.
+Następnie otwórz:
 
-## Strony
+```text
+http://127.0.0.1:8000/
+```
 
-- `/` – zwarty pulpit: wybór ostatnich 1 / 3 / 5 / 7 / 14 / 31 dni
-  symulowanej historii i prognozy 24 h / 3 / 7 dni, sumy kWh, trendy
-  zużycia i temperatury, godziny szczytu oraz błąd modelu wobec baseline'u.
-- `/godziny/` – szczegółowy wykres i tabela godzinowa z kategoriami,
-  filtrem dat, stronicowaniem i eksportem dokładnych wartości do CSV.
-- `/symulator-pv/` – wybór mocy kWp, tabela porównawcza wariantów, roczna
-  produkcja z realnego promieniowania, pokrycie zapotrzebowania, mniej energii
-  z sieci, oszczędności i czas zwrotu: A (obecne nawyki) i B (po przesunięciu
-  zmywarki, pralki i suszarki w godziny 9–15), wspólny wykres tygodniowy
-  oraz policzony efekt zmiany godziny pracy urządzeń w kWh i €. Przyciski automatycznie dobierają moc
-  do możliwie pełnego pokrycia w zakresie 1–150 kWp lub najkrótszego zwrotu
-  wariantu B w zakresie 1–15 kWp, co 0,1 kWp. Opcjonalny magazyn ma wpisywaną pojemność [kWh],
-  moc [kW] i cenę zakupu [EUR]. Godzinowy bilans uwzględnia 90% sprawności
-  obiegu, a zwrot dolicza koszt magazynu. Widok pokazuje średnie dzienne
-  zużycie budynku i bilans każdego dnia wybranego tygodnia. Gdy 100% pokrycia
-  nie jest osiągalne przy zadanym magazynie, aplikacja pokazuje pozostały zakup
-  z sieci. W pełnym roku stan magazynu na granicy lat ustala się po powtórzeniu
-  roku modelowego; duże moce i magazyny są wariantami teoretycznymi, których
-  wykonalność montażową i cenę trzeba sprawdzić osobno.
-- Interfejs korzysta z palety Charcoal, Slate Grey, Sage Green, Radioactive Grass
-  i Chartreuse oraz tła `energy/static/energy/Background.webp`.
-- `/export.csv` – eksport historii i prognozy dla wybranego zakresu.
+---
 
-## REST API dla aplikacji mobilnej (`/api/v1/`)
+# REST API
 
-### ABY REST API ZADZIAŁAŁO KONIECZNIE USTAW ZMIENNE ŚRODOWISKOWE
-Utwórz plik .env wewnątrz głównego katalogu i dodaj zmienną API_KEY przechowującą kod secret, ten sam sposób utwórz klucz api po stronie aplikacji mobilnej.
+API znajduje się pod prefiksem:
 
+```text
+/api/v1/
+```
 
-Aplikacja udostępnia otwarty, bezstanowy zestaw endpointów JSON REST API pod przedrostkiem
-`/api/v1/`, służący wyłącznie do odczytu danych (bez konieczności logowania, haseł
-i tokenów). API podaje stawki godzinowe, zużycie i wyniki modelu. Pola dotyczące
-urządzeń opisują zarejestrowane cykle i policzone różnice, bez gotowych poleceń.
+Udostępnia dane w formacie JSON i jest przeznaczone przede wszystkim do komunikacji z aplikacją mobilną.
 
-### Format odpowiedzi
+## Konfiguracja
 
-- **Sukces:** `{"status": "success", "data": { ... }}`
-- **Błąd:** `{"status": "error", "error": {"code": "...", "message": "...", "details": ...}}`
+W katalogu głównym projektu należy utworzyć plik:
 
-### Dostępne endpointy
+```text
+.env
+```
 
-| Metoda | Ścieżka | Opis | Główne parametry |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/smart-schedule/today/` | Stawki każdej godziny i godziny najtańszej oraz najdroższej taryfy | brak |
-| `GET` | `/api/v1/devices/guidance/` | Roczne liczby cykli i energii urządzeń w danych modelowych | brak |
-| `GET` | `/api/v1/dashboard/summary/` | Bieżący pulpit (odczyt, prosta ocena taryfy, 24 h, najbliższy szczyt) | brak |
-| `GET` | `/api/v1/devices/shift-simulation/` | Kalkulator przesunięcia pracy urządzenia (dostępny przez prosty GET) | `device`, `original_hour`, `target_hour`, `energy_kwh` |
-| `GET` | `/api/v1/tariffs/` | Strefy taryfowe (€/kWh) i bieżąca stawka | brak |
-| `GET` | `/api/v1/consumption/history/` | Historia zużycia z paginacją i filtrem dat | `start`, `end`, `page`, `page_size` |
-| `GET` | `/api/v1/consumption/forecast/` | Prognoza zapotrzebowania i wyjaśnienia szczytów | `horizon` (24, 72, 168) |
-| `GET` | `/api/v1/pv/simulate/` | Symulator PV (wariant A vs B, oszczędności, zwrot) | `kwp`, `month`, `magazyn_kwh`, `magazyn_moc_kw`, `magazyn_koszt_eur`, `include_week_profile` |
-| `GET` | `/api/v1/pv/variants/` | Zestawienie typowych mocy instalacji PV (2–10 kWp) | brak |
-| `GET` | `/api/v1/devices/flexible-events/` | Lista zarejestrowanych cykli elastycznych urządzeń | `device`, `page`, `page_size` |
-| `GET` | `/api/v1/system/assumptions/` | Parametry urządzeń, domu i instalacji | brak |
-| `GET` | `/api/v1/system/metrics/` | Metryki dokładności prognozy (MAE, MAPE) | brak |
+i skonfigurować klucz:
 
-## Dane w `data/`
+```env
+API_KEY=your-secret-key
+```
 
-Każdy scenariusz ma osobny katalog `data/scenario_1/`–`data/scenario_5/`.
-Komenda `prepare_data` zapisuje w nich `historia_zuzycie.csv` (840 h),
-`prognoza_zuzycie.csv` (168 h),
-`pogoda_historia.csv`, `pogoda_prognoza.csv`, `pogoda_roczna.csv` (8760 h),
-`roczne_zuzycie.csv`, `zdarzenia_elastyczne.csv`, `roczne_zdarzenia.csv`,
-`backtest.csv` i `metryki.json`.
+Klucz powinien być skonfigurowany również po stronie aplikacji mobilnej.
 
-## Sprawdzenie
+> Nie należy commitować rzeczywistego klucza API do repozytorium.
 
-```powershell
+---
+
+## Format odpowiedzi
+
+### Sukces
+
+```json
+{
+  "status": "success",
+  "data": {}
+}
+```
+
+### Błąd
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "...",
+    "message": "...",
+    "details": {}
+  }
+}
+```
+
+---
+
+## Endpointy
+
+| Metoda | Endpoint                            | Opis                                                 |
+| ------ | ----------------------------------- | ---------------------------------------------------- |
+| `GET`  | `/api/v1/smart-schedule/today/`     | Godzinowe stawki oraz najtańsza i najdroższa godzina |
+| `GET`  | `/api/v1/devices/guidance/`         | Roczne dane dotyczące cykli i energii urządzeń       |
+| `GET`  | `/api/v1/dashboard/summary/`        | Podsumowanie dashboardu                              |
+| `GET`  | `/api/v1/devices/shift-simulation/` | Symulacja przesunięcia pracy urządzenia              |
+| `GET`  | `/api/v1/tariffs/`                  | Strefy taryfowe i aktualna stawka                    |
+| `GET`  | `/api/v1/consumption/history/`      | Historia zużycia                                     |
+| `GET`  | `/api/v1/consumption/forecast/`     | Prognoza zapotrzebowania                             |
+| `GET`  | `/api/v1/pv/simulate/`              | Symulacja instalacji PV                              |
+| `GET`  | `/api/v1/pv/variants/`              | Przykładowe warianty mocy PV                         |
+| `GET`  | `/api/v1/devices/flexible-events/`  | Historia elastycznych zdarzeń urządzeń               |
+| `GET`  | `/api/v1/system/assumptions/`       | Założenia modelu                                     |
+| `GET`  | `/api/v1/system/metrics/`           | Metryki jakości prognoz                              |
+
+### Przykładowe parametry
+
+Symulacja przesunięcia urządzenia:
+
+```text
+/api/v1/devices/shift-simulation/?device=dishwasher&original_hour=18&target_hour=12&energy_kwh=1.2
+```
+
+Prognoza:
+
+```text
+/api/v1/consumption/forecast/?horizon=24
+```
+
+Dostępne horyzonty:
+
+```text
+24
+72
+168
+```
+
+Symulacja PV:
+
+```text
+/api/v1/pv/simulate/?kwp=6&month=6
+```
+
+Symulator PV obsługuje również parametry magazynu energii oraz opcjonalny profil tygodniowy.
+
+---
+
+# Dane
+
+Katalog `data/` zawiera przygotowane dane wykorzystywane przez aplikację, m.in.:
+
+```text
+historia_zuzycie.csv
+prognoza_zuzycie.csv
+pogoda_historia.csv
+pogoda_prognoza.csv
+pogoda_roczna.csv
+roczne_zuzycie.csv
+zdarzenia_elastyczne.csv
+roczne_zdarzenia.csv
+backtest.csv
+metryki.json
+```
+
+Przykładowo:
+
+* historia zużycia obejmuje **840 godzin**,
+* prognoza obejmuje **168 godzin**,
+* dane roczne obejmują **8760 godzin**.
+
+---
+
+# Testy i kontrola jakości
+
+Testy Django:
+
+```bash
 uv run python manage.py test
+```
+
+Kontrola konfiguracji Django:
+
+```bash
 uv run python manage.py check
+```
+
+Lint:
+
+```bash
 uv run ruff check .
+```
+
+Sprawdzenie formatowania:
+
+```bash
 uv run ruff format --check .
+```
+
+Walidacja specyfikacji OpenSpec:
+
+```bash
 openspec validate magazyn-energii-pv --strict
 ```
 
-## Zakres i uczciwość wyliczeń
+---
 
-Historia jest **symulacją** zdarzeń (posiłki, pranie, praca zdalna, goście,
-wyjazdy) warunkowaną temperaturą z Open-Meteo – nie odczytem licznika. Roczne
-zużycie szacuje ten sam generator uruchomiony na 12 miesiącach realnej pogody;
-sezonowość ogrzewania wynika z temperatury, a produkcji PV z promieniowania.
-Koszty w EUR według załącznika „Common Challenge Assumptions” (taryfa
-0,18/0,28/0,40 €/kWh, PV 1300 €/kWp, eksport 0,08 €/kWh, OPEX 1% kosztu PV)
-są szacunkami, nie rozliczeniem. Cena magazynu pochodzi z wpisanej oferty;
-symulacja nie uwzględnia jego degradacji, wymiany ani utrzymania. Magazyn
-przesuwa energię między godzinami, lecz sam jej nie produkuje.
+# Założenia modelu
+????
+HackoWatt jest **symulatorem**, a nie systemem odczytu rzeczywistego licznika.
 
-Aktywna [zmiana OpenSpec](openspec/changes/magazyn-energii-pv/proposal.md)
-opisuje magazyn energii. [Wcześniejszy plan](openspec/changes/domowa-optymalizacja-energii/proposal.md)
-dotyczący importu realnych odczytów i taryf pozostaje osobnym, niewdrożonym
-zakresem.
+Historia zużycia jest generowana na podstawie modelowanych zdarzeń domowych, takich jak:
+
+* posiłki,
+* pranie,
+* praca zdalna,
+* obecność gości,
+* wyjazdy,
+* wpływ temperatury.
+
+Roczne zużycie jest estymowane przez uruchomienie tego samego generatora na danych pogodowych obejmujących cały rok.
+
+Produkcja PV jest natomiast wyliczana na podstawie danych dotyczących promieniowania.
+
+---
+
+# Ograniczenia
+??????
+Wyniki symulacji należy traktować jako dane demonstracyjne.
+
+Model:
+
+* nie korzysta z rzeczywistych odczytów licznika,
+* nie uwzględnia wszystkich możliwych zachowań mieszkańców,
+* nie modeluje degradacji magazynu energii,
+* nie uwzględnia kosztu wymiany magazynu,
+* nie uwzględnia jego kosztów utrzymania,
+* traktuje magazyn jako element przesuwający energię pomiędzy godzinami,
+* nie uwzględnia ograniczeń montażowych dużych instalacji PV i magazynów.
+
+W szczególności bardzo duże moce PV lub pojemności magazynów są **wariantami teoretycznymi** i przed rzeczywistą inwestycją wymagają osobnej weryfikacji technicznej i ekonomicznej.
+
+---
+
+# Technologie
+
+Projekt wykorzystuje m.in.:
+
+* **Python 3.14**
+* **Django 5.2**
+* **Pandas**
+* **NumPy**
+* **Plotly**
+* **scikit-learn**
+* **XGBoost**
+* **django-cors-headers**
+* **python-dotenv**
+* **uv**
+* **Ruff**
+
+---
+
+## Projekt
+
+**HackoWatt**
+Scenariusz 4 — **„Dom pełen pokoleń”**
+
+Autor / repozytorium:
+
+**kleszczuch / HackoWatt**
