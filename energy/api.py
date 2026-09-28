@@ -1100,7 +1100,7 @@ def system_assumptions(request: HttpRequest) -> JsonResponse:
                 "country_code": scen.get("country_code", "DK"),
                 "flag": scen.get("flag_emoji", "🇩🇰"),
             },
-            "location": scen["city"],
+            "location": _tr(request, scen["city"], scen.get("city_en", scen["city"])),
             "household": household_payload,
             "device_profiles": {
                 name: {
