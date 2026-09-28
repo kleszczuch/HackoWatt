@@ -22,6 +22,17 @@
         <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>Assumptions</a>
       </nav>
     </header>
+    
+<div class="scenario-selector" style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+  <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">AKTYWNY SCENARIUSZ:</span>
+  <select onchange="location = this.value;" style="padding: 6px 12px; border-radius: 8px; border: 1px solid #cbd5e1; background: white; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
+    <option value="{% url 'switch_scenario' 1 %}" {% if request.session.active_scenario == 1 %}selected{% endif %}>🇵🇱 1. Warszawa (Aleksandra)</option>
+    <option value="{% url 'switch_scenario' 2 %}" {% if request.session.active_scenario == 2 %}selected{% endif %}>🇵🇱 2. Katowice (Marek i Ania)</option>
+    <option value="{% url 'switch_scenario' 3 %}" {% if request.session.active_scenario == 3 %}selected{% endif %}>🇪🇸 3. Barcelona (Smart Luxury)</option>
+    <option value="{% url 'switch_scenario' 4 %}" {% if request.session.active_scenario == 4 or not request.session.active_scenario %}selected{% endif %}>🇩🇰 4. Kopenhaga (Dom Pokoleń)</option>
+    <option value="{% url 'switch_scenario' 5 %}" {% if request.session.active_scenario == 5 %}selected{% endif %}>🇵🇹 5. Lizbona (Ola, Tomek i Pies)</option>
+  </select>
+</div>
 
     <main>
       {% if data_error %}

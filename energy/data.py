@@ -88,36 +88,43 @@ def _read_events(path: Path) -> list[FlexEvent]:
         raise DemoDataError(str(exc)) from exc
 
 
-def load_history() -> list[ConsumptionHour]:
-    return _read_consumption(_data_dir() / HISTORY_FILENAME)
+def load_history(data_dir: Path | None = None) -> list[ConsumptionHour]:
+    target = data_dir if data_dir is not None else _data_dir()
+    return _read_consumption(target / HISTORY_FILENAME)
 
 
-def load_forecast() -> list[ConsumptionHour]:
-    return _read_consumption(_data_dir() / FORECAST_FILENAME)
+def load_forecast(data_dir: Path | None = None) -> list[ConsumptionHour]:
+    target = data_dir or _data_dir()
+    return _read_consumption(target / FORECAST_FILENAME)
 
 
-def load_weather_history() -> list[WeatherHour]:
-    return _read_weather(_data_dir() / HISTORY_WEATHER_FILENAME)
+def load_weather_history(data_dir: Path | None = None) -> list[WeatherHour]:
+    target = data_dir or _data_dir()
+    return _read_weather(target / HISTORY_WEATHER_FILENAME)
 
 
-def load_weather_forecast() -> list[WeatherHour]:
-    return _read_weather(_data_dir() / FORECAST_WEATHER_FILENAME)
+def load_weather_forecast(data_dir: Path | None = None) -> list[WeatherHour]:
+    target = data_dir or _data_dir()
+    return _read_weather(target / FORECAST_WEATHER_FILENAME)
 
 
-def load_history_events() -> list[FlexEvent]:
-    return _read_events(_data_dir() / FLEX_EVENTS_FILENAME)
+def load_history_events(data_dir: Path | None = None) -> list[FlexEvent]:
+    target = data_dir or _data_dir()
+    return _read_events(target / FLEX_EVENTS_FILENAME)
 
 
-def load_annual() -> tuple[list[ConsumptionHour], list[WeatherHour], list[FlexEvent]]:
+def load_annual(data_dir: Path | None = None) -> tuple[list[ConsumptionHour], list[WeatherHour], list[FlexEvent]]:
+    target = data_dir or _data_dir()
     return (
-        _read_consumption(_data_dir() / ANNUAL_CONSUMPTION_FILENAME),
-        _read_weather(_data_dir() / YEAR_WEATHER_FILENAME),
-        _read_events(_data_dir() / ANNUAL_EVENTS_FILENAME),
+        _read_consumption(target / ANNUAL_CONSUMPTION_FILENAME),
+        _read_weather(target / YEAR_WEATHER_FILENAME),
+        _read_events(target / ANNUAL_EVENTS_FILENAME),
     )
 
 
-def load_backtest() -> list[BacktestRow]:
-    path = _data_dir() / "backtest.csv"
+def load_backtest(data_dir: Path | None = None) -> list[BacktestRow]:
+    target = data_dir or _data_dir() # <-- TUTAJ ZMIANA
+    path = target / "backtest.csv"
     if not path.is_file():
         raise _missing()
     rows: list[BacktestRow] = []
@@ -142,8 +149,9 @@ def load_backtest() -> list[BacktestRow]:
     return rows
 
 
-def load_metrics() -> dict:
-    path = _data_dir() / METRICS_FILENAME
+def load_metrics(data_dir: Path | None = None) -> dict:
+    target = data_dir or _data_dir() # <-- TUTAJ ZMIANA
+    path = target / METRICS_FILENAME
     if not path.is_file():
         raise _missing()
     try:

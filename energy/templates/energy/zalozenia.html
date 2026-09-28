@@ -1,88 +1,275 @@
 {% extends "energy/base.html" %}
-{% block title %}eko-dziki · Assumptions{% endblock %}
+{% block title %}HackoWatt · Założenia i Scenariusze{% endblock %}
 {% block content %}
 <section class="intro"><div>
-  <p class="eyebrow">OPEN ASSUMPTIONS</p>
-  <h1>Where these data<br><span>and figures come from</span></h1>
-  <p class="lead">The household schedule, appliance use, simulated history, electricity rates, solar model and annual estimation method in one place.</p>
+  <p class="eyebrow">BAZA WIEDZY I ZAŁOŻENIA</p>
+  <h1>Profile domostw<br><span>i metodologia obliczeń</span></h1>
+  <p class="lead">Wybierz jeden z 5 oficjalnych scenariuszy konkursowych HackoWatt 2026, aby poznać profil rodziny, harmonogram urządzeń oraz parametry techniczne.</p>
 </div></section>
 
+<!-- STYLE SELEKTORA -->
+<style>
+  .scenario-nav {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    background: #ffffff;
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .scenario-btn {
+    flex: 1 1 calc(20% - 8px);
+    min-width: 170px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #475569;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .scenario-btn:hover {
+    background: #f8fafc;
+    color: #0f172a;
+  }
+  .scenario-btn.active {
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  .scenario-btn .badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+  }
+  
+  /* UKRYWANIE I POKAZYWANIE SCENARIUSZY */
+  .scenario-pane {
+    display: none;
+  }
+  .scenario-pane.active {
+    display: block;
+    animation: fadeIn 0.2s ease-in-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+
+<!-- TYLKO JEDNO MENU NA STRONIE! -->
+<div class="scenario-nav" role="tablist">
+  <button type="button" class="scenario-btn" onclick="switchScenario(1)" id="btn-scen-1">
+    <span class="badge" style="color:#64748b;">Scenariusz 1</span>
+    <span>Warszawa · Aleksandra</span>
+    <small style="font-weight:400; color:#64748b;">Singielka w podróży</small>
+  </button>
+  
+  <button type="button" class="scenario-btn" onclick="switchScenario(2)" id="btn-scen-2">
+    <span class="badge" style="color:#64748b;">Scenariusz 2</span>
+    <span>Katowice · Marek i Ania</span>
+    <small style="font-weight:400; color:#64748b;">Praca zmianowa (4 os.)</small>
+  </button>
+  
+  <button type="button" class="scenario-btn" onclick="switchScenario(3)" id="btn-scen-3">
+    <span class="badge" style="color:#64748b;">Scenariusz 3</span>
+    <span>Barcelona · Smart Luxury</span>
+    <small style="font-weight:400; color:#64748b;">Sauna, basen i EV</small>
+  </button>
+  
+  <button type="button" class="scenario-btn active" onclick="switchScenario(4)" id="btn-scen-4">
+    <span class="badge" style="color:#16a34a;">Baza danych wgrana ●</span>
+    <span>Kopenhaga · Dom Pokoleń</span>
+    <small style="font-weight:400; color:#64748b;">3 pokolenia (6 osób)</small>
+  </button>
+  
+  <button type="button" class="scenario-btn" onclick="switchScenario(5)" id="btn-scen-5">
+    <span class="badge" style="color:#64748b;">Scenariusz 5</span>
+    <span>Lizbona · Z psem</span>
+    <small style="font-weight:400; color:#64748b;">Home Alone · Hybryda</small>
+  </button>
+</div>
+
+<!-- ================================================================= -->
+<!-- SCENARIUSZ 4 (DOMYŚLNY - KOPENHAGA)                                -->
+<!-- ================================================================= -->
+<div class="scenario-pane active" id="pane-scen-4">
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">DANE WEJŚCIOWE · SCENARIUSZ 4</p><h2>Kopenhaga: Dom pełen pokoleń</h2></div><span class="badge" style="background:#ecfdf5; color:#065f46; padding:6px 10px; border-radius:6px; font-weight:600;">Załadowany w aplikacji</span></div>
+    <div class="explanation-list">
+      <div class="explanation"><strong>Lokalizacja:</strong> Kopenhaga, Dania (55.6761° N, 12.5683° E); strefa: Europe/Copenhagen.</div>
+      <div class="explanation"><strong>Domownicy:</strong> 6 osób (2 dziadków, 2 dorosłych pracujących, 2 dzieci w wieku szkolnym). Dom wolnostojący, ogrzewany pompą ciepła (2.0–4.0 kW).</div>
+      {% if spans %}
+      <div class="explanation"><strong>Dane pomiarowe:</strong> {{ spans.history.0|date:"d.m.Y H:i" }} – {{ spans.history.1|date:"d.m.Y H:i" }} ({{ spans.history.2 }} godz., 35 dni historii z Open-Meteo).</div>
+      <div class="explanation"><strong>Prognoza AI:</strong> {{ spans.forecast.0|date:"d.m.Y H:i" }} – {{ spans.forecast.1|date:"d.m.Y H:i" }} (7 dni, model XGBoost).</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">HARMONOGRAM</p><h2>Rytm dobowy trzech pokoleń</h2></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Godziny</th><th>Aktywność w domu</th></tr></thead><tbody>
+      <tr><td class="timestamp">6:00–9:00</td><td style="text-align:left">Pobudka i poranny szczyt: czajnik, ekspres, toster, oświetlenie, pompa ciepła podnosi temperaturę.</td></tr>
+      <tr><td class="timestamp">9:00–14:00</td><td style="text-align:left">Rodzice w pracy, dzieci w szkole. <strong>Dziadkowie są w domu</strong> – radio/TV, obiad, drobne prace domowe, często pralka.</td></tr>
+      <tr><td class="timestamp">14:00–17:00</td><td style="text-align:left">Powrót dzieci: komputery, konsola, ładowarki elektroniki. Dziadkowie wciąż obecni.</td></tr>
+      <tr><td class="timestamp">17:00–22:00</td><td style="text-align:left">Wszyscy w domu (główny szczyt): płyta indukcyjna, piekarnik, zmywarka, pralka/suszarka, pełne oświetlenie.</td></tr>
+      <tr><td class="timestamp">22:00–6:00</td><td style="text-align:left">Tryb nocny: lodówka, zamrażarka, router, standby, nocne obniżenie temperatury pompy do 19.5 °C.</td></tr>
+    </tbody></table></div>
+  </section>
+</div>
+
+<!-- ================================================================= -->
+<!-- SCENARIUSZ 1 (WARSZAWA)                                           -->
+<!-- ================================================================= -->
+<div class="scenario-pane" id="pane-scen-1">
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">DANE WEJŚCIOWE · SCENARIUSZ 1</p><h2>Warszawa: Always on the Move</h2></div></div>
+    <div class="explanation-list">
+      <div class="explanation"><strong>Lokalizacja:</strong> Warszawa, Polska (52.2297° N, 21.0122° E); strefa: Europe/Warsaw.</div>
+      <div class="explanation"><strong>Profil:</strong> Aleksandra (37 lat), singielka, menedżerka często podróżująca służbowo. Mieszkanie premium w centrum miasta.</div>
+      <div class="explanation"><strong>Ogrzewanie:</strong> Ogrzewanie elektryczne / klimatyzacja z funkcją grzania (1.0–3.0 kW).</div>
+      <div class="explanation"><strong>Główny problem:</strong> Częsta nieobecność (połowa roku poza domem), ale urządzenia i ogrzewanie często pozostają włączone w trybach regularnych. Pranie robione skokowo tuż przed wyjazdem lub po powrocie.</div>
+    </div>
+  </section>
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">HARMONOGRAM</p><h2>Nieregularny tryb życia Aleksandry</h2></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Godziny</th><th>Aktywność</th></tr></thead><tbody>
+      <tr><td class="timestamp">6:30–9:00</td><td style="text-align:left">Szybka kawa, czajnik, ładowanie laptopa/telefonu, ewentualne wstawienie prania przed podróżą.</td></tr>
+      <tr><td class="timestamp">9:00–17:00</td><td style="text-align:left">Mieszkanie często puste (praca w biurze lub delegacja). W dni Home Office: laptop, oświetlenie biurka.</td></tr>
+      <tr><td class="timestamp">17:00–22:30</td><td style="text-align:left">Powrót do domu: lekka kolacja, zmywarka, pralka, laptop, streaming TV.</td></tr>
+      <tr><td class="timestamp">22:30–6:30</td><td style="text-align:left">Pobór bazowy: lodówka, router, standby, ładowanie urządzeń mobilnych.</td></tr>
+    </tbody></table></div>
+  </section>
+</div>
+
+<!-- ================================================================= -->
+<!-- SCENARIUSZ 2 (KATOWICE)                                           -->
+<!-- ================================================================= -->
+<div class="scenario-pane" id="pane-scen-2">
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">DANE WEJŚCIOWE · SCENARIUSZ 2</p><h2>Katowice: Śląski dom rodzinny</h2></div></div>
+    <div class="explanation-list">
+      <div class="explanation"><strong>Lokalizacja:</strong> Katowice, Polska (50.2649° N, 19.0238° E); strefa: Europe/Warsaw.</div>
+      <div class="explanation"><strong>Domownicy:</strong> 4 osoby (Marek – praca zmianowa w przemyśle, Ania – praca hybrydowa, dzieci Kuba i Zosia).</div>
+      <div class="explanation"><strong>Budynek:</strong> Starszy dom jednorodzinny z nowszym AGD i pompą ciepła (1.5–3.5 kW).</div>
+      <div class="explanation"><strong>Specyfika:</strong> Praca zmianowa Marka wprowadza nietypowe pory poboru prądu (powroty w środku nocy, pranie o 5:30 rano lub w południe).</div>
+    </div>
+  </section>
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">HARMONOGRAM</p><h2>Rytm zmianowy i szkolny</h2></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Godziny</th><th>Aktywność</th></tr></thead><tbody>
+      <tr><td class="timestamp">5:30–8:00</td><td style="text-align:left">Wczesna pobudka, przygotowanie śniadań i dzieci do szkoły, pralka często włączana rano.</td></tr>
+      <tr><td class="timestamp">8:00–14:00</td><td style="text-align:left">Dzieci w szkole. Ania pracuje hybrydowo lub w biurze. Marek odsypia nockę lub przygotowuje się do zmiany.</td></tr>
+      <tr><td class="timestamp">14:00–17:30</td><td style="text-align:left">Powrót dzieci, komputery, konsola do gier, telewizor, przekąski.</td></tr>
+      <tr><td class="timestamp">17:30–21:30</td><td style="text-align:left">Maksymalny szczyt: gotowanie obiadu/kolacji na indukcji/piekarniku, zmywarka, pralka, multimedia.</td></tr>
+    </tbody></table></div>
+  </section>
+</div>
+
+<!-- ================================================================= -->
+<!-- SCENARIUSZ 3 (BARCELONA)                                          -->
+<!-- ================================================================= -->
+<div class="scenario-pane" id="pane-scen-3">
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">DANE WEJŚCIOWE · SCENARIUSZ 3</p><h2>Barcelona: Luxury Under Control</h2></div></div>
+    <div class="explanation-list">
+      <div class="explanation"><strong>Lokalizacja:</strong> Barcelona, Hiszpania (41.3879° N, 2.1699° E); strefa: Europe/Madrid.</div>
+      <div class="explanation"><strong>Domownicy:</strong> 2 dorosłych (Anna i Robert). Duża, nowoczesna willa smart home.</div>
+      <div class="explanation"><strong>Potężne odbiory energii:</strong> Pompa obiegowa basenu (0.6–1.2 kW), podgrzewanie basenu (2.0–5.0 kW), <strong>domowa sauna (6.0–9.0 kW)</strong>, ładowarka samochodu elektrycznego EV (do 7.4 kW), klimatyzacja (1.0–2.5 kW).</div>
+      <div class="explanation"><strong>Cel:</strong> Zachowanie pełnego luksusu przy inteligentnym przesunięciu ładowania EV i filtracji basenu w godziny hiszpańskiego słońca.</div>
+    </div>
+  </section>
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">HARMONOGRAM</p><h2>Luksusowe urządzenia w ciągu doby</h2></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Godziny</th><th>Aktywność</th></tr></thead><tbody>
+      <tr><td class="timestamp">6:30–9:00</td><td style="text-align:left">Klimatyzacja/ogrzewanie, start cyrkulacji basenu, odłączenie auta elektrycznego po nocy.</td></tr>
+      <tr><td class="timestamp">9:00–16:00</td><td style="text-align:left">Mieszkańcy poza domem, ale stały wysoki pobór: filtracja basenu, wentylacja, smart home.</td></tr>
+      <tr><td class="timestamp">16:00–19:00</td><td style="text-align:left">Powrót, podłączenie aut EV do ładowania, pralka, suszarka bębnowa, zmywarka.</td></tr>
+      <tr><td class="timestamp">19:00–23:00</td><td style="text-align:left">Wieczorny relaks: <strong>uruchomienie sauny (do 9 kW)</strong>, oświetlenie ogrodu, kolacja z gośćmi.</td></tr>
+    </tbody></table></div>
+  </section>
+</div>
+
+<!-- ================================================================= -->
+<!-- SCENARIUSZ 5 (LIZBONA)                                            -->
+<!-- ================================================================= -->
+<div class="scenario-pane" id="pane-scen-5">
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">DANE WEJŚCIOWE · SCENARIUSZ 5</p><h2>Lizbona: Home Alone – But Not Really</h2></div></div>
+    <div class="explanation-list">
+      <div class="explanation"><strong>Lokalizacja:</strong> Lizbona, Portugalia (38.7223° N, 9.1393° W); strefa: Europe/Lisbon.</div>
+      <div class="explanation"><strong>Domownicy:</strong> Ola i Tomek + <strong>pies</strong>. Nowoczesny apartament miejski.</div>
+      <div class="explanation"><strong>Specyfika opieki nad psem:</strong> Gdy para wyjeżdża lub jest w biurze, mieszkanie NIE może wejść w tryb uśpienia. Klimatyzacja musi utrzymywać bezpieczną temperaturę dla psa, działają automatyczne dozowniki karmy i kamera Wi-Fi.</div>
+      <div class="explanation"><strong>Wyjazdy weekendowe:</strong> Częste wyjazdy na weekendy – albo z psem, albo z wizytami opiekuna.</div>
+    </div>
+  </section>
+  <section class="panel chart-panel">
+    <div class="section-heading"><div><p class="eyebrow">HARMONOGRAM</p><h2>Praca hybrydowa i opieka nad pupilem</h2></div></div>
+    <div class="table-scroll"><table><thead><tr><th>Godziny</th><th>Aktywność</th></tr></thead><tbody>
+      <tr><td class="timestamp">6:30–9:00</td><td style="text-align:left">Spacer z psem, ekspres, śniadanie, sprawdzenie podajnika karmy i kamery dla psa.</td></tr>
+      <tr><td class="timestamp">9:00–17:00</td><td style="text-align:left">Zmienna obecność: praca z domu LUB mieszkanie puste, ale klimatyzacja/ogrzewanie dba o psa.</td></tr>
+      <tr><td class="timestamp">17:00–23:00</td><td style="text-align:left">Wspólny wieczór: gry wideo, streaming, zmywarka, pralka, ładowanie urządzeń.</td></tr>
+    </tbody></table></div>
+  </section>
+</div>
+
+<!-- ================================================================= -->
+<!-- WSPÓLNE ZAŁOŻENIA DLA WSZYSTKICH SCENARIUSZY (Z REGULAMINU)       -->
+<!-- ================================================================= -->
 <section class="panel chart-panel">
-  <div class="section-heading"><div><p class="eyebrow">INPUT DATA</p><h2>Location, weather and preparation date</h2></div></div>
+  <div class="section-heading"><div><p class="eyebrow">WSPÓLNE ZAŁOŻENIA REGULAMINOWE</p><h2>Ceny energii i parametry fotowoltaiki</h2></div><span class="muted">Załącznik „Common Challenge Assumptions”</span></div>
+  <div class="table-scroll"><table><thead><tr><th>Parametr</th><th>Wartość regulaminowa</th></tr></thead><tbody>
+    <tr><td class="timestamp">Taryfa strefowa (00–06 / 06–17 / 17–22 / 22–24)</td><td class="number">€0.18 / €0.28 / €0.40 / €0.28 za kWh</td></tr>
+    <tr><td class="timestamp">Koszt instalacji fotowoltaicznej</td><td class="number">€1,300 za kWp</td></tr>
+    <tr><td class="timestamp">Cena eksportu nadwyżki do sieci</td><td class="number">€0.08 za kWh</td></tr>
+    <tr><td class="timestamp">Roczny koszt operacyjny PV</td><td class="number">1% kosztu inwestycji rocznie</td></tr>
+    <tr><td class="timestamp">Performance Ratio instalacji (PR)</td><td class="number">0.8 (uwzględnia straty na inwerterze, kąt i azymut)</td></tr>
+    <tr><td class="timestamp">Sprawność magazynu energii (Round-Trip)</td><td class="number">90% (wzorowane na karcie katalogowej Tesla Powerwall 3)</td></tr>
+  </tbody></table></div>
+</section>
+
+<section class="panel chart-panel">
+  <div class="section-heading"><div><p class="eyebrow">METODOLOGIA AI</p><h2>Jak prognozujemy i oceniamy błąd</h2></div></div>
   <div class="explanation-list">
-    <div class="explanation"><strong>Location:</strong> Copenhagen, Denmark (55.6761° N, 12.5683° E); local time: Europe/Copenhagen.</div>
-    <div class="explanation"><strong>Weather:</strong> Open-Meteo forecast endpoint with <code>past_days</code> for recent history (the archive lags by several days), and the archive endpoint for the preceding 12 months. Variables: air temperature at 2 m, cloud cover and shortwave solar radiation.</div>
-    {% if spans %}
-    <div class="explanation"><strong>History:</strong> {{ spans.history.0|date:"d.m.Y H:i" }} – {{ spans.history.1|date:"d.m.Y H:i" }} ({{ spans.history.2 }} hours, 35 days).</div>
-    <div class="explanation"><strong>Forecast:</strong> {{ spans.forecast.0|date:"d.m.Y H:i" }} – {{ spans.forecast.1|date:"d.m.Y H:i" }} ({{ spans.forecast.2 }} hours, 7 days).</div>
-    <div class="explanation"><strong>Model year:</strong> {{ spans.annual.0|date:"d.m.Y" }} – {{ spans.annual.1|date:"d.m.Y" }} ({{ spans.annual.2 }} hours of observed historical weather).</div>
+    <div class="explanation"><strong>Extreme Gradient Boosting (XGBoost):</strong> Model uczy się na historii, wykorzystując opóźnienia czasowe (lagi), porę dnia oraz prognozę pogody (temperatura i promieniowanie z Open-Meteo).</div>
+    {% if metrics %}
+    <div class="explanation"><strong>Ocena dokładności (Backtest):</strong> Na ostatnich 7 dniach historii model uzyskał błąd MAE = <strong>{{ metrics.mae_model|floatformat:3 }} kWh</strong> (MAPE: {{ metrics.mape_model|floatformat:1 }}%), deklasując model referencyjny baseline (MAE: {{ metrics.mae_baseline|floatformat:3 }} kWh).</div>
     {% endif %}
-    {% if metrics.wygenerowano %}<div class="explanation"><strong>Data prepared:</strong> {{ metrics.wygenerowano }}. Weather forecasts are consistent within this snapshot.</div>{% endif %}
+    <div class="explanation"><strong>Wariant A vs Wariant B:</strong> Wariant A to instalacja PV bez zmiany stylu życia. Wariant B przesuwa elastyczne urządzenia (pralkę, suszarkę, zmywarkę, filtrację) w okno słoneczne, wyliczając realne oszczędności finansowe i skrócenie czasu zwrotu (ROI).</div>
   </div>
 </section>
 
-<section class="panel chart-panel">
-  <div class="section-heading"><div><p class="eyebrow">HOUSEHOLD</p><h2>Schedule for three generations</h2></div></div>
-  <div class="table-scroll"><table><thead><tr><th>Time</th><th>Activity at home</th></tr></thead><tbody>
-    <tr><td class="timestamp">6:00–9:00</td><td style="text-align:left">The household wakes up: breakfast, several uses of the kettle and coffee machine, lighting, and a heat pump maintaining a comfortable temperature.</td></tr>
-    <tr><td class="timestamp">9:00–14:00</td><td style="text-align:left">Parents are at work and children at school. Grandparents are at home, using TV or radio, preparing lunch, doing small chores and sometimes running the washing machine.</td></tr>
-    <tr><td class="timestamp">14:00–17:00</td><td style="text-align:left">Children return from school and use computers, a games console and chargers. Grandparents remain active.</td></tr>
-    <tr><td class="timestamp">17:00–22:00</td><td style="text-align:left">Everyone is home: dinner on the induction hob or in the oven, dishwasher, laundry or drying, TV and computers, and full lighting. This is usually the daily peak.</td></tr>
-    <tr><td class="timestamp">22:00–6:00</td><td style="text-align:left">The fridge and freezer, Wi-Fi router, standby loads, phone charging and heating at a lower setpoint remain in use.</td></tr>
-  </tbody></table></div>
-</section>
+<!-- JEDYNY I NIEZAWODNY SKRYPT PRZEŁĄCZAJĄCY -->
+<script>
+  function switchScenario(id) {
+    // 1. Ukrywamy wszystkie panele, a wybrany pokazujemy
+    document.querySelectorAll('.scenario-pane').forEach(pane => {
+      pane.classList.remove('active');
+    });
+    const targetPane = document.getElementById('pane-scen-' + id);
+    if (targetPane) {
+      targetPane.classList.add('active');
+    }
 
-<section class="panel chart-panel">
-  <div class="section-heading"><div><p class="eyebrow">DAY-TO-DAY VARIATION</p><h2>Random events in the generator</h2></div><span class="muted">Fixed random seed 78 makes results reproducible</span></div>
-  <div class="explanation-list">
-    <div class="explanation"><strong>Working from home:</strong> about 12% of weekdays; one parent uses a laptop from 9:00 to 17:00.</div>
-    <div class="explanation"><strong>Grandparents out:</strong> about 18% of weekdays; no TV or lunch at home for several hours.</div>
-    <div class="explanation"><strong>Guests:</strong> about 4% of weekdays and 9% of weekends; more cooking and evening activity.</div>
-    <div class="explanation"><strong>Family trips:</strong> about 3% of weekdays and 7% of weekends; only base load and heating at 17 °C remain.</div>
-    <div class="explanation"><strong>Washing and drying:</strong> mostly Tuesdays and Saturdays (75% chance), sometimes other days; a tumble dryer follows about 60% of washes. <strong>Dishwasher:</strong> used on 85% of days, starting between 19:00 and 21:00 on weekdays or after lunch at weekends.</div>
-    <div class="explanation"><strong>Weekends:</strong> more people at home during the day, later meals and more electronics use.</div>
-  </div>
-</section>
-
-<section class="panel chart-panel">
-  <div class="section-heading"><div><p class="eyebrow">APPLIANCES</p><h2>Assumed energy use</h2></div><span class="muted">Based on indicative values in the challenge scenario</span></div>
-  <div class="table-scroll"><table><thead><tr><th>Appliance or system</th><th>Model assumption</th></tr></thead><tbody>
-    <tr><td class="timestamp">Heat pump</td><td style="text-align:left">2–4 kW electrical input; demand rises below about 16 °C; COP ranges from 2.2 to 3.5 with temperature; night setpoint is 19.5 °C.</td></tr>
-    <tr><td class="timestamp">Fridge and freezer</td><td style="text-align:left">About 1.8 kWh/day combined in the base load (about 0.11–0.16 kWh/h including the router and standby loads).</td></tr>
-    <tr><td class="timestamp">Kettle and coffee machine</td><td style="text-align:left">2 kW for 3–5 minutes and 1–1.5 kW for 5–10 minutes respectively; several morning uses, included in Cooking.</td></tr>
-    <tr><td class="timestamp">Induction hob and oven</td><td style="text-align:left">Dinner uses 0.6–2.0 kWh; the oven is used on about 35% of days.</td></tr>
-    <tr><td class="timestamp">Washing machine, tumble dryer, dishwasher</td><td style="text-align:left">0.6–1.0, 1.5–2.5 and 0.8–1.2 kWh per cycle respectively, each lasting 1–2 hours. These are flexible events in the PV simulator.</td></tr>
-    <tr><td class="timestamp">TV, games consoles and computers</td><td style="text-align:left">0.08–0.35 kWh/h, depending on time of day and occupancy.</td></tr>
-    <tr><td class="timestamp">Lighting</td><td style="text-align:left">0.10–0.30 kW after dark; dusk varies with month and cloud cover.</td></tr>
-  </tbody></table></div>
-</section>
-
-<section class="panel chart-panel">
-  <div class="section-heading"><div><p class="eyebrow">COSTS</p><h2>Electricity rates and solar assumptions</h2></div><span class="muted">“Common Challenge Assumptions” appendix</span></div>
-  <div class="table-scroll"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody>
-    <tr><td class="timestamp">Electricity price 00–06 / 06–17 / 17–22 / 22–24</td><td class="number">€0.18 / €0.28 / €0.40 / €0.28 per kWh</td></tr>
-    <tr><td class="timestamp">PV installation cost</td><td class="number">€1,300/kWp</td></tr>
-    <tr><td class="timestamp">Export price</td><td class="number">€0.08/kWh</td></tr>
-    <tr><td class="timestamp">Annual PV operating cost</td><td class="number">1% of PV installation cost</td></tr>
-    <tr><td class="timestamp">PV performance ratio (our assumption)</td><td class="number">0.8, combining orientation, tilt and losses</td></tr>
-    <tr><td class="timestamp">Battery storage</td><td class="number">User-entered capacity up to 5,000 kWh and power up to 150 kW; charged only with surplus PV output</td></tr>
-    <tr><td class="timestamp">Battery round-trip efficiency</td><td class="number">90%, a simplified assumption close to the <a href="https://energylibrary.tesla.com/docs/Public/EnergyStorage/Powerwall/3/Datasheet/en-ie/Powerwall-3-Datasheet-IE.pdf">89% in the Powerwall 3 datasheet</a>; actual efficiency depends on the product</td></tr>
-    <tr><td class="timestamp">Battery cost</td><td class="number">User-entered purchase price, added to the investment; the challenge does not specify a battery price</td></tr>
-  </tbody></table></div>
-</section>
-
-<section class="panel chart-panel">
-  <div class="section-heading"><div><p class="eyebrow">METHOD</p><h2>How we estimate a full year from 35 days of history</h2></div></div>
-  <div class="explanation-list">
-    <div class="explanation"><strong>Same model, longer weather record:</strong> the same event simulator generates both the history and annual consumption, using 12 months of observed historical weather for the latter. Their overlapping hours match by construction.</div>
-    <div class="explanation"><strong>Heating seasonality:</strong> follows hourly temperature; the heat pump runs much longer in winter and not at all in summer. <strong>Lighting seasonality:</strong> follows monthly dusk times in Copenhagen. <strong>PV seasonality:</strong> follows observed hourly solar irradiance.</div>
-    <div class="explanation"><strong>Limits of the method:</strong> we do not know actual holidays, illness or meter readings. The annual total is a scenario estimate, not a billing forecast. PV output excludes shading and the roof's exact azimuth; these are approximated by the 0.8 performance ratio.</div>
-    <div class="explanation"><strong>Battery balance and daily use:</strong> each hour, PV output first serves household demand, then the battery supplies any shortfall, followed by the grid. Surplus PV charges the battery subject to its capacity and power limits; the rest is exported. Average daily use and weekly daily totals come from the same annual hourly data.</div>
-    <div class="explanation"><strong>Year boundary:</strong> for the full-year calculation, the battery's initial charge is found by repeating the same model year until its charge at the year boundary stabilizes. This avoids an artificial first-night grid purchase if the battery would have charged in the preceding year. Shorter periods start with an empty battery.</div>
-    <div class="explanation"><strong>System size:</strong> users can explore 1–150 kWp manually. The 100% coverage search uses that range; the shortest-payback search compares 1–15 kWp in 0.1 kWp steps. Large PV systems and seasonal batteries are theoretical scenarios. The calculator does not check roof area or installation feasibility and applies a linear €1,300/kWp cost at larger sizes too.</div>
-    <div class="explanation"><strong>Battery and payback limits:</strong> the entered battery price is included in the investment; the 1% annual operating cost applies only to PV. Battery degradation, replacement, maintenance and grid charging are not modelled. A battery does not generate energy, and 100% coverage may be impossible with insufficient PV output, battery capacity or battery power.</div>
-    {% if metrics %}<div class="explanation"><strong>Forecast evaluation:</strong> over the final 7 days of history, the model has an MAE of {{ metrics.mae_model|floatformat:3 }} kWh (daily-total MAPE {{ metrics.mape_model|floatformat:1 }}%), versus {{ metrics.mae_baseline|floatformat:3 }} kWh (MAPE {{ metrics.mape_baseline|floatformat:1 }}%) for the “same hour last week” baseline. Evaluation period: {{ metrics.okres_od|date:"d.m H:i" }} – {{ metrics.okres_do|date:"d.m H:i" }}. MAPE uses daily totals because nearly zero hourly use during family trips distorts hourly percentages.</div>{% endif %}
-    <div class="explanation"><strong>Further limitations:</strong> timestamps are local hour labels without daylight saving time reconciliation; the simulation is not a meter reading, and EUR costs are estimates based on the stated rates.</div>
-  </div>
-</section>
+    // 2. Podmieniamy zaznaczenie na przyciskach
+    document.querySelectorAll('.scenario-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    const targetBtn = document.getElementById('btn-scen-' + id);
+    if (targetBtn) {
+      targetBtn.classList.add('active');
+    }
+  }
+</script>
 {% endblock %}

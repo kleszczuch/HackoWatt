@@ -1,0 +1,9 @@
+{
+  "okres_od": "2026-09-21 18:00:00",
+  "okres_do": "2026-09-28 17:00:00",
+  "godzin": 168,
+  "mae_model": 1.4064,
+  "mape_model": 2.11,
+  "mae_baseline": 1.8002,
+  "mape_baseline": 4.46
+}

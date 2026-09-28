@@ -1,9 +1,8 @@
-"""Deterministyczny symulator zużycia energii trzypokoleniowego domu.
+"""Deterministyczny symulator zużycia energii dla 5 scenariuszy HackoWatt.
 
 Modeluje konkretne zdarzenia domowników (posiłki, pranie, praca zdalna,
-goście, wyjazdy) zamiast losowego szumu. Ogrzewanie pompą ciepła reaguje
-na rzeczywistą temperaturę godzinową. Harmonogram trzech pokoleń jest
-udokumentowany na stronie założeń aplikacji.
+goście, wyjazdy) oraz parametry specyficzne dla domostwa (np. basen/sauna w Barcelonie,
+pies w Lizbonie, singielka w Warszawie czy dom pokoleń w Kopenhadze).
 """
 
 import csv
@@ -48,7 +47,7 @@ DEVICE_PROFILES = {
     "Suszarka": {"energy": (1.5, 2.5), "duration": (1, 2)},
 }
 
-# Przybliżona jasna pora dnia w Kopenhadze (granica godziny).
+# Przybliżona jasna pora dnia (granica godziny).
 _DAWN = {1: 8, 2: 7.5, 3: 6.5, 4: 6, 5: 5, 6: 4, 7: 4.5, 8: 5.5, 9: 6.5, 10: 7, 11: 7.5, 12: 8.5}
 _DUSK = {
     1: 16,
@@ -90,18 +89,24 @@ def _q3(value: float) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
 
 
-def _draw_day_plan(rng: np.random.RandomState, day: date) -> dict:
+def _draw_day_plan(rng: np.random.RandomState, day: date, scenario_id: int) -> dict:
     weekend = day.weekday() >= 5
+    trip_chance = 0.07 if weekend else 0.03
+    if scenario_id == 1:
+        trip_chance = 0.25 if weekend else 0.12
+    elif scenario_id == 3:
+        trip_chance = 0.02
+
     plan = {
         "weekend": weekend,
-        "wfh": not weekend and rng.rand() < 0.12,
-        "guests": rng.rand() < (0.09 if weekend else 0.04),
-        "trip": rng.rand() < (0.07 if weekend else 0.03),
-        "grandparents_out": not weekend and rng.rand() < 0.18,
+        "wfh": not weekend and rng.rand() < (0.4 if scenario_id in (1, 5) else 0.12),
+        "guests": rng.rand() < (0.12 if weekend else 0.04),
+        "trip": rng.rand() < trip_chance,
+        "grandparents_out": scenario_id == 4 and not weekend and rng.rand() < 0.18,
         "wash": False,
         "dryer": False,
-        "dishwasher": rng.rand() < 0.85,
-        "oven_day": rng.rand() < 0.35,
+        "dishwasher": rng.rand() < (0.9 if scenario_id == 3 else 0.85),
+        "oven_day": rng.rand() < (0.5 if scenario_id == 3 else 0.35),
         "dishwasher_start": int(rng.choice((13, 14)) if weekend else rng.randint(19, 21)),
         "wash_start": int(rng.randint(9, 12) if weekend else rng.randint(9, 15)),
         "lunch_hour": int(rng.randint(12, 14)),
@@ -112,15 +117,19 @@ def _draw_day_plan(rng: np.random.RandomState, day: date) -> dict:
     elif rng.rand() < 0.15:
         plan["wash"] = True
     if plan["wash"]:
-        plan["dryer"] = rng.rand() < 0.6
+        plan["dryer"] = rng.rand() < (0.7 if scenario_id == 4 else 0.5)
     return plan
 
 
-def _occupancy(plan: dict, hour: int) -> str:
+def _occupancy(plan: dict, hour: int, scenario_id: int) -> str:
     if plan["trip"]:
         return "nobody"
     if hour < 6 or hour >= 23:
         return "sleeping"
+    if scenario_id == 1:
+        if 9 <= hour < 17 and not plan["wfh"]:
+            return "nobody"
+        return "evening"
     if hour < 9:
         return "morning"
     if hour < 14:
@@ -134,28 +143,38 @@ def _occupancy(plan: dict, hour: int) -> str:
     return "winding_down"
 
 
-def _heating_kw(rng: np.random.RandomState, plan: dict, hour: int, temperature: float) -> float:
+def _heating_kw(rng: np.random.RandomState, plan: dict, hour: int, temperature: float, scenario_id: int) -> float:
     setpoint = 17.0 if plan["trip"] else (19.5 if hour >= 22 or hour < 6 else 21.0)
+    if scenario_id in (3, 5) and temperature > 22:
+        if 12 <= hour <= 19:
+            return rng.uniform(0.8, 2.0)
+        return 0.2
     if temperature >= setpoint - 2:
         return 0.0
-    thermal_kw = (setpoint - temperature) * 0.30
+    thermal_kw = (setpoint - temperature) * (0.25 if scenario_id == 1 else 0.35)
     cop = min(3.5, max(2.2, 2.2 + 0.07 * temperature))
-    electric_kw = min(4.0, thermal_kw / cop)
+    electric_kw = min(4.5 if scenario_id == 3 else 4.0, thermal_kw / cop)
     return electric_kw * rng.uniform(0.85, 1.15)
 
 
 def _simulate_hour(
-    rng: np.random.RandomState, plan: dict, hour: int, month: int, temperature: float, cloud: float
+    rng: np.random.RandomState, plan: dict, hour: int, month: int, temperature: float, cloud: float, scenario_id: int
 ) -> tuple[dict, list[str]]:
     values = dict.fromkeys(CATEGORIES, 0.0)
     labels: list[str] = []
-    occupancy = _occupancy(plan, hour)
+    occupancy = _occupancy(plan, hour, scenario_id)
 
-    values["Baza_kWh"] = rng.uniform(0.11, 0.16)
+    base_min, base_max = (0.05, 0.09) if scenario_id == 1 else ((0.8, 1.4) if scenario_id == 3 else (0.11, 0.16))
+    values["Baza_kWh"] = rng.uniform(base_min, base_max)
+    
+    if scenario_id == 5 and occupancy == "nobody":
+        values["Baza_kWh"] += rng.uniform(0.05, 0.10)
+        labels.append("tryb opieki nad psem")
+
     if occupancy == "sleeping" and rng.rand() < 0.4:
         values["Baza_kWh"] += rng.uniform(0.01, 0.03)
 
-    values["Ogrzewanie_kWh"] = _heating_kw(rng, plan, hour, temperature)
+    values["Ogrzewanie_kWh"] = _heating_kw(rng, plan, hour, temperature, scenario_id)
 
     dawn, dusk = _DAWN[month], _DUSK[month]
     if cloud > 70:
@@ -166,38 +185,49 @@ def _simulate_hour(
         values["Oswietlenie_kWh"] = rng.uniform(0.10, 0.30) * scale
 
     if occupancy == "morning":
-        values["Gotowanie_kWh"] = rng.uniform(0.15, 0.45)
+        values["Gotowanie_kWh"] = rng.uniform(0.10 if scenario_id == 1 else 0.15, 0.45)
         if rng.rand() < 0.8:
             values["Gotowanie_kWh"] += rng.uniform(0.10, 0.17)
     elif occupancy in ("grandparents", "family_day") and hour == plan["lunch_hour"]:
         values["Gotowanie_kWh"] = rng.uniform(0.3, 0.9 if occupancy == "grandparents" else 1.4)
     elif occupancy == "evening" and hour == plan["dinner_hour"]:
-        values["Gotowanie_kWh"] = rng.uniform(0.6, 2.0 if plan["oven_day"] else 1.1)
+        mult = 1.8 if scenario_id == 3 else 1.0
+        values["Gotowanie_kWh"] = rng.uniform(0.6, 2.0 if plan["oven_day"] else 1.1) * mult
 
     if plan["guests"] and occupancy == "evening":
         values["Gotowanie_kWh"] *= 1.5
         labels.append("goście")
     if plan["trip"]:
-        labels.append("wyjazd rodziny")
-    if plan["grandparents_out"] and 9 <= hour < 14 and not plan["weekend"]:
-        labels.append("dziadkowie poza domem")
+        labels.append("wyjazd / nieobecność")
 
+    rtv_scale = 0.5 if scenario_id == 1 else (1.5 if scenario_id == 3 else 1.0)
     if occupancy == "grandparents":
-        values["RTV_PC_kWh"] = rng.uniform(0.08, 0.15)
+        values["RTV_PC_kWh"] = rng.uniform(0.08, 0.15) * rtv_scale
     elif occupancy == "kids":
-        values["RTV_PC_kWh"] = rng.uniform(0.08, 0.25)
+        values["RTV_PC_kWh"] = rng.uniform(0.08, 0.25) * rtv_scale
     elif occupancy == "family_day":
-        values["RTV_PC_kWh"] = rng.uniform(0.05, 0.25)
+        values["RTV_PC_kWh"] = rng.uniform(0.05, 0.25) * rtv_scale
     elif occupancy in ("evening", "winding_down"):
-        values["RTV_PC_kWh"] = rng.uniform(0.15, 0.35)
+        values["RTV_PC_kWh"] = rng.uniform(0.15, 0.35) * rtv_scale
     if plan["wfh"] and 9 <= hour < 17:
         values["RTV_PC_kWh"] += rng.uniform(0.08, 0.20)
         labels.append("praca zdalna")
 
+    if scenario_id == 3:
+        if 9 <= hour <= 16:
+            values["Duze_AGD_kWh"] += rng.uniform(0.6, 1.2)
+            labels.append("pompa basenu")
+        if 19 <= hour <= 21 and plan["weekend"]:
+            values["Duze_AGD_kWh"] += rng.uniform(6.0, 9.0)
+            labels.append("sauna")
+        if hour >= 22 or hour <= 5:
+            values["Duze_AGD_kWh"] += rng.uniform(3.5, 7.4)
+            labels.append("ładowanie EV")
+
     return values, labels
 
 
-def _plan_flex_events(rng: np.random.RandomState, plan: dict, day: date) -> list[FlexEvent]:
+def _plan_flex_events(rng: np.random.RandomState, plan: dict, day: date, scenario_id: int) -> list[FlexEvent]:
     events: list[FlexEvent] = []
     if plan["dishwasher"] and not plan["trip"]:
         profile = DEVICE_PROFILES["Zmywarka"]
@@ -233,30 +263,28 @@ def _plan_flex_events(rng: np.random.RandomState, plan: dict, day: date) -> list
 
 
 def simulate_household(
-    weather: list[WeatherHour], seed: int = SEED
+    weather: list[WeatherHour], seed: int = SEED, scenario_id: int = 4
 ) -> tuple[list[ConsumptionHour], list[FlexEvent]]:
-    """Wygeneruj godzinowe zużycie z podziałem na kategorie dla podanej pogody."""
-    rng = np.random.RandomState(seed)
+    rng = np.random.RandomState(seed + scenario_id)
     by_day: dict[date, list[WeatherHour]] = {}
     for record in weather:
         by_day.setdefault(record.timestamp.date(), []).append(record)
 
     days = sorted(by_day)
-    plans = {day: _draw_day_plan(rng, day) for day in days}
+    plans = {day: _draw_day_plan(rng, day, scenario_id) for day in days}
     if len(days) >= 30 and not any(plan["trip"] for plan in plans.values()):
-        # Scenariusz wymaga wyjazdu całej rodziny – wymuszamy jeden dzień.
         plans[days[int(rng.randint(0, len(days)))]]["trip"] = True
 
     consumption: list[ConsumptionHour] = []
     all_events: list[FlexEvent] = []
     for day in days:
         plan = plans[day]
-        day_events = _plan_flex_events(rng, plan, day)
+        day_events = _plan_flex_events(rng, plan, day, scenario_id)
         all_events.extend(day_events)
         for record in sorted(by_day[day], key=lambda item: item.timestamp):
             hour = record.timestamp.hour
             values, labels = _simulate_hour(
-                rng, plan, hour, record.timestamp.month, record.temperature, record.cloud_cover
+                rng, plan, hour, record.timestamp.month, record.temperature, record.cloud_cover, scenario_id
             )
             for event in day_events:
                 if event.start_hour <= hour < event.start_hour + event.duration_h:

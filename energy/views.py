@@ -5,6 +5,8 @@ from decimal import Decimal
 from html import escape
 from uuid import uuid4
 
+from energy.scenarios import get_scenario_data_dir, get_active_scenario
+
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -37,6 +39,14 @@ PV_DEFAULTS = {
     "magazyn_koszt_eur": "0",
 }
 
+from django.shortcuts import redirect
+from energy.scenarios import SCENARIOS
+
+def switch_scenario_view(request, scenario_id):
+    if scenario_id in SCENARIOS:
+        request.session["active_scenario"] = scenario_id
+    # Przekieruj z powrotem na tę samą podstronę, na której był użytkownik
+    return redirect(request.META.get("HTTP_REFERER", "/"))
 
 def _chart_html(figure, include_plotlyjs: bool = False) -> str:
     chart_id = f"chart-{uuid4().hex}"
@@ -98,13 +108,17 @@ def _simulation_days(request: HttpRequest) -> int:
 
 
 def dashboard(request: HttpRequest) -> HttpResponse:
+    data_dir = get_scenario_data_dir(request)       # <-- POBIERZ KATALOG AKTYWNEGO SCENARIUSZA
+    active_scenario = get_active_scenario(request)
+
     try:
-        history = data.load_history()
-        forecast = data.load_forecast()
-        weather_history = data.load_weather_history()
-        weather_forecast = data.load_weather_forecast()
-        backtest_rows = data.load_backtest()
-        metrics = data.load_metrics()
+        # Przekazujemy data_dir, aby czytał z folderu wybranego miasta:
+        history = data.load_history(data_dir)
+        forecast = data.load_forecast(data_dir)
+        weather_history = data.load_weather_history(data_dir)
+        weather_forecast = data.load_weather_forecast(data_dir)
+        backtest_rows = data.load_backtest(data_dir)
+        metrics = data.load_metrics(data_dir)
     except (FileNotFoundError, data.DemoDataError) as exc:
         return render(request, "energy/dashboard.html", {"data_error": str(exc)})
 
@@ -129,6 +143,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     ]
 
     context = {
+        "active_scenario": active_scenario,         # <-- DODAJ DO KONTEKSTU
         "simulation_days": days,
         "simulation_options": SIMULATION_DAYS,
         "metrics": metrics,
@@ -157,9 +172,12 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
 
 def hourly_history(request: HttpRequest) -> HttpResponse:
+    data_dir = get_scenario_data_dir(request)       # <-- POBIERZ KATALOG
+    active_scenario = get_active_scenario(request)
+
     try:
-        history = data.load_history()
-        weather_history = data.load_weather_history()
+        history = data.load_history(data_dir)
+        weather_history = data.load_weather_history(data_dir)
     except (FileNotFoundError, data.DemoDataError) as exc:
         return render(request, "energy/hourly.html", {"data_error": str(exc)})
 
@@ -237,11 +255,14 @@ def get_behavioral_advice(device_name, moved_kwh):
 
 
 def pv_simulator(request: HttpRequest) -> HttpResponse:
+    data_dir = get_scenario_data_dir(request)       # <-- POBIERZ KATALOG
+    active_scenario = get_active_scenario(request)
+
     try:
-        records, weather, events = data.load_annual()
+        # Ładujemy dane roczne z folderu wybranego miasta:
+        records, weather, events = data.load_annual(data_dir)
     except (FileNotFoundError, data.DemoDataError) as exc:
         return render(request, "energy/pv.html", {"data_error": str(exc)})
-
     goal = request.GET.get("cel")
     parameters = {**PV_DEFAULTS, **request.GET.dict()}
     if goal in {"coverage", "payback"}:
@@ -318,12 +339,15 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
 
 
 def assumptions(request: HttpRequest) -> HttpResponse:
-    context: dict = {"currency": CURRENCY}
+    data_dir = get_scenario_data_dir(request)       # <-- POBIERZ KATALOG
+    active_scenario = get_active_scenario(request)
+    context: dict = {"currency": CURRENCY, "active_scenario": active_scenario}
+    
     try:
-        history = data.load_history()
-        forecast = data.load_forecast()
-        records, weather, _ = data.load_annual()
-        context["metrics"] = data.load_metrics()
+        history = data.load_history(data_dir)
+        forecast = data.load_forecast(data_dir)
+        records, weather, _ = data.load_annual(data_dir)
+        context["metrics"] = data.load_metrics(data_dir)
         context["spans"] = {
             "history": (history[0].timestamp, history[-1].timestamp, len(history)),
             "forecast": (forecast[0].timestamp, forecast[-1].timestamp, len(forecast)),
@@ -336,9 +360,10 @@ def assumptions(request: HttpRequest) -> HttpResponse:
 
 
 def export_csv(request: HttpRequest) -> HttpResponse:
+    data_dir = get_scenario_data_dir(request)  # <-- DODANE: obsługa aktywnego scenariusza
     try:
-        history = data.load_history()
-        forecast = data.load_forecast()
+        history = data.load_history(data_dir)    # <-- PRZEKAZANE data_dir
+        forecast = data.load_forecast(data_dir)  # <-- PRZEKAZANE data_dir
     except (FileNotFoundError, data.DemoDataError) as exc:
         return HttpResponse(str(exc), status=400)
 
