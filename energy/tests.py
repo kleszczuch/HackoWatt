@@ -13,9 +13,10 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from energy import forecasting, household, pv, tariffs, weather
-from energy.charts import build_overview_chart
+from energy.charts import build_history_chart, build_overview_chart
 from energy.data import load_annual, load_history, load_weather_history
-from energy.views import PLOTLY_CONFIG
+from energy.presentation import device_name, event_names
+from energy.views import PLOTLY_CONFIG, _chart_html
 
 HISTORY_START = datetime(2026, 9, 15, 0)
 FORECAST_START = datetime(2026, 10, 20, 11)
@@ -460,25 +461,84 @@ class ViewTests(SimpleTestCase):
     def test_dashboard_shows_charts_peaks_and_error_panel(self):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Zużycie i temperatura")
-        self.assertContains(response, "Model kontra baseline")
-        self.assertContains(response, "Szczyt:")
-        self.assertContains(response, "0,123")  # MAE modelu z metryki (lokalizacja PL)
-        self.assertContains(response, "Przegląd godzinowy")
-        self.assertContains(response, "Ile da dach z panelami?")
-        self.assertNotContains(response, "Historia godzinowa")
+        self.assertContains(response, "Energy use and temperature")
+        self.assertContains(response, "Model versus baseline")
+        self.assertContains(response, "Peak:")
+        self.assertContains(response, "0.123")
+        self.assertContains(response, "Explore hourly data")
+        self.assertContains(response, "What could rooftop solar deliver?")
+        self.assertNotContains(response, "Hourly history")
         self.assertEqual(response.context["selected_count"], 7 * 24)
         self.assertEqual(response.context["selected_total"], Decimal(7 * 24))
 
-    def test_charts_keep_hover_but_disable_zoom(self):
-        chart = build_overview_chart(load_history()[-24:], load_weather_history()[-24:])
+    def test_charts_keep_hover_and_allow_horizontal_pan_without_wheel_zoom(self):
+        records = load_history()[-24:]
+        chart = build_overview_chart(records, load_weather_history()[-24:])
         self.assertEqual(chart.layout.hovermode, "x unified")
+        self.assertIs(chart.layout.showlegend, False)
+        self.assertTrue(all("%{x" not in trace.hovertemplate for trace in chart.data))
+        self.assertTrue(all("<extra>" in trace.hovertemplate for trace in chart.data))
         self.assertIs(chart.layout.dragmode, False)
-        for axis in (chart.layout.xaxis, chart.layout.yaxis, chart.layout.yaxis2):
-            self.assertIs(axis.fixedrange, True)
+        self.assertIs(chart.layout.xaxis.fixedrange, False)
+        self.assertIsNotNone(chart.layout.xaxis.minallowed)
+        self.assertIsNotNone(chart.layout.xaxis.maxallowed)
+        self.assertEqual(chart.layout.xaxis.range, (records[0].timestamp, records[-1].timestamp))
+        self.assertEqual(chart.layout.xaxis.minallowed, records[0].timestamp)
+        self.assertEqual(chart.layout.xaxis.maxallowed, records[-1].timestamp)
+        self.assertIs(chart.layout.yaxis.fixedrange, True)
+        self.assertIs(chart.layout.yaxis2.fixedrange, True)
         self.assertIs(PLOTLY_CONFIG["scrollZoom"], False)
         self.assertIs(PLOTLY_CONFIG["doubleClick"], False)
         self.assertIs(PLOTLY_CONFIG["displayModeBar"], False)
+
+    def test_chart_time_bounds_for_empty_and_single_hour(self):
+        empty = build_history_chart([], [])
+        self.assertIsNone(empty.layout.xaxis.range)
+        self.assertIsNone(empty.layout.xaxis.minallowed)
+        self.assertIsNone(empty.layout.xaxis.maxallowed)
+
+        record = load_history()[0]
+        one_hour = build_history_chart([record], [])
+        self.assertEqual(
+            one_hour.layout.xaxis.range,
+            (record.timestamp - timedelta(minutes=30), record.timestamp + timedelta(minutes=30)),
+        )
+        self.assertEqual(one_hour.layout.xaxis.minallowed, one_hour.layout.xaxis.range[0])
+        self.assertEqual(one_hour.layout.xaxis.maxallowed, one_hour.layout.xaxis.range[1])
+
+    def test_chart_controls_have_one_checkbox_per_trace_and_are_isolated(self):
+        chart = build_overview_chart(load_history()[-24:], load_weather_history()[-24:])
+        first = _chart_html(chart)
+        second = _chart_html(chart)
+        self.assertEqual(first.count('type="checkbox"'), len(chart.data))
+        self.assertIn('data-chart-action="select-all"', first)
+        self.assertIn('data-chart-action="deselect-all"', first)
+        self.assertIn('data-chart-zoom="in"', first)
+        self.assertIn('data-chart-zoom="out"', first)
+        self.assertIn('aria-label="Zoom in"', first)
+        self.assertIn("Energy use · simulation", first)
+        self.assertNotEqual(
+            first.split('data-chart-id="')[1].split('"')[0],
+            second.split('data-chart-id="')[1].split('"')[0],
+        )
+
+    def test_hover_keeps_series_names_and_tiny_nonzero_energy(self):
+        record = household.ConsumptionHour(
+            HISTORY_START,
+            (Decimal("0"), Decimal("0.00001"), *(Decimal("0") for _ in range(4))),
+            "goście",
+        )
+        chart = build_history_chart([record], [weather.WeatherHour(HISTORY_START, 15.6, 50, 0)])
+        self.assertEqual(chart.data[0].y[0], 0)
+        self.assertEqual(chart.data[1].y[0], 0.00001)
+        self.assertTrue(
+            all(
+                "%{fullData.name}: %{y:.5~r} kWh" in trace.hovertemplate for trace in chart.data[:6]
+            )
+        )
+        self.assertEqual(chart.data[6].hovertemplate, "Events: %{text}<extra></extra>")
+        self.assertEqual(chart.data[6].text[0], "guests")
+        self.assertIn("Temperature:", chart.data[7].hovertemplate)
 
     def test_dashboard_simulation_periods_and_short_snapshot(self):
         for days in (1, 3, 5, 7, 14, 31):
@@ -504,7 +564,7 @@ class ViewTests(SimpleTestCase):
         )
         self.assertEqual(response.context["selected_count"], 48)
         self.assertContains(response, "1.000")
-        self.assertContains(response, "Pobierz CSV")
+        self.assertContains(response, "Download CSV")
         page_two = self.client.get(
             reverse("hourly_history"),
             {"start": "2026-09-20", "end": "2026-09-22", "page": 2},
@@ -517,6 +577,18 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(export.status_code, 200)
         rows = list(csv.reader(io.StringIO(export.content.decode("utf-8-sig"))))
         self.assertEqual(len(rows), 49)
+        self.assertEqual(rows[0][0:2], ["Date_Time", "Data_Type"])
+        self.assertEqual(rows[0][-1], "Events")
+        self.assertEqual(rows[1][1], "Simulation")
+        self.assertEqual(rows[1][2], "1.000")
+        self.assertEqual(rows[1][-2], "1.000")
+
+    def test_polish_demo_labels_are_translated_for_presentation(self):
+        self.assertEqual(device_name("Zmywarka"), "Dishwasher")
+        self.assertEqual(
+            event_names("goście; pralka; praca zdalna"),
+            "guests; washing machine; working from home",
+        )
 
     def test_hourly_history_uses_exact_rolling_period_from_dashboard(self):
         response = self.client.get(reverse("hourly_history"), {"dni": "3", "page": 2})
@@ -533,27 +605,30 @@ class ViewTests(SimpleTestCase):
     def test_pv_simulator_shows_variants_and_recommendations(self):
         response = self.client.get(reverse("pv_simulator"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Warianty instalacji")
-        self.assertContains(response, "Zakup z sieci")
-        self.assertContains(response, "Zmywarka")
-        self.assertContains(response, "Dobierz do 100% pokrycia")
-        self.assertContains(response, "Najkrótszy zwrot (B)")
+        self.assertContains(response, "PV system options")
+        self.assertContains(response, "Grid purchases")
+        self.assertContains(response, "Dishwasher")
+        self.assertContains(response, "Effect of shifting appliance use")
+        self.assertNotContains(response, "Wskazówka:")
+        self.assertNotContains(response, "nie ma czego przesuwać")
+        self.assertContains(response, "Find 100% coverage")
+        self.assertContains(response, "Shortest payback (B)")
 
     def test_pv_auto_choices_show_result_and_preserve_manual_mode(self):
         coverage = self.client.get(reverse("pv_simulator"), {"cel": "coverage", "miesiac": "6"})
         self.assertEqual(coverage.status_code, 200)
-        self.assertContains(coverage, "100% pokrycia nie jest osiągalne")
+        self.assertContains(coverage, "100% coverage is not achievable")
         self.assertEqual(coverage.context["kwp"], Decimal("1.0"))
         self.assertEqual(coverage.context["form"]["miesiac"].value(), "6")
 
         payback = self.client.get(reverse("pv_simulator"), {"cel": "payback", "miesiac": "6"})
         self.assertEqual(payback.status_code, 200)
-        self.assertContains(payback, "Brak dodatniego zwrotu")
+        self.assertContains(payback, "No positive payback")
         self.assertEqual(payback.context["kwp"], Decimal("5"))
 
         manual = self.client.get(reverse("pv_simulator"), {"kwp": "4", "miesiac": "6"})
         self.assertEqual(manual.context["kwp"], Decimal("4"))
-        self.assertNotContains(manual, "Wynik automatycznego doboru")
+        self.assertNotContains(manual, "Automatic sizing result")
 
     def test_pv_storage_form_and_daily_results(self):
         params = {
@@ -567,21 +642,21 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["selected"].investment_eur, Decimal("13500"))
         self.assertEqual(len(response.context["week_days"]), 7)
-        self.assertContains(response, "Średnie dzienne zużycie budynku")
-        self.assertContains(response, "Zużycie budynku w wybranym tygodniu")
-        self.assertContains(response, "Cena zakupu")
+        self.assertContains(response, "Average daily household use")
+        self.assertContains(response, "Household use in the selected week")
+        self.assertContains(response, "Purchase price")
 
         no_price = self.client.get(reverse("pv_simulator"), {**params, "magazyn_koszt_eur": "0"})
-        self.assertContains(no_price, "Podaj dodatnią cenę zakupu magazynu")
+        self.assertContains(no_price, "Enter a battery purchase price above zero")
         self.assertNotIn("selected", no_price.context)
 
         no_battery = self.client.get(reverse("pv_simulator"), {**params, "magazyn_kwh": "0"})
-        self.assertContains(no_battery, "Przy pojemności 0 kWh cena musi wynosić 0")
+        self.assertContains(no_battery, "With 0 kWh capacity, the price must be zero")
 
         automatic = self.client.get(reverse("pv_simulator"), {**params, "cel": "coverage"})
         self.assertEqual(automatic.status_code, 200)
         self.assertEqual(automatic.context["storage"].capacity_kwh, Decimal("10"))
-        self.assertContains(automatic, "Nawet przy 150")
+        self.assertContains(automatic, "Even at 150")
 
         large = self.client.get(
             reverse("pv_simulator"),
@@ -595,18 +670,19 @@ class ViewTests(SimpleTestCase):
         )
         self.assertEqual(large.status_code, 200)
         self.assertEqual(large.context["kwp"], Decimal("100"))
-        self.assertContains(large, "scenariuszem teoretycznym")
+        self.assertContains(large, "theoretical scenarios")
 
     def test_assumptions_page_documents_everything(self):
         response = self.client.get(reverse("assumptions"))
         self.assertEqual(response.status_code, 200)
-        for phrase in ("Kopenhaga", "1300", "35 dni", "szacunkiem"):
+        for phrase in ("Copenhagen", "1,300", "35 days", "estimate"):
             self.assertContains(response, phrase)
 
-    def test_missing_data_shows_preparation_command(self):
+    def test_missing_data_shows_neutral_status(self):
         (self.data_dir / household.HISTORY_FILENAME).unlink()
         response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, "prepare_demo_data", status_code=200)
+        self.assertContains(response, "Demo data is temporarily unavailable.", status_code=200)
+        self.assertNotContains(response, "prepare_demo_data")
 
     def test_loaders_parse_fixture_files(self):
         history = load_history()
@@ -639,11 +715,10 @@ class ApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()["data"]
         self.assertIn("current_hour", data)
-        self.assertIn("best_windows", data)
-        self.assertIn("tips_by_generation", data)
-        self.assertIn("dla_dziadkow", data["tips_by_generation"])
-        self.assertIn("dla_mlodziezy", data["tips_by_generation"])
+        self.assertEqual(data["lowest_tariff_hours"], list(range(6)))
+        self.assertEqual(data["highest_tariff_hours"], list(range(17, 22)))
         self.assertEqual(len(data["timeline"]), 24)
+        self.assertNotIn("recommended_action", data["timeline"][0])
 
     def test_devices_guidance_endpoint(self):
         res = self.client.get(reverse("api_devices_guidance"))
@@ -654,6 +729,8 @@ class ApiTests(TestCase):
         self.assertIn("Zmywarka", names)
         self.assertIn("Pralka", names)
         self.assertIn("Suszarka bębnowa", names)
+        self.assertNotIn("tip_pl", devices[0])
+        self.assertIn("annual_energy_kwh", devices[0])
 
     def test_devices_shift_simulation_get_and_post(self):
         # Odczyt przez GET z parametrami URL

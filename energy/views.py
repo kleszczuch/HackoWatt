@@ -2,6 +2,8 @@
 
 import csv
 from decimal import Decimal
+from html import escape
+from uuid import uuid4
 
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse
@@ -17,7 +19,7 @@ from energy.charts import (
 )
 from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm
-from energy.household import CATEGORIES
+from energy.presentation import device_name, event_names
 from energy.tariffs import CURRENCY
 
 PLOTLY_CONFIG = {
@@ -37,7 +39,38 @@ PV_DEFAULTS = {
 
 
 def _chart_html(figure, include_plotlyjs: bool = False) -> str:
-    return figure.to_html(full_html=False, include_plotlyjs=include_plotlyjs, config=PLOTLY_CONFIG)
+    chart_id = f"chart-{uuid4().hex}"
+    controls = []
+    for index, trace in enumerate(figure.data):
+        is_marker = trace.mode == "markers"
+        color = trace.marker.color if is_marker else trace.line.color
+        line_style = "legend-mark-marker" if is_marker else "legend-mark-line"
+        if not is_marker and trace.line.dash in {"dash", "dot", "dashdot"}:
+            line_style += f" legend-mark-{trace.line.dash}"
+        controls.append(
+            f'<label class="chart-series"><input type="checkbox" data-trace-index="{index}" '
+            'checked><span class="chart-series-check" aria-hidden="true"></span>'
+            f'<span class="chart-series-mark {line_style}" '
+            f'style="--series-color:{escape(str(color))};'
+            f'--series-fill:{escape(str(trace.fillcolor or "transparent"))}" '
+            f'aria-hidden="true"></span><span>{escape(str(trace.name))}</span></label>'
+        )
+    legend = (
+        '<div class="chart-toolbar"><div class="chart-legend" role="group" '
+        'aria-label="Chart series">'
+        + "".join(controls)
+        + '</div><div class="chart-legend-actions">'
+        '<button type="button" data-chart-action="select-all">Select all</button>'
+        '<button type="button" data-chart-action="deselect-all">Deselect all</button>'
+        '</div><div class="chart-zoom-actions" role="group" aria-label="Chart zoom">'
+        '<button type="button" data-chart-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>'
+        '<button type="button" data-chart-zoom="out" aria-label="Zoom out" '
+        'title="Zoom out">−</button></div></div>'
+    )
+    plot = figure.to_html(
+        full_html=False, include_plotlyjs=include_plotlyjs, config=PLOTLY_CONFIG, div_id=chart_id
+    )
+    return f'<div class="interactive-chart" data-chart-id="{chart_id}">{legend}{plot}</div>'
 
 
 def _date_range(request: HttpRequest, history):
@@ -100,7 +133,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         "simulation_options": SIMULATION_DAYS,
         "metrics": metrics,
         "horizon_hours": horizon_hours,
-        "forecast_options": ((24, "24 h"), (72, "3 dni"), (168, "7 dni")),
+        "forecast_options": ((24, "24 h"), (72, "3 days"), (168, "7 days")),
         "start": selected_history[0].timestamp.date().isoformat(),
         "end": selected_history[-1].timestamp.date().isoformat(),
         "selected_count": len(selected_history),
@@ -171,6 +204,38 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
     return render(request, "energy/hourly.html", context)
 
 
+def get_behavioral_advice(device_name, moved_kwh):
+    if moved_kwh <= 0:
+        return {
+            "headline": "Already within the solar window",
+            "action": "No recorded cycles of this appliance start outside 9:00–15:00.",
+            "comfort": "The model can still compare different start times within that window.",
+        }
+    if device_name == "Zmywarka":
+        return {
+            "headline": "Shift dishwasher cycles",
+            "action": "A delayed start can move a cycle into the 9:00–15:00 solar window.",
+            "comfort": "Choose a start time that suits the household's routine.",
+        }
+    if device_name == "Pralka":
+        return {
+            "headline": "Shift washing cycles",
+            "action": "A daytime start can align a washing cycle with solar production.",
+            "comfort": "The simulated benefit is shown above for this appliance alone.",
+        }
+    if device_name == "Suszarka":
+        return {
+            "headline": "Shift drying cycles",
+            "action": "Running the tumble dryer during solar production may reduce grid purchases.",
+            "comfort": "The simulated benefit is shown above for this appliance alone.",
+        }
+    return {
+        "headline": "Consider a daytime start",
+        "action": "The model compares this appliance's schedule with a solar-window start.",
+        "comfort": "Check the calculated change in grid use and savings above.",
+    }
+
+
 def pv_simulator(request: HttpRequest) -> HttpResponse:
     try:
         records, weather, events = data.load_annual()
@@ -205,7 +270,28 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
     selected = next((result for result in comparison if result.kwp == kwp), None)
     if selected is None:
         selected = pv.simulate(records, weather, events, kwp, storage)
-    effects = pv.device_effects(records, weather, events, kwp, storage)
+
+    selected = pv.simulate(records, weather, events, kwp, storage)
+
+    # 1. Pobieramy oryginalne efekty (zamrożone)
+    oryginalne_efekty = pv.device_effects(records, weather, events, kwp, storage)
+
+    # 2. Przepisujemy je do nowej, "odmrożonej" listy
+    effects = []
+    for effect in oryginalne_efekty:
+        # Pobieramy poradę (tu używamy kropek, bo czytamy z zamrożonego obiektu)
+        porada = get_behavioral_advice(effect.device, effect.moved_kwh)
+
+        # Tworzymy nowy, elastyczny słownik ze starymi danymi + naszą poradą!
+        effects.append(
+            {
+                "device": device_name(effect.device),
+                "moved_kwh": effect.moved_kwh,
+                "grid_saved_kwh": effect.grid_saved_kwh,
+                "money_saved": effect.money_saved,
+                "advice": porada,
+            }
+        )
     week = pv.representative_week(records, weather, events, kwp, month, storage)
     max_production = sum(
         (pv.pv_production(hour.radiation, pv.MAX_KWP) for hour in weather), Decimal(0)
@@ -258,24 +344,37 @@ def export_csv(request: HttpRequest) -> HttpResponse:
 
     if request.GET.get("dni") and not (request.GET.get("start") or request.GET.get("end")):
         days = _simulation_days(request)
-        selected = [("Symulacja", record) for record in history[-days * 24 :]]
+        selected = [("Simulation", record) for record in history[-days * 24 :]]
     else:
         form = _date_range(request, history)
         if not form.is_valid():
-            return HttpResponse("Niepoprawny zakres dat.", status=400)
+            return HttpResponse("Invalid date range.", status=400)
 
         start = form.cleaned_data["start"]
         end = form.cleaned_data["end"]
         selected = sorted(
-            [("Symulacja", record) for record in data.filter_records(history, start, end)]
-            + [("Prognoza", record) for record in data.filter_records(forecast, start, end)],
+            [("Simulation", record) for record in data.filter_records(history, start, end)]
+            + [("Forecast", record) for record in data.filter_records(forecast, start, end)],
             key=lambda item: item[1].timestamp,
         )
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="hackowatt_dane.csv"'
+    response["Content-Disposition"] = 'attachment; filename="hackowatt_energy.csv"'
     response.write("\ufeff")
     writer = csv.writer(response)
-    writer.writerow(["Data_Czas", "Typ_danych", *CATEGORIES, "Calkowite_Zuzycie_kWh", "Zdarzenia"])
+    writer.writerow(
+        [
+            "Date_Time",
+            "Data_Type",
+            "Base_kWh",
+            "Heating_kWh",
+            "Lighting_kWh",
+            "Cooking_kWh",
+            "TV_Computers_kWh",
+            "Major_Appliances_kWh",
+            "Total_Consumption_kWh",
+            "Events",
+        ]
+    )
     for kind, record in selected:
         writer.writerow(
             [
@@ -283,7 +382,7 @@ def export_csv(request: HttpRequest) -> HttpResponse:
                 kind,
                 *[f"{value:.3f}" for value in record.categories],
                 f"{record.total:.3f}",
-                record.events,
+                event_names(record.events),
             ]
         )
     return response

@@ -1,59 +1,59 @@
 {% extends "energy/base.html" %}
-{% block title %}HackoWatt · Pulpit zużycia{% endblock %}
+{% block title %}eko-dziki · Energy dashboard{% endblock %}
 {% block content %}
 <div class="dashboard">
   <header class="dashboard-heading">
     <div>
-      <p class="eyebrow">SCENARIUSZ 4 · KOPENHAGA</p>
-      <h1>Energia w domu <span>pełnym pokoleń</span></h1>
-      <p>Symulacja zużycia na realnej pogodzie i prognoza XGBoost · dane demonstracyjne, nie odczyty licznika</p>
+      <p class="eyebrow">SCENARIO 4 · COPENHAGEN</p>
+      <h1>Energy in a home <span>for three generations</span></h1>
+      <p>Energy use simulated with real weather data and an XGBoost forecast · demo data, not meter readings</p>
     </div>
     <div class="dashboard-actions">
-      <a class="button secondary" href="{% url 'hourly_history' %}?dni={{ simulation_days }}">Przegląd godzinowy →</a>
-      <a class="button primary" href="{% url 'pv_simulator' %}">Ile da dach z panelami? →</a>
+      <a class="button secondary" href="{% url 'hourly_history' %}?dni={{ simulation_days }}">Explore hourly data →</a>
+      <a class="button primary" href="{% url 'pv_simulator' %}">What could rooftop solar deliver? →</a>
     </div>
   </header>
 
-  <div class="dashboard-controls" aria-label="Zakresy danych">
+  <div class="dashboard-controls" aria-label="Data ranges">
     <div class="range-control">
-      <span>Symulacja · ostatnie</span>
-      <nav class="range-options" aria-label="Okres symulacji">
+      <span>Simulation · last</span>
+      <nav class="range-options" aria-label="Simulation period">
         {% for days in simulation_options %}<a href="?dni={{ days }}&amp;horyzont={{ horizon_hours }}" {% if days == simulation_days %}class="selected" aria-current="page"{% endif %}>{{ days }} d</a>{% endfor %}
       </nav>
     </div>
     <div class="range-control">
-      <span>Prognoza</span>
-      <nav class="range-options" aria-label="Horyzont prognozy">
+      <span>Forecast</span>
+      <nav class="range-options" aria-label="Forecast horizon">
         {% for hours, label in forecast_options %}<a href="?dni={{ simulation_days }}&amp;horyzont={{ hours }}" {% if hours == horizon_hours %}class="selected" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
       </nav>
     </div>
   </div>
 
-  <section class="dashboard-kpis" aria-label="Najważniejsze dane">
-    <article class="dashboard-kpi"><span>Symulacja · {{ selected_count }} h</span><strong>{{ selected_total|floatformat:1 }} <small>kWh</small></strong><p>{{ start }} – {{ end }}</p></article>
-    <article class="dashboard-kpi forecast-kpi"><span>Prognoza · {{ horizon_hours }} h</span><strong>{{ forecast_total|floatformat:1 }} <small>kWh</small></strong><p>Oczekiwane zużycie</p></article>
-    <article class="dashboard-kpi"><span>Błąd modelu · MAE</span><strong>{{ metrics.mae_model|floatformat:3 }} <small>kWh</small></strong><p>Baseline: {{ metrics.mae_baseline|floatformat:3 }} kWh · MAPE {{ metrics.mape_model|floatformat:1 }}%</p></article>
+  <section class="dashboard-kpis" aria-label="Key figures">
+    <article class="dashboard-kpi"><span>Simulation · {{ selected_count }} h</span><strong>{{ selected_total|floatformat:1 }} <small>kWh</small></strong><p>{{ start }} – {{ end }}</p></article>
+    <article class="dashboard-kpi forecast-kpi"><span>Forecast · {{ horizon_hours }} h</span><strong>{{ forecast_total|floatformat:1 }} <small>kWh</small></strong><p>Expected consumption</p></article>
+    <article class="dashboard-kpi"><span>Model error · MAE</span><strong>{{ metrics.mae_model|floatformat:3 }} <small>kWh</small></strong><p>Baseline: {{ metrics.mae_baseline|floatformat:3 }} kWh · MAPE {{ metrics.mape_model|floatformat:1 }}%</p></article>
   </section>
 
   <div class="dashboard-charts">
     <section class="panel overview-panel" aria-labelledby="history-heading">
-      <div class="overview-heading"><div><p class="eyebrow">HISTORIA · SYMULACJA</p><h2 id="history-heading">Zużycie i temperatura</h2></div><a href="{% url 'hourly_history' %}?dni={{ simulation_days }}">Godziny →</a></div>
+      <div class="overview-heading"><div><p class="eyebrow">HISTORY · SIMULATION</p><h2 id="history-heading">Energy use and temperature</h2></div><a href="{% url 'hourly_history' %}?dni={{ simulation_days }}">Hourly data →</a></div>
       <div class="plot">{{ history_chart|safe }}</div>
     </section>
     <section class="panel overview-panel" aria-labelledby="forecast-heading">
-      <div class="overview-heading"><div><p class="eyebrow">PROGNOZA · {{ horizon_hours }} H</p><h2 id="forecast-heading">Zużycie i temperatura</h2></div></div>
+      <div class="overview-heading"><div><p class="eyebrow">FORECAST · {{ horizon_hours }} H</p><h2 id="forecast-heading">Energy use and temperature</h2></div></div>
       <div class="plot">{{ forecast_chart|safe }}</div>
     </section>
   </div>
 
-  <section class="peaks-strip" aria-label="Godziny szczytu prognozy">
-    <div class="peaks-title"><span class="eyebrow">PROGNOZA</span><strong>Godziny szczytu</strong></div>
-    {% for peak in peaks %}<div class="peak-item"><span class="peak-number">0{{ forloop.counter }}</span><span><strong>Szczyt:</strong> {{ peak.sentence }}</span></div>{% endfor %}
+  <section class="peaks-strip" aria-label="Forecast peak hours">
+    <div class="peaks-title"><span class="eyebrow">FORECAST</span><strong>Peak hours</strong></div>
+    {% for peak in peaks %}<div class="peak-item"><span class="peak-number">0{{ forloop.counter }}</span><span><strong>Peak: {{ peak.timestamp|date:"d.m H:i" }} · {{ peak.total|floatformat:1 }} kWh</strong><small>{{ peak.components|join:", " }}</small></span></div>{% endfor %}
   </section>
 
   <details class="panel backtest-details" id="backtest-details">
-    <summary>Model kontra baseline na końcu historii <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · zobacz wykres</span></summary>
-    <p>Ostatnie 7 dni historii · prognoza „na ślepo”. MAPE modelu {{ metrics.mape_model|floatformat:1 }}%, baseline'u {{ metrics.mape_baseline|floatformat:1 }}%.</p>
+    <summary>Model versus baseline on the final week of history <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · view chart</span></summary>
+    <p>Final 7 days of history · forecast made without seeing actual demand. Model MAPE: {{ metrics.mape_model|floatformat:1 }}%, baseline {{ metrics.mape_baseline|floatformat:1 }}%.</p>
     <div class="plot">{{ backtest_chart|safe }}</div>
   </details>
   <script>

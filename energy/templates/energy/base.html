@@ -1,23 +1,25 @@
 {% load static %}
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}HackoWatt{% endblock %}</title>
+  <title>{% block title %}eko-dziki{% endblock %}</title>
+  <link rel="icon" type="image/webp" href="{% static 'energy/Logo.webp' %}">
   <link rel="stylesheet" href="{% static 'energy/dashboard.css' %}">
+  <script src="{% static 'energy/chart-controls.js' %}" defer></script>
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
-      <a class="brand" href="{% url 'dashboard' %}" aria-label="HackoWatt — strona główna">
-        <span class="brand-icon">⚡</span><span>Hacko<span class="brand-accent">Watt</span></span>
+      <a class="brand" href="{% url 'dashboard' %}" aria-label="eko-dziki – home">
+        <img class="brand-icon" src="{% static 'energy/Logo.webp' %}" alt="" width="48" height="48"><span>eko-dziki</span>
       </a>
-      <nav class="topnav" aria-label="Nawigacja główna">
-        <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>Pulpit</a>
-        <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>Godziny</a>
-        <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>Symulator PV</a>
-        <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>Założenia</a>
+      <nav class="topnav" aria-label="Main navigation">
+        <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
+        <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>Hourly data</a>
+        <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>PV simulator</a>
+        <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>Assumptions</a>
       </nav>
     </header>
 
@@ -25,15 +27,14 @@
       {% if data_error %}
       <section class="panel empty-state" role="status">
         <span class="empty-icon">◌</span>
-        <h2>Dane nie są jeszcze gotowe</h2>
+        <h2>Data is not available yet</h2>
         <p>{{ data_error }}</p>
-        <code>uv run python manage.py prepare_demo_data</code>
       </section>
       {% else %}
       {% block content %}{% endblock %}
       {% endif %}
     </main>
-    <footer>HackoWatt · scenariusz 4 „Dom pełen pokoleń” · pogoda: Open-Meteo, Kopenhaga · koszty w EUR są szacunkami</footer>
+    <footer>eko-dziki · Scenario 4: A House Full of Generations · weather: Open-Meteo, Copenhagen · EUR costs are estimates</footer>
   </div>
 </body>
 </html>

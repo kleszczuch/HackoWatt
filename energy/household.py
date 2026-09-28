@@ -244,7 +244,7 @@ def simulate_household(
     days = sorted(by_day)
     plans = {day: _draw_day_plan(rng, day) for day in days}
     if len(days) >= 30 and not any(plan["trip"] for plan in plans.values()):
-        # Scenariusz wymaga wyjazdu całej rodziny — wymuszamy jeden dzień.
+        # Scenariusz wymaga wyjazdu całej rodziny – wymuszamy jeden dzień.
         plans[days[int(rng.randint(0, len(days)))]]["trip"] = True
 
     consumption: list[ConsumptionHour] = []
@@ -311,7 +311,7 @@ def read_events_csv(path: Path | str) -> list[FlexEvent]:
     with Path(path).open(encoding="utf-8-sig", newline="") as source:
         reader = csv.DictReader(source)
         if reader.fieldnames is None or not set(EVENT_COLUMNS).issubset(reader.fieldnames):
-            raise ValueError(f"Plik {Path(path).name} nie ma wymaganych kolumn zdarzeń.")
+            raise ValueError(f"File {Path(path).name} is missing required event columns.")
         for row in reader:
             events.append(
                 FlexEvent(
