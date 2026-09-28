@@ -7,10 +7,12 @@ from decimal import Decimal
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from energy.currency import SYMBOLS, from_eur
 from energy.forecasting import BacktestRow
 from energy.household import CATEGORIES, ConsumptionHour
 from energy.presentation import event_names
 from energy.pv import WeekProfile
+from energy.tariffs import PriceBlock
 from energy.weather import WeatherHour
 
 CATEGORY_LABELS_PL = (
@@ -311,3 +313,104 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal, lang: str = "en") -> go.Figu
         )
     figure.update_yaxes(title_text="kWh", rangemode="tozero")
     return _base_layout(figure, 380, lang=lang)
+
+
+def build_tariff_price_chart(
+    rows: list[dict],
+    cheapest: PriceBlock,
+    highest: PriceBlock,
+    currency: str = "EUR",
+    lang: str = "pl",
+) -> go.Figure:
+    """Pokazuje ceny godzinowe, stawki zastępcze i skrajne bloki 4 h."""
+    symbol = SYMBOLS[currency]
+    price_name = "Hourly price" if lang == "en" else "Cena godzinowa"
+    fallback_name = "Fixed fallback" if lang == "en" else "Stawka zastępcza"
+    figure = go.Figure()
+    figure.add_trace(
+        go.Scatter(
+            x=[row["timestamp"] for row in rows],
+            y=[float(from_eur(row["price"], currency)) for row in rows],
+            name=price_name,
+            mode="lines",
+            line={"color": CHARCOAL, "width": 2.5},
+            fill="tozeroy",
+            fillcolor="rgba(107,170,117,0.24)",
+            hovertemplate=f"%{{fullData.name}}: %{{y:.5f}} {symbol}/kWh<extra></extra>",
+        )
+    )
+    fallback_rows = [row for row in rows if row["fallback"]]
+    if fallback_rows:
+        figure.add_trace(
+            go.Scatter(
+                x=[row["timestamp"] for row in fallback_rows],
+                y=[float(from_eur(row["price"], currency)) for row in fallback_rows],
+                name=fallback_name,
+                mode="markers",
+                marker={
+                    "color": CHARTREUSE,
+                    "size": 9,
+                    "symbol": "diamond",
+                    "line": {"color": CHARCOAL, "width": 1.3},
+                },
+                hovertemplate=f"%{{fullData.name}}: %{{y:.5f}} {symbol}/kWh<extra></extra>",
+            )
+        )
+    figure.update_yaxes(title_text=f"{symbol}/kWh", rangemode="tozero")
+    figure = _base_layout(figure, 330, lang=lang)
+    first_hour = rows[0]["timestamp"]
+    day_end = rows[-1]["timestamp"] + timedelta(hours=1)
+    figure.update_xaxes(
+        tickformat="%H:%M",
+        hoverformat="%H:%M",
+        dtick=3 * 60 * 60 * 1000,
+        range=[first_hour, day_end],
+        minallowed=first_hour,
+        maxallowed=day_end,
+    )
+    blocks = (
+        (
+            cheapest,
+            "Cheapest" if lang == "en" else "Najtaniej",
+            "rgba(203,255,77,0.38)",
+            GRASS,
+            0.98,
+        ),
+        (
+            highest,
+            "Priciest" if lang == "en" else "Najdrożej",
+            "rgba(105,116,124,0.22)",
+            CHARCOAL,
+            0.86,
+        ),
+    )
+    for block, label, fill_color, line_color, label_y in blocks:
+        block_start = first_hour + timedelta(hours=block.start_hour)
+        block_end = first_hour + timedelta(hours=block.end_hour)
+        figure.add_shape(
+            type="rect",
+            xref="x",
+            yref="paper",
+            x0=block_start,
+            x1=block_end,
+            y0=0,
+            y1=1,
+            fillcolor=fill_color,
+            line={"color": line_color, "width": 1},
+            layer="below",
+        )
+        figure.add_annotation(
+            x=block_start + timedelta(hours=2),
+            y=label_y,
+            xref="x",
+            yref="paper",
+            text=label,
+            showarrow=False,
+            yanchor="top",
+            font={"color": CHARCOAL, "size": 12},
+            bgcolor="rgba(255,255,255,0.9)",
+            bordercolor=line_color,
+            borderpad=4,
+        )
+    figure.update_layout(font={"color": CHARCOAL, "size": 13})
+    return figure

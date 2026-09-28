@@ -26,6 +26,7 @@ from energy.charts import (
     build_history_chart,
     build_overview_chart,
     build_pv_chart,
+    build_tariff_price_chart,
 )
 from energy.currency import CURRENCY_COOKIE, SYMBOLS, from_eur, selected_currency, to_eur
 from energy.explanations import explain_peaks
@@ -600,10 +601,17 @@ def _dynamic_day_prices(
         moment = day.replace(hour=hour, minute=0, second=0, microsecond=0)
         if dynamic is not None and moment in dynamic:
             price = dynamic[moment] + config.provider.margin
-            rows.append({"hour": f"{hour:02d}:00", "price": price, "fallback": False})
+            rows.append(
+                {"timestamp": moment, "hour": f"{hour:02d}:00", "price": price, "fallback": False}
+            )
         else:
             rows.append(
-                {"hour": f"{hour:02d}:00", "price": config.price_for_hour(hour), "fallback": True}
+                {
+                    "timestamp": moment,
+                    "hour": f"{hour:02d}:00",
+                    "price": config.price_for_hour(hour),
+                    "fallback": True,
+                }
             )
     return rows
 
@@ -685,11 +693,9 @@ def settings_view(request: HttpRequest) -> HttpResponse:
         config, dynamic, datetime.combine(selected_day, datetime.min.time())
     )
     market_count = sum(not row["fallback"] for row in selected_rows)
-    cheapest = min(selected_rows, key=lambda row: row["price"])
-    highest = max(selected_rows, key=lambda row: row["price"])
-    for row in selected_rows:
-        row["cheapest"] = row is cheapest and cheapest["price"] != highest["price"]
-        row["highest"] = row is highest and cheapest["price"] != highest["price"]
+    cheapest_block, highest_block = tariffs.four_hour_price_blocks(
+        [row["price"] for row in selected_rows]
+    )
     return render(
         request,
         "energy/settings.html",
@@ -705,10 +711,22 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             "selected_is_tomorrow": selected_day == tomorrow,
             "date_error": date_error,
             "selected_prices": selected_rows,
+            "tariff_chart": _chart_html(
+                build_tariff_price_chart(
+                    selected_rows,
+                    cheapest_block,
+                    highest_block,
+                    currency=currency,
+                    lang=lang,
+                ),
+                include_plotlyjs=True,
+                lang=lang,
+            ),
             "market_count": market_count,
             "fallback_count": 24 - market_count,
-            "lowest_price": cheapest,
-            "highest_price": highest,
+            "cheapest_block": cheapest_block,
+            "highest_block": highest_block,
+            "blocks_tied": cheapest_block.average == highest_block.average,
             "form_errors": form.errors,
         },
     )

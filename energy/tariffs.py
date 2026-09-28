@@ -28,6 +28,39 @@ MODE_FIXED = "fixed"
 MODE_DYNAMIC = "dynamic"
 TARIFF_COOKIE = "tariff"
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+BLOCK_HOURS = 4
+
+
+@dataclass(frozen=True)
+class PriceBlock:
+    """Ciągłe cztery godziny i ich średnia końcowa cena w EUR/kWh."""
+
+    start_hour: int
+    average: Decimal
+
+    @property
+    def end_hour(self) -> int:
+        return self.start_hour + BLOCK_HOURS
+
+    @property
+    def interval_label(self) -> str:
+        return f"{self.start_hour:02d}:00–{self.end_hour:02d}:00"
+
+
+def four_hour_price_blocks(prices: list[Decimal]) -> tuple[PriceBlock, PriceBlock]:
+    """Wybiera najtańsze i najdroższe okno 4 h; przy remisie pierwsze i ostatnie."""
+    if len(prices) != 24:
+        raise ValueError("Dobowy podgląd musi zawierać 24 stawki godzinowe.")
+    totals = [
+        sum(prices[start : start + BLOCK_HOURS], Decimal(0))
+        for start in range(24 - BLOCK_HOURS + 1)
+    ]
+    cheapest_start = min(range(len(totals)), key=lambda start: (totals[start], start))
+    highest_start = max(range(len(totals)), key=lambda start: (totals[start], start))
+    return (
+        PriceBlock(cheapest_start, totals[cheapest_start] / BLOCK_HOURS),
+        PriceBlock(highest_start, totals[highest_start] / BLOCK_HOURS),
+    )
 
 
 @dataclass(frozen=True)

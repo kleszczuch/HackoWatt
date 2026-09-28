@@ -15,7 +15,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from energy import forecasting, household, pse, pv, tariffs, weather
-from energy.charts import build_history_chart, build_overview_chart
+from energy.charts import build_history_chart, build_overview_chart, build_tariff_price_chart
 from energy.data import load_annual, load_history, load_weather_history
 from energy.presentation import device_name, event_names
 from energy.views import PLOTLY_CONFIG, _chart_html
@@ -273,6 +273,19 @@ class TariffTests(SimpleTestCase):
         self.assertEqual(
             tariffs.dynamic_coverage([moment, missing_hour], dynamic_prices), Decimal("0.5")
         )
+
+    def test_four_hour_blocks_use_contiguous_decimal_prices_and_tie_rules(self):
+        prices = [Decimal("0.30") for _ in range(24)]
+        prices[5:9] = [Decimal("0.10")] * 4
+        prices[16:20] = [Decimal("0.90")] * 4
+        cheapest, highest = tariffs.four_hour_price_blocks(prices)
+        self.assertEqual((cheapest.start_hour, cheapest.average), (5, Decimal("0.10")))
+        self.assertEqual((highest.start_hour, highest.average), (16, Decimal("0.90")))
+        self.assertEqual(highest.interval_label, "16:00–20:00")
+
+        tied_low, tied_high = tariffs.four_hour_price_blocks([Decimal("0.25")] * 24)
+        self.assertEqual((tied_low.start_hour, tied_high.start_hour), (0, 20))
+        self.assertEqual(tied_low.average, tied_high.average)
 
     def test_pse_aggregates_quarters_and_converts_currency(self):
         rows = [
@@ -628,6 +641,33 @@ class ViewTests(SimpleTestCase):
             first.split('data-chart-id="')[1].split('"')[0],
             second.split('data-chart-id="')[1].split('"')[0],
         )
+
+    def test_tariff_chart_converts_currency_and_marks_fallback(self):
+        rows = [
+            {
+                "timestamp": HISTORY_START + timedelta(hours=hour),
+                "price": Decimal("0.40")
+                if hour >= 20
+                else Decimal("0.30")
+                if hour == 1
+                else Decimal("0.20"),
+                "fallback": hour == 1,
+            }
+            for hour in range(24)
+        ]
+        cheapest, highest = tariffs.four_hour_price_blocks([row["price"] for row in rows])
+        chart = build_tariff_price_chart(rows, cheapest, highest, currency="PLN", lang="pl")
+        self.assertEqual(len(chart.data), 2)
+        self.assertEqual(chart.data[0].y[:2], (0.86, 1.29))
+        self.assertEqual(chart.data[1].name, "Stawka zastępcza")
+        self.assertEqual(chart.data[1].x, (HISTORY_START + timedelta(hours=1),))
+        self.assertEqual(chart.layout.yaxis.title.text, "zł/kWh")
+        self.assertEqual(chart.layout.xaxis.minallowed, HISTORY_START)
+        self.assertEqual(chart.layout.xaxis.maxallowed, HISTORY_START + timedelta(days=1))
+        self.assertEqual(len(chart.layout.shapes), 2)
+        self.assertEqual(chart.layout.shapes[0].x0, HISTORY_START + timedelta(hours=2))
+        self.assertEqual(chart.layout.shapes[1].x1, HISTORY_START + timedelta(days=1))
+        self.assertEqual(_chart_html(chart, lang="pl").count('type="checkbox"'), 2)
 
     def test_hover_keeps_series_names_and_tiny_nonzero_energy(self):
         record = household.ConsumptionHour(
@@ -989,6 +1029,8 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(len(response.context["selected_prices"]), 24)
         self.assertContains(response, "0,50000")
         self.assertNotContains(response, "0,60000")
+        self.assertTrue(response.context["blocks_tied"])
+        self.assertContains(response, "Wszystkie bloki 4-godzinne mają tę samą średnią cenę")
         self.assertContains(response, 'id="tariffFixedPanel" hidden')
         self.assertContains(
             response, 'id="tariffDynamicPreview" aria-labelledby="tariff-preview-heading">'
@@ -1040,7 +1082,13 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(current.context["fallback_count"], 1)
         self.assertTrue(current.context["selected_prices"][0]["fallback"])
         self.assertEqual(current.context["selected_prices"][0]["price"], Decimal("0.18"))
+        self.assertEqual(current.context["cheapest_block"].start_hour, 0)
+        self.assertEqual(current.context["cheapest_block"].average, Decimal("0.345"))
         self.assertContains(current, "Brak ceny PSE dla 1 z 24 godzin")
+        self.assertContains(current, 'aria-label="Godzinowe ceny energii"')
+        self.assertContains(current, 'data-chart-zoom="in"')
+        self.assertContains(current, "Stawka zastępcza")
+        self.assertNotContains(current, 'class="tariff-table"')
 
         for invalid_date in ("nonsense", (today - timedelta(days=366)).date().isoformat()):
             invalid = self.client.get(
