@@ -11,13 +11,13 @@ from decimal import Decimal
 from energy.household import ConsumptionHour
 from energy.weather import WeatherHour
 
-_WEEKDAYS_PL = ("poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela")
+_WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 _CATEGORY_PHRASES = (
-    (1, "ogrzewanie (pompa ciepła)"),
-    (3, "gotowanie"),
-    (4, "elektronika (RTV i komputery)"),
-    (5, "duże AGD (np. zmywarka lub pralka)"),
-    (2, "oświetlenie"),
+    (1, "heating (heat pump)"),
+    (3, "cooking"),
+    (4, "TV and computers"),
+    (5, "major appliances (such as the dishwasher or washing machine)"),
+    (2, "lighting"),
 )
 
 
@@ -32,12 +32,12 @@ class PeakExplanation:
 def _temperature_phrase(temperature: float) -> str:
     value = f"{temperature:.0f} °C".replace("-", "−")
     if temperature < 5:
-        return f"zimno (ok. {value})"
+        return f"cold (about {value})"
     if temperature < 12:
-        return f"chłodno (ok. {value})"
+        return f"cool (about {value})"
     if temperature > 24:
-        return f"gorąco (ok. {value})"
-    return f"umiarkowana temperatura (ok. {value})"
+        return f"hot (about {value})"
+    return f"mild (about {value})"
 
 
 def explain_peaks(
@@ -55,18 +55,22 @@ def explain_peaks(
             if total > 0 and record.categories[index] / total >= Decimal("0.15")
         ]
         if not reasons:
-            reasons = ["zużycie podstawowe domu"]
+            reasons = ["household base load"]
         temperature = temperatures.get(record.timestamp)
         weather_part = (
-            f" Na zewnątrz {_temperature_phrase(temperature)}." if temperature is not None else ""
+            f" Outside, it is {_temperature_phrase(temperature)}."
+            if temperature is not None
+            else ""
         )
-        day_kind = "weekend" if record.timestamp.weekday() >= 5 else "dzień roboczy"
-        weekday = _WEEKDAYS_PL[record.timestamp.weekday()]
-        joined = reasons[0] if len(reasons) == 1 else ", ".join(reasons[:-1]) + f" i {reasons[-1]}"
-        total_text = str(total.quantize(Decimal("0.1"))).replace(".", ",")
+        day_kind = "weekend" if record.timestamp.weekday() >= 5 else "weekday"
+        weekday = _WEEKDAYS[record.timestamp.weekday()]
+        joined = (
+            reasons[0] if len(reasons) == 1 else ", ".join(reasons[:-1]) + f" and {reasons[-1]}"
+        )
+        total_text = str(total.quantize(Decimal("0.1")))
         sentence = (
-            f"{weekday.capitalize()} {record.timestamp:%d.%m}, godz. {record.timestamp:%H}:00 – "
-            f"{total_text} kWh ({day_kind}). Największe składniki zużycia: {joined}."
+            f"{weekday} {record.timestamp:%d.%m} at {record.timestamp:%H}:00 – "
+            f"{total_text} kWh ({day_kind}). Main contributors: {joined}."
             f"{weather_part}"
         )
         explanations.append(PeakExplanation(record.timestamp, total, sentence, tuple(reasons)))
