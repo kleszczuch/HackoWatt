@@ -4,8 +4,8 @@
 <div class="dashboard">
   <header class="dashboard-heading">
     <div>
-      <p class="eyebrow">{% if is_en %}SCENARIO 4 · COPENHAGEN{% else %}SCENARIUSZ 4 · KOPENHAGA{% endif %}</p>
-      <h1>{% if is_en %}Energy in a home <span>for three generations</span>{% else %}Energia w domu <span>pełnym pokoleń</span>{% endif %}</h1>
+      <p class="eyebrow">{% if is_en %}SCENARIO{% else %}SCENARIUSZ{% endif %} {{ active_scenario.id }} · {{ active_scenario.city|upper }}</p>
+      <h1>{% if is_en %}Energy in a home <span>{{ active_scenario.title }}</span>{% else %}Energia w domu <span>{{ active_scenario.name }}</span>{% endif %}</h1>
       <p>{% if is_en %}Energy use simulated with real weather data and an XGBoost forecast · demo data, not meter readings{% else %}Symulacja zużycia na realnej pogodzie i prognoza XGBoost · dane demonstracyjne, nie odczyty licznika{% endif %}</p>
     </div>
     <div class="dashboard-actions">

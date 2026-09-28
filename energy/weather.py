@@ -45,9 +45,9 @@ class WeatherHour:
     radiation: float
 
 
-def local_now() -> datetime:
-    """Zwraca bieżący czas w strefie Kopenhagi, zaokrąglony do pełnej godziny."""
-    return datetime.now(ZoneInfo(TIMEZONE)).replace(tzinfo=None, minute=0, second=0, microsecond=0)
+def local_now(timezone: str = TIMEZONE) -> datetime:
+    """Zwraca bieżący czas lokalny zaokrąglony do pełnej godziny."""
+    return datetime.now(ZoneInfo(timezone)).replace(tzinfo=None, minute=0, second=0, microsecond=0)
 
 
 def _get_json(url: str, params: dict) -> dict:
@@ -108,7 +108,11 @@ def split_history_forecast(
 
 
 def fetch_weather_series(
-    past_days: int = HISTORY_DAYS + 1, forecast_days: int = FORECAST_DAYS + 1
+    past_days: int = HISTORY_DAYS + 1,
+    forecast_days: int = FORECAST_DAYS + 1,
+    latitude: float = LATITUDE,
+    longitude: float = LONGITUDE,
+    timezone: str = TIMEZONE,
 ) -> list[WeatherHour]:
     """Pobiera pełną serię godzinową z historią i prognozą z jednego zapytania do API.
 
@@ -118,10 +122,10 @@ def fetch_weather_series(
     payload = _get_json(
         FORECAST_URL,
         {
-            "latitude": LATITUDE,
-            "longitude": LONGITUDE,
+            "latitude": latitude,
+            "longitude": longitude,
             "hourly": ",".join(HOURLY_VARIABLES),
-            "timezone": TIMEZONE,
+            "timezone": timezone,
             "past_days": past_days,
             "forecast_days": forecast_days,
         },
@@ -129,18 +133,23 @@ def fetch_weather_series(
     return parse_hourly(payload)
 
 
-def fetch_year_weather(reference: datetime | None = None) -> list[WeatherHour]:
+def fetch_year_weather(
+    reference: datetime | None = None,
+    latitude: float = LATITUDE,
+    longitude: float = LONGITUDE,
+    timezone: str = TIMEZONE,
+) -> list[WeatherHour]:
     """Pobiera archiwalne dane pogodowe za ostatnie 365 dni z uwzględnieniem opóźnienia API."""
-    today = (reference or local_now()).date()
+    today = (reference or local_now(timezone)).date()
     end = today - timedelta(days=ARCHIVE_DELAY_DAYS)
     start = end - timedelta(days=YEAR_DAYS - 1)
     payload = _get_json(
         ARCHIVE_URL,
         {
-            "latitude": LATITUDE,
-            "longitude": LONGITUDE,
+            "latitude": latitude,
+            "longitude": longitude,
             "hourly": ",".join(HOURLY_VARIABLES),
-            "timezone": TIMEZONE,
+            "timezone": timezone,
             "start_date": start.isoformat(),
             "end_date": end.isoformat(),
         },

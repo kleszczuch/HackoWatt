@@ -28,6 +28,9 @@ a { color: var(--charcoal); }
 .topnav a:hover { background: var(--paper); }
 .topnav a.active { background: var(--chartreuse); box-shadow: inset 0 -2px 0 var(--charcoal); }
 .topbar-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.scenario-selector { display: flex; align-items: center; gap: 8px; margin: 0; }
+.scenario-selector label { font-size: 11px; font-weight: 800; }
+.scenario-selector select { max-width: 170px; min-height: 36px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--charcoal); font-size: 12px; font-weight: 700; }
 .lang-switcher {
   display: inline-flex;
   align-items: center;

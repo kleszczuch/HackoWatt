@@ -15,11 +15,22 @@
       <a class="brand" href="{% url 'dashboard' %}" aria-label="{% if is_en %}eko-dziki – home{% else %}eko-dziki – strona główna{% endif %}">
         <img class="brand-icon" src="{% static 'energy/Logo.webp' %}" alt="" width="48" height="48"><span>eko-dziki</span>
       </a>
+      <form class="scenario-selector" aria-label="{% if is_en %}Scenario{% else %}Scenariusz{% endif %}">
+        <label for="scenario-choice">{% if is_en %}Scenario{% else %}Scenariusz{% endif %}</label>
+        <select id="scenario-choice" onchange="window.location.href=this.value">
+          <option value="{% url 'switch_scenario' 1 %}" {% if request.session.active_scenario == 1 %}selected{% endif %}>🇵🇱 1 · Warszawa</option>
+          <option value="{% url 'switch_scenario' 2 %}" {% if request.session.active_scenario == 2 %}selected{% endif %}>🇵🇱 2 · Katowice</option>
+          <option value="{% url 'switch_scenario' 3 %}" {% if request.session.active_scenario == 3 %}selected{% endif %}>🇪🇸 3 · Barcelona</option>
+          <option value="{% url 'switch_scenario' 4 %}" {% if request.session.active_scenario == 4 or not request.session.active_scenario %}selected{% endif %}>🇩🇰 4 · Kopenhaga</option>
+          <option value="{% url 'switch_scenario' 5 %}" {% if request.session.active_scenario == 5 %}selected{% endif %}>🇵🇹 5 · Lizbona</option>
+        </select>
+      </form>
       <div class="topbar-right">
         <nav class="topnav" aria-label="{% if is_en %}Main navigation{% else %}Nawigacja główna{% endif %}">
           <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>{% if is_en %}Dashboard{% else %}Pulpit{% endif %}</a>
           <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>{% if is_en %}Hourly data{% else %}Godziny{% endif %}</a>
           <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>{% if is_en %}PV simulator{% else %}Symulator PV{% endif %}</a>
+          <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>{% if is_en %}Assumptions{% else %}Założenia{% endif %}</a>
         </nav>
         <div class="lang-switcher" role="group" aria-label="{% if is_en %}Language{% else %}Język{% endif %}">
           <a href="{% url 'change_language' 'pl' %}?next={{ request.get_full_path|urlencode }}" class="lang-btn {% if not is_en %}active{% endif %}" title="Polski" aria-label="Przełącz na język polski">PL</a>
@@ -40,7 +51,7 @@
       {% block content %}{% endblock %}
       {% endif %}
     </main>
-    <footer>{% if is_en %}eko-dziki · Scenario 4: A House Full of Generations · weather: Open-Meteo, Copenhagen · EUR costs are estimates{% else %}eko-dziki · scenariusz 4 „Dom pełen pokoleń” · pogoda: Open-Meteo, Kopenhaga · koszty w EUR są szacunkami{% endif %}</footer>
+    <footer>{% if is_en %}eko-dziki · simulated energy scenarios · weather: Open-Meteo · EUR costs are estimates{% else %}eko-dziki · symulowane scenariusze energii · pogoda: Open-Meteo · koszty w EUR są szacunkami{% endif %}</footer>
   </div>
 </body>
 </html>

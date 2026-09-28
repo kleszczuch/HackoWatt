@@ -1,5 +1,6 @@
 """Formularze: zakres dat, horyzont prognozy i parametry symulatora PV.
-Plik definiuje formularze Django używane w aplikacji do obsługi wejścia użytkownika i walidacji danych."""
+Plik definiuje formularze Django używane w aplikacji do obsługi wejścia
+użytkownika i walidacji danych."""
 
 from decimal import Decimal
 
@@ -75,6 +76,7 @@ class DateRangeForm(forms.Form):
 
 class HorizonForm(forms.Form):
     """Formularz do wyboru długości horyzontu prognozy."""
+
     horyzont = forms.ChoiceField(
         label="Horyzont prognozy",
         choices=HORIZON_CHOICES_PL,
@@ -94,6 +96,7 @@ class HorizonForm(forms.Form):
 
 class PvForm(forms.Form):
     """Formularz parametrów symulatora PV i magazynu energii."""
+
     kwp = forms.DecimalField(
         label="Moc instalacji [kWp]",
         min_value=1,

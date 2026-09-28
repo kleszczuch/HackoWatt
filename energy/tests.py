@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 from django.conf import settings
@@ -126,6 +127,24 @@ class WeatherTests(SimpleTestCase):
         self.assertEqual(len(records), 2)
         self.assertEqual(records[0].timestamp, datetime(2026, 9, 28, 0))
         self.assertEqual(records[0].temperature, 5.5)
+
+    def test_fetch_weather_uses_selected_location(self):
+        payload = {
+            "hourly": {
+                "time": ["2026-09-28T00:00"],
+                "temperature_2m": [20.0],
+                "cloud_cover": [10],
+                "shortwave_radiation": [0.0],
+            }
+        }
+        with patch("energy.weather._get_json", return_value=payload) as get_json:
+            weather.fetch_weather_series(
+                latitude=38.7223, longitude=-9.1393, timezone="Europe/Lisbon"
+            )
+        params = get_json.call_args.args[1]
+        self.assertEqual(params["latitude"], 38.7223)
+        self.assertEqual(params["longitude"], -9.1393)
+        self.assertEqual(params["timezone"], "Europe/Lisbon")
 
     def test_parse_hourly_rejects_missing_fields(self):
         with self.assertRaises(weather.WeatherFetchError):
@@ -469,8 +488,9 @@ class PvTests(SimpleTestCase):
 
 class ViewTests(SimpleTestCase):
     """Testy widoków i renderowania dashboardu, historii i symulatora PV."""
-   
+
     databases = {"default"}
+
     def setUp(self):
         self.data_dir = make_test_dir()
         self.addCleanup(clean_test_dir, self.data_dir)
@@ -478,6 +498,16 @@ class ViewTests(SimpleTestCase):
         settings_context.enable()
         self.addCleanup(settings_context.disable)
         prepare_fixture_dir(self.data_dir)
+
+    def test_scenario_switch_does_not_fall_back_to_other_scenario_data(self):
+        self.assertEqual(self.client.get(reverse("switch_scenario", args=[1])).status_code, 302)
+        self.assertEqual(self.client.session["active_scenario"], 1)
+        self.assertContains(self.client.get(reverse("dashboard")), "Dane są chwilowo niedostępne")
+        self.client.get(reverse("switch_scenario", args=[4]))
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, "KOPENHAGA")
+        for flag in ("🇵🇱", "🇪🇸", "🇩🇰", "🇵🇹"):
+            self.assertContains(response, flag)
 
     def test_dashboard_shows_charts_peaks_and_error_panel(self):
         response = self.client.get(reverse("dashboard"))
@@ -800,6 +830,7 @@ class ApiTests(TestCase):
         self.addCleanup(clean_test_dir, self.data_dir)
         settings_context = override_settings(
             DEMO_DATA_DIR=self.data_dir,
+            API_KEY="test-api-key",
         )
         settings_context.enable()
         self.addCleanup(settings_context.disable)

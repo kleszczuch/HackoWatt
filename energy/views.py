@@ -27,6 +27,7 @@ from energy.charts import (
 from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm
 from energy.presentation import device_name, event_names
+from energy.scenarios import SCENARIOS, get_active_scenario, get_scenario_data_dir
 from energy.tariffs import CURRENCY
 
 PLOTLY_CONFIG = {
@@ -43,6 +44,15 @@ PV_DEFAULTS = {
     "magazyn_moc_kw": "5",
     "magazyn_koszt_eur": "0",
 }
+
+
+def switch_scenario_view(request: HttpRequest, scenario_id: int) -> HttpResponse:
+    if scenario_id in SCENARIOS:
+        request.session["active_scenario"] = scenario_id
+    next_url = request.META.get("HTTP_REFERER", "/")
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        next_url = "/"
+    return HttpResponseRedirect(next_url)
 
 
 def _current_lang(request: HttpRequest) -> str:
@@ -147,13 +157,15 @@ def _simulation_days(request: HttpRequest) -> int:
 
 def dashboard(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
+    data_dir = get_scenario_data_dir(request)
+    active_scenario = get_active_scenario(request)
     try:
-        history = data.load_history()
-        forecast = data.load_forecast()
-        weather_history = data.load_weather_history()
-        weather_forecast = data.load_weather_forecast()
-        backtest_rows = data.load_backtest()
-        metrics = data.load_metrics()
+        history = data.load_history(data_dir)
+        forecast = data.load_forecast(data_dir)
+        weather_history = data.load_weather_history(data_dir)
+        weather_forecast = data.load_weather_forecast(data_dir)
+        backtest_rows = data.load_backtest(data_dir)
+        metrics = data.load_metrics(data_dir)
     except FileNotFoundError, data.DemoDataError:
         err = (
             "Dane są chwilowo niedostępne."
@@ -189,6 +201,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     )
 
     context = {
+        "active_scenario": active_scenario,
         "simulation_days": days,
         "simulation_options": SIMULATION_DAYS,
         "metrics": metrics,
@@ -223,9 +236,10 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
 def hourly_history(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
+    data_dir = get_scenario_data_dir(request)
     try:
-        history = data.load_history()
-        weather_history = data.load_weather_history()
+        history = data.load_history(data_dir)
+        weather_history = data.load_weather_history(data_dir)
     except FileNotFoundError, data.DemoDataError:
         err = (
             "Dane są chwilowo niedostępne."
@@ -369,8 +383,9 @@ def get_behavioral_advice(device_name: str, moved_kwh: Decimal, lang: str = "pl"
 
 def pv_simulator(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
+    data_dir = get_scenario_data_dir(request)
     try:
-        records, weather, events = data.load_annual()
+        records, weather, events = data.load_annual(data_dir)
     except FileNotFoundError, data.DemoDataError:
         err = (
             "Dane są chwilowo niedostępne."
@@ -451,11 +466,31 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
     return render(request, "energy/pv.html", context)
 
 
+def assumptions(request: HttpRequest) -> HttpResponse:
+    data_dir = get_scenario_data_dir(request)
+    context = {"currency": CURRENCY, "active_scenario": get_active_scenario(request)}
+    try:
+        history = data.load_history(data_dir)
+        forecast = data.load_forecast(data_dir)
+        records, weather, _ = data.load_annual(data_dir)
+        context["metrics"] = data.load_metrics(data_dir)
+        context["spans"] = {
+            "history": (history[0].timestamp, history[-1].timestamp, len(history)),
+            "forecast": (forecast[0].timestamp, forecast[-1].timestamp, len(forecast)),
+            "annual": (records[0].timestamp, records[-1].timestamp, len(records)),
+            "weather_annual": (weather[0].timestamp, weather[-1].timestamp, len(weather)),
+        }
+    except (FileNotFoundError, data.DemoDataError) as exc:
+        context["data_error"] = str(exc)
+    return render(request, "energy/zalozenia.html", context)
+
+
 def export_csv(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
+    data_dir = get_scenario_data_dir(request)
     try:
-        history = data.load_history()
-        forecast = data.load_forecast()
+        history = data.load_history(data_dir)
+        forecast = data.load_forecast(data_dir)
     except FileNotFoundError, data.DemoDataError:
         err = (
             "Dane są chwilowo niedostępne."
