@@ -28,6 +28,7 @@ BACKTEST_COLUMNS = ("Data_Czas", "Rzeczywiste_kWh", "Model_kWh", "Baseline_kWh")
 @dataclass(frozen=True)
 class BacktestRow:
     """Jedna godzina wyniku backtestu: rzeczywiste, model i baseline."""
+
     timestamp: datetime
     actual: Decimal
     model: Decimal

@@ -29,6 +29,7 @@ _CATEGORY_PHRASES_EN = (
 @dataclass(frozen=True)
 class PeakExplanation:
     """Krótka odpowiedź opisująca szczytowe zużycie w czytelnym języku."""
+
     timestamp: datetime
     total: Decimal
     sentence: str

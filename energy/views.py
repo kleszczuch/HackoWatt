@@ -466,25 +466,6 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
     return render(request, "energy/pv.html", context)
 
 
-def assumptions(request: HttpRequest) -> HttpResponse:
-    data_dir = get_scenario_data_dir(request)
-    context = {"currency": CURRENCY, "active_scenario": get_active_scenario(request)}
-    try:
-        history = data.load_history(data_dir)
-        forecast = data.load_forecast(data_dir)
-        records, weather, _ = data.load_annual(data_dir)
-        context["metrics"] = data.load_metrics(data_dir)
-        context["spans"] = {
-            "history": (history[0].timestamp, history[-1].timestamp, len(history)),
-            "forecast": (forecast[0].timestamp, forecast[-1].timestamp, len(forecast)),
-            "annual": (records[0].timestamp, records[-1].timestamp, len(records)),
-            "weather_annual": (weather[0].timestamp, weather[-1].timestamp, len(weather)),
-        }
-    except (FileNotFoundError, data.DemoDataError) as exc:
-        context["data_error"] = str(exc)
-    return render(request, "energy/zalozenia.html", context)
-
-
 def export_csv(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
     data_dir = get_scenario_data_dir(request)

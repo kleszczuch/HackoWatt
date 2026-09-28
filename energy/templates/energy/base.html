@@ -15,22 +15,42 @@
       <a class="brand" href="{% url 'dashboard' %}" aria-label="{% if is_en %}eko-dziki – home{% else %}eko-dziki – strona główna{% endif %}">
         <img class="brand-icon" src="{% static 'energy/Logo.webp' %}" alt="" width="48" height="48"><span>eko-dziki</span>
       </a>
-      <form class="scenario-selector" aria-label="{% if is_en %}Scenario{% else %}Scenariusz{% endif %}">
-        <label for="scenario-choice">{% if is_en %}Scenario{% else %}Scenariusz{% endif %}</label>
-        <select id="scenario-choice" onchange="window.location.href=this.value">
-          <option value="{% url 'switch_scenario' 1 %}" {% if request.session.active_scenario == 1 %}selected{% endif %}>🇵🇱 1 · Warszawa</option>
-          <option value="{% url 'switch_scenario' 2 %}" {% if request.session.active_scenario == 2 %}selected{% endif %}>🇵🇱 2 · Katowice</option>
-          <option value="{% url 'switch_scenario' 3 %}" {% if request.session.active_scenario == 3 %}selected{% endif %}>🇪🇸 3 · Barcelona</option>
-          <option value="{% url 'switch_scenario' 4 %}" {% if request.session.active_scenario == 4 or not request.session.active_scenario %}selected{% endif %}>🇩🇰 4 · Kopenhaga</option>
-          <option value="{% url 'switch_scenario' 5 %}" {% if request.session.active_scenario == 5 %}selected{% endif %}>🇵🇹 5 · Lizbona</option>
-        </select>
-      </form>
+      <div class="scenario-selector" role="region" aria-label="{% if is_en %}Scenario{% else %}Scenariusz{% endif %}">
+        <label id="scenario-choice-label" for="scenario-choice">{% if is_en %}Scenario{% else %}Scenariusz{% endif %}</label>
+        <div class="scenario-dropdown" id="scenarioDropdown">
+          <button type="button" class="scenario-toggle" id="scenarioToggle" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="scenario-choice-label scenarioToggle">
+            <span class="scenario-flag">{{ active_scenario.flag_svg|safe }}</span>
+            <span class="scenario-current-title">{{ active_scenario.id }} · {{ active_scenario.city_short }}</span>
+            <svg class="scenario-arrow" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6l4 4 4-4"/>
+            </svg>
+          </button>
+          <div class="scenario-menu" id="scenarioMenu" role="listbox" hidden>
+            {% for scen in all_scenarios %}
+            <a href="{% url 'switch_scenario' scen.id %}" role="option" aria-selected="{% if scen.id == active_scenario.id %}true{% else %}false{% endif %}" class="scenario-item {% if scen.id == active_scenario.id %}selected{% endif %}">
+              <span class="scenario-flag">{{ scen.flag_svg|safe }}</span>
+              <div class="scenario-item-details">
+                <span class="scenario-item-name"><strong>{{ scen.id }}</strong> · {{ scen.city_short }}</span>
+                <span class="scenario-item-desc">{{ scen.title }}</span>
+              </div>
+              {% if scen.id == active_scenario.id %}
+              <span class="scenario-item-check" aria-hidden="true">✓</span>
+              {% endif %}
+            </a>
+            {% endfor %}
+          </div>
+          <select id="scenario-choice" class="scenario-hidden-select" onchange="window.location.href=this.value" tabindex="-1" aria-hidden="true">
+            {% for scen in all_scenarios %}
+            <option value="{% url 'switch_scenario' scen.id %}" {% if scen.id == active_scenario.id %}selected{% endif %}>{{ scen.flag_emoji }} {{ scen.id }} · {{ scen.city_short }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
       <div class="topbar-right">
         <nav class="topnav" aria-label="{% if is_en %}Main navigation{% else %}Nawigacja główna{% endif %}">
           <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>{% if is_en %}Dashboard{% else %}Pulpit{% endif %}</a>
           <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>{% if is_en %}Hourly data{% else %}Godziny{% endif %}</a>
           <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>{% if is_en %}PV simulator{% else %}Symulator PV{% endif %}</a>
-          <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>{% if is_en %}Assumptions{% else %}Założenia{% endif %}</a>
         </nav>
         <div class="lang-switcher" role="group" aria-label="{% if is_en %}Language{% else %}Język{% endif %}">
           <a href="{% url 'change_language' 'pl' %}?next={{ request.get_full_path|urlencode }}" class="lang-btn {% if not is_en %}active{% endif %}" title="Polski" aria-label="Przełącz na język polski">PL</a>
@@ -53,5 +73,47 @@
     </main>
     <footer>{% if is_en %}eko-dziki · simulated energy scenarios · weather: Open-Meteo · EUR costs are estimates{% else %}eko-dziki · symulowane scenariusze energii · pogoda: Open-Meteo · koszty w EUR są szacunkami{% endif %}</footer>
   </div>
+  <script>
+    (function() {
+      const dropdown = document.getElementById('scenarioDropdown');
+      const toggle = document.getElementById('scenarioToggle');
+      const menu = document.getElementById('scenarioMenu');
+      if (!dropdown || !toggle || !menu) return;
+
+      function openMenu() {
+        dropdown.classList.add('open');
+        menu.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+      }
+
+      function closeMenu() {
+        dropdown.classList.remove('open');
+        menu.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+
+      toggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (dropdown.classList.contains('open')) {
+          closeMenu();
+        } else {
+          openMenu();
+        }
+      });
+
+      document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target)) {
+          closeMenu();
+        }
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && dropdown.classList.contains('open')) {
+          closeMenu();
+          toggle.focus();
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

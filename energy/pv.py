@@ -35,6 +35,7 @@ BATTERY_ROUND_TRIP_EFFICIENCY = Decimal("0.90")
 @dataclass(frozen=True)
 class StorageConfig:
     """Parametry magazynu energii: pojemność, moc i koszt zakupu."""
+
     capacity_kwh: Decimal = Decimal(0)
     power_kw: Decimal = Decimal(0)
     cost_eur: Decimal = Decimal(0)
@@ -43,6 +44,7 @@ class StorageConfig:
 @dataclass(frozen=True)
 class VariantResult:
     """Wynik jednego wariantu PV: pokrycie, eksport, import i oszczędności."""
+
     self_kwh: Decimal
     exported_kwh: Decimal
     grid_kwh: Decimal
@@ -55,6 +57,7 @@ class VariantResult:
 @dataclass(frozen=True)
 class SimulationResult:
     """Kompletne podsumowanie symulacji dla konkretnej mocy instalacji PV."""
+
     kwp: Decimal
     production_kwh: Decimal
     consumption_kwh: Decimal
@@ -78,6 +81,7 @@ class SimulationResult:
 @dataclass(frozen=True)
 class DeviceEffect:
     """Efekt przesunięcia jednego urządzenia w wariancie B względem wariantu A."""
+
     device: str
     moved_kwh: Decimal
     grid_saved_kwh: Decimal
@@ -87,6 +91,7 @@ class DeviceEffect:
 @dataclass(frozen=True)
 class WeekProfile:
     """Profil tygodniowy z obciążeniem, produkcją PV i kupnem z sieci."""
+
     timestamps: list[datetime]
     load: list[Decimal]
     pv: list[Decimal]
@@ -98,6 +103,7 @@ class WeekProfile:
 @dataclass(frozen=True)
 class DayProfile:
     """Dzienny podział zużycia, produkcji i importu z sieci."""
+
     day: date
     consumption_kwh: Decimal
     production_kwh: Decimal
@@ -108,6 +114,7 @@ class DayProfile:
 @dataclass(frozen=True)
 class CapacityChoice:
     """Wybrana moc PV wraz z odczytem pokrycia i zwrotu inwestycji."""
+
     kwp: Decimal | None
     coverage: Decimal | None
     payback_years: Decimal | None
@@ -339,7 +346,7 @@ def device_effects(
     kwp: Decimal,
     storage: StorageConfig = StorageConfig(),
 ) -> list[DeviceEffect]:
-    """Efekt przesunięcia pojedynczego typu urządzenia względem wariantu A. 
+    """Efekt przesunięcia pojedynczego typu urządzenia względem wariantu A.
     Mierzy, jak bardzo przesunięcie jednego typu urządzenia poprawia bilans PV."""
     variant_a, _ = _variant(records, weather, kwp, storage)
     radiation = _radiation_by_hour(weather)
