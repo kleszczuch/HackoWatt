@@ -36,20 +36,46 @@ CATEGORY_DASHES = ("solid", "solid", "dash", "solid", "dot", "dashdot")
 
 
 def _base_layout(figure: go.Figure, height: int) -> go.Figure:
+    # 1. Automatycznie znajdujemy początek i koniec osi czasu w danych tego wykresu:
+    all_x = []
+    for trace in figure.data:
+        if hasattr(trace, "x") and trace.x is not None and len(trace.x) > 0:
+            # Ponieważ dane są posortowane chronologicznie, bierzemy pierwszy i ostatni punkt
+            all_x.extend([trace.x[0], trace.x[-1]])
+
+    min_x = min(all_x) if all_x else None
+    max_x = max(all_x) if all_x else None
+
+    # 2. Główny layout wykresu
     figure.update_layout(
         template="plotly_white",
         margin={"l": 45, "r": 20, "t": 20, "b": 45},
         height=height,
         hovermode="x unified",
-        dragmode=False,
-        showlegend=False,
+        dragmode="pan",  # <-- ZMIANA: włączamy chwytanie i przesuwanie "łapką"
+        legend={"orientation": "h", "y": 1.14, "x": 0},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": CHARCOAL},
         hoverlabel={"bgcolor": "#FFFFFF", "bordercolor": SLATE, "font_color": CHARCOAL},
     )
-    figure.update_xaxes(fixedrange=True, linecolor=SLATE, gridcolor="rgba(84,84,84,0.12)")
-    figure.update_yaxes(fixedrange=True, linecolor=SLATE, gridcolor="rgba(84,84,84,0.12)")
+
+    # 3. OŚ X: Odblokowujemy przesuwanie (fixedrange=False) i nakładamy TWARDE GRANICE
+    figure.update_xaxes(
+        fixedrange=False,       # Pozwala na zoom i przesuwanie
+        minallowed=min_x,       # TWARDY LIMIT W LEWO (koniec z nieskończonością!)
+        maxallowed=max_x,       # TWARDY LIMIT W PRAWO
+        linecolor=SLATE, 
+        gridcolor="rgba(84,84,84,0.12)"
+    )
+
+    # 4. OŚ Y: Pozostaje ZABLOKOWANA (fixedrange=True) - piki nigdy się nie utną!
+    figure.update_yaxes(
+        fixedrange=True, 
+        linecolor=SLATE, 
+        gridcolor="rgba(84,84,84,0.12)"
+    )
+    
     return figure
 
 
