@@ -29,7 +29,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--addrport",
-            default="0.0.0.0:8000",
+            default="localhost:8000",
             help="Adres i port dla serwera deweloperskiego (domyślnie: 0.0.0.0:8000).",
         )
         parser.add_argument(
