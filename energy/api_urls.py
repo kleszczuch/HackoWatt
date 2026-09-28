@@ -24,4 +24,7 @@ urlpatterns = [
     # Metadane i metryki systemu
     path("system/assumptions/", api.system_assumptions, name="api_system_assumptions"),
     path("system/metrics/", api.system_metrics, name="api_system_metrics"),
+    # Scenariusze symulacji
+    path("scenarios/", api.scenarios_list, name="api_scenarios_list"),
+    path("scenarios/active/", api.active_scenario_info, name="api_active_scenario"),
 ]
