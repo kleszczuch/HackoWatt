@@ -379,6 +379,7 @@ Walidacja specyfikacji OpenSpec:
 ```bash
 openspec validate magazyn-energii-pv --strict
 ```
+
 ---
 
 # Ograniczenia
