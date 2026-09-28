@@ -125,6 +125,11 @@
       <div><span>Mniej z sieci</span><strong>{{ effect.grid_saved_kwh|floatformat:1 }} <small>kWh/rok</small></strong></div>
       <div><span>Zmiana oszczędności</span><strong>{{ effect.money_saved|floatformat:1 }} <small>€/rok</small></strong></div>
       <p>{{ effect.moved_kwh|floatformat:0 }} kWh cykli zaczynało się poza oknem 9:00–15:00.</p>
+      <div class="device-advice">
+        <h4>{{ effect.advice.headline }}</h4>
+        <p>{{ effect.advice.action }}</p>
+        <p class="device-advice-comfort">{{ effect.advice.comfort }}</p>
+      </div>
     </article>
     {% endfor %}
   </div>
