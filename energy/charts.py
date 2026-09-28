@@ -9,7 +9,7 @@ from plotly.subplots import make_subplots
 
 from energy.currency import SYMBOLS, from_eur
 from energy.forecasting import BacktestRow
-from energy.household import CATEGORIES, ConsumptionHour
+from energy.household import ConsumptionHour
 from energy.presentation import event_names
 from energy.pv import WeekProfile
 from energy.tariffs import PriceBlock
@@ -117,7 +117,7 @@ def _consumption_with_temperature(
     )
 
     figure = make_subplots(specs=[[{"secondary_y": True}]])
-    for index, (category, label) in enumerate(zip(CATEGORIES, category_labels, strict=True)):
+    for index, label in enumerate(category_labels):
         figure.add_trace(
             go.Scatter(
                 x=[record.timestamp for record in records],

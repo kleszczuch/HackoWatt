@@ -123,9 +123,7 @@ def _draw_day_plan(rng: np.random.RandomState, day: date, scenario_id: int) -> d
         "lunch_hour": int(rng.randint(12, 14)),
         "dinner_hour": int(rng.randint(17, 19)),
     }
-    if day.weekday() in (1, 5) and rng.rand() < 0.75:
-        plan["wash"] = True
-    elif rng.rand() < 0.15:
+    if (day.weekday() in (1, 5) and rng.rand() < 0.75) or rng.rand() < 0.15:
         plan["wash"] = True
     if plan["wash"]:
         plan["dryer"] = rng.rand() < (0.7 if scenario_id == 4 else 0.5)

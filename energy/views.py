@@ -392,49 +392,49 @@ def get_behavioral_advice(
                 "Każde zasilenie urządzenia w dzień to mniejszy rachunek i więcej oszczędności."
             ),
         }
-    else:
-        # Angielskie tłumaczenia z zachowaniem logiki
-        if moved_kwh <= 0:
-            comfort_en = (
-                "Your habits are exemplary."
-                if is_single
-                else "The model can still compare different start times within that window."
-            )
-            return {
-                "headline": "Already within the solar window",
-                "action": "No recorded cycles of this appliance start outside 9:00–15:00.",
-                "comfort": comfort_en,
-            }
-        if device_name in ("Zmywarka", "Dishwasher"):
-            comfort_dish = (
-                "Choose a start time that suits your routine."
-                if is_single
-                else "Choose a start time that suits the household's routine."
-            )
-            return {
-                "headline": "Shift dishwasher cycles",
-                "action": "A delayed start can move a cycle into the 9:00–15:00 solar window.",
-                "comfort": comfort_dish,
-            }
-        if device_name in ("Pralka", "Washing machine"):
-            return {
-                "headline": "Shift washing cycles",
-                "action": "A daytime start can align a washing cycle with solar production.",
-                "comfort": "The simulated benefit is shown above for this appliance alone.",
-            }
-        if device_name in ("Suszarka", "Tumble dryer"):
-            return {
-                "headline": "Shift drying cycles",
-                "action": (
-                    "Running the tumble dryer during solar production may reduce grid purchases."
-                ),
-                "comfort": "The simulated benefit is shown above for this appliance alone.",
-            }
+
+    # Angielskie tłumaczenia z zachowaniem logiki
+    if moved_kwh <= 0:
+        comfort_en = (
+            "Your habits are exemplary."
+            if is_single
+            else "The model can still compare different start times within that window."
+        )
         return {
-            "headline": "Consider a daytime start",
-            "action": "The model compares this appliance's schedule with a solar-window start.",
-            "comfort": "Check the calculated change in grid use and savings above.",
+            "headline": "Already within the solar window",
+            "action": "No recorded cycles of this appliance start outside 9:00–15:00.",
+            "comfort": comfort_en,
         }
+    if device_name in ("Zmywarka", "Dishwasher"):
+        comfort_dish = (
+            "Choose a start time that suits your routine."
+            if is_single
+            else "Choose a start time that suits the household's routine."
+        )
+        return {
+            "headline": "Shift dishwasher cycles",
+            "action": "A delayed start can move a cycle into the 9:00–15:00 solar window.",
+            "comfort": comfort_dish,
+        }
+    if device_name in ("Pralka", "Washing machine"):
+        return {
+            "headline": "Shift washing cycles",
+            "action": "A daytime start can align a washing cycle with solar production.",
+            "comfort": "The simulated benefit is shown above for this appliance alone.",
+        }
+    if device_name in ("Suszarka", "Tumble dryer"):
+        return {
+            "headline": "Shift drying cycles",
+            "action": (
+                "Running the tumble dryer during solar production may reduce grid purchases."
+            ),
+            "comfort": "The simulated benefit is shown above for this appliance alone.",
+        }
+    return {
+        "headline": "Consider a daytime start",
+        "action": "The model compares this appliance's schedule with a solar-window start.",
+        "comfort": "Check the calculated change in grid use and savings above.",
+    }
 
 
 def _tariff_for_calculation(

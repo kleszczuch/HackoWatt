@@ -77,8 +77,8 @@ def _read_consumption(path: Path) -> list[ConsumptionHour]:
         reader = csv.reader(source)
         try:
             headers = next(reader)
-        except StopIteration:
-            raise DemoDataError(f"File {path.name} contains no hourly records.")
+        except StopIteration as exc:
+            raise DemoDataError(f"File {path.name} contains no hourly records.") from exc
         h_map = {name: i for i, name in enumerate(headers)}
         if not required.issubset(h_map):
             raise DemoDataError(f"File {path.name} is missing required columns.")
@@ -201,8 +201,8 @@ def load_backtest(data_dir: Path | None = None) -> list[BacktestRow]:
         reader = csv.reader(source)
         try:
             headers = next(reader)
-        except StopIteration:
-            raise DemoDataError(f"File {path.name} contains no backtest data.")
+        except StopIteration as exc:
+            raise DemoDataError(f"File {path.name} contains no backtest data.") from exc
         h_map = {name: i for i, name in enumerate(headers)}
         if not set(BACKTEST_COLUMNS).issubset(h_map):
             raise DemoDataError(f"File {path.name} is missing required columns.")

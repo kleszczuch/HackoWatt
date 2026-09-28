@@ -56,6 +56,9 @@ class StorageConfig:
     cost_eur: Decimal = Decimal(0)
 
 
+DEFAULT_STORAGE = StorageConfig()
+
+
 @dataclass(frozen=True)
 class VariantResult:
     """Wynik jednego wariantu PV: pokrycie, eksport, import i oszczędności."""
@@ -78,7 +81,7 @@ class SimulationResult:
     consumption_kwh: Decimal
     variant_a: VariantResult
     variant_b: VariantResult
-    storage: StorageConfig = StorageConfig()
+    storage: StorageConfig = DEFAULT_STORAGE
 
     @property
     def coverage_a(self) -> Decimal:
@@ -220,7 +223,7 @@ def _variant(
     records: list[ConsumptionHour],
     weather: list[WeatherHour],
     kwp: Decimal,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
     cost_without_pv: Decimal | None = None,
@@ -289,7 +292,7 @@ def simulate(
     weather: list[WeatherHour],
     events: list[FlexEvent],
     kwp: Decimal,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
 ) -> SimulationResult:
@@ -331,7 +334,7 @@ def compare_variants(
     weather: list[WeatherHour],
     events: list[FlexEvent],
     variants_kwp: tuple[int, ...] = COMPARE_VARIANTS_KWP,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
 ) -> list[SimulationResult]:
@@ -379,7 +382,7 @@ def choose_capacity(
     weather: list[WeatherHour],
     events: list[FlexEvent],
     goal: str,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
 ) -> CapacityChoice:
@@ -454,7 +457,7 @@ def device_effects(
     weather: list[WeatherHour],
     events: list[FlexEvent],
     kwp: Decimal,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
 ) -> list[DeviceEffect]:
@@ -485,7 +488,7 @@ def representative_week(
     events: list[FlexEvent],
     kwp: Decimal,
     month: int,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
 ) -> WeekProfile:
     """Zwraca reprezentatywny tydzień danego miesiąca do wizualizacji profilu ładowania."""
     first_monday = next(

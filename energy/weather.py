@@ -183,8 +183,8 @@ def read_weather_csv(path: Path | str) -> list[WeatherHour]:
         reader = csv.reader(source)
         try:
             headers = next(reader)
-        except StopIteration:
-            raise WeatherFetchError(f"Plik {file_path.name} jest pusty.")
+        except StopIteration as exc:
+            raise WeatherFetchError(f"Plik {file_path.name} jest pusty.") from exc
         h_map = {name: i for i, name in enumerate(headers)}
         if not set(WEATHER_COLUMNS).issubset(h_map):
             raise WeatherFetchError(f"Plik {file_path.name} nie ma wymaganych kolumn pogody.")
