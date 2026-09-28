@@ -299,17 +299,23 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
     return render(request, "energy/hourly.html", context)
 
 
-def get_behavioral_advice(device_name: str, moved_kwh: Decimal, lang: str = "pl"):
+def get_behavioral_advice(device_name: str, moved_kwh: Decimal, scenario_id: int = 4, lang: str = "pl"):
+    is_single = (scenario_id == 1) # Sprawdzamy czy to singielka (Scenariusz 1)
+
     if lang == "pl":
         if moved_kwh <= 0:
             return {
                 "headline": "Jest dobrze!",
-                "action": (
-                    "Urządzenie już teraz pracuje w godzinach najwyższej produkcji słonecznej."
-                ),
-                "comfort": "Nic nie zmieniaj - Wasze obecne nawyki są wzorowe.",
+                "action": "Urządzenie już teraz pracuje w godzinach najwyższej produkcji słonecznej.",
+                "comfort": "Nic nie zmieniaj - Twoje obecne nawyki są wzorowe." if is_single else "Nic nie zmieniaj - Wasze obecne nawyki są wzorowe.",
             }
         if device_name in ("Zmywarka", "Dishwasher"):
+            if is_single:
+                return {
+                    "headline": "Opóźniony start",
+                    "action": "Zamiast czekać do wieczora, możesz załadować zmywarkę po obiedzie i używać funkcji opóźnionego startu na godziny 13:00.",
+                    "comfort": "Wracasz do domu z czystymi naczyniami - zero stresu!",
+                }
             return {
                 "headline": "Opóźniony start",
                 "action": (
@@ -322,12 +328,17 @@ def get_behavioral_advice(device_name: str, moved_kwh: Decimal, lang: str = "pl"
                 ),
             }
         if device_name in ("Pralka", "Washing machine"):
+            # Dziadkowie pasują tylko do Domu Pokoleń (Scenariusz 4)
+            if scenario_id == 4:
+                pralka_action = "Skoro dziadkowie lub osoby pracujące zdalnie są rano w domu, nastawiajcie pranie w okolicach 10:00 - 12:00."
+            elif is_single:
+                pralka_action = "Ustaw pranie na godziny przedpołudniowe, gdy przebywasz w domu przed wyjazdem."
+            else:
+                pralka_action = "Warto nastawiać pranie w godzinach porannych lub wczesnopopołudniowych, gdy świeci słońce."
+
             return {
                 "headline": "Darmowe pranie",
-                "action": (
-                    "Skoro dziadkowie lub osoby pracujące zdalnie są rano w domu, "
-                    "nastawiajcie pranie w okolicach 10:00 - 12:00."
-                ),
+                "action": pralka_action,
                 "comfort": (
                     "Pralka skończy cykl w dzień, co ułatwi szybkie suszenie ubrań "
                     "na świeżym powietrzu."
@@ -347,23 +358,24 @@ def get_behavioral_advice(device_name: str, moved_kwh: Decimal, lang: str = "pl"
             }
         return {
             "headline": "Drobna zmiana, duży efekt",
-            "action": "Spróbujcie przenieść pracę tego urządzenia na godziny wczesnopopołudniowe.",
+            "action": "Spróbuj przenieść pracę tego urządzenia na godziny wczesnopopołudniowe." if is_single else "Spróbujcie przenieść pracę tego urządzenia na godziny wczesnopopołudniowe.",
             "comfort": (
                 "Każde zasilenie urządzenia w dzień to mniejszy rachunek i więcej oszczędności."
             ),
         }
     else:
+        # Angielskie tłumaczenia z zachowaniem logiki
         if moved_kwh <= 0:
             return {
                 "headline": "Already within the solar window",
                 "action": "No recorded cycles of this appliance start outside 9:00–15:00.",
-                "comfort": "The model can still compare different start times within that window.",
+                "comfort": "Your habits are exemplary." if is_single else "The model can still compare different start times within that window.",
             }
         if device_name in ("Zmywarka", "Dishwasher"):
             return {
                 "headline": "Shift dishwasher cycles",
                 "action": "A delayed start can move a cycle into the 9:00–15:00 solar window.",
-                "comfort": "Choose a start time that suits the household's routine.",
+                "comfort": "Choose a start time that suits your routine." if is_single else "Choose a start time that suits the household's routine.",
             }
         if device_name in ("Pralka", "Washing machine"):
             return {
@@ -389,6 +401,10 @@ def get_behavioral_advice(device_name: str, moved_kwh: Decimal, lang: str = "pl"
 def pv_simulator(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
     data_dir = get_scenario_data_dir(request)
+    
+    active_scenario = get_active_scenario(request)
+    scenario_id = active_scenario["id"]
+
     try:
         records, weather, events = data.load_annual(data_dir)
     except FileNotFoundError, data.DemoDataError:
@@ -434,7 +450,9 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
 
     effects = []
     for effect in oryginalne_efekty:
-        porada = get_behavioral_advice(effect.device, effect.moved_kwh, lang=lang)
+        porada = get_behavioral_advice(
+            effect.device, effect.moved_kwh, scenario_id=scenario_id, lang=lang
+        )
         effects.append(
             {
                 "device": device_name(effect.device, lang=lang),
