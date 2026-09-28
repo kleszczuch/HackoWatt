@@ -25,6 +25,7 @@ from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm
 from energy.language import selected_language
 from energy.presentation import device_name, event_names
+from energy.scenarios import SCENARIOS, get_active_scenario, get_scenario_data_dir
 
 
 def _tr(request: HttpRequest, pl: str, en: str) -> str:
@@ -244,7 +245,17 @@ def devices_guidance(request: HttpRequest) -> JsonResponse:
         devices.append(
             {"device": _tr(request, label, label_en), "annual_energy_kwh": _to_float(total)}
         )
-    return api_success({"devices": devices, "pv_window": "09:00–15:00"})
+    return api_success(
+        {
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+            },
+            "devices": devices,
+            "pv_window": "09:00–15:00",
+        }
+    )
 
 
 # ----------------------------------------------------------------------
@@ -1052,24 +1063,45 @@ def system_assumptions(request: HttpRequest) -> JsonResponse:
     forecast = data.load_forecast(data_dir)
     records, _, _ = data.load_annual(data_dir)
 
+    household_info = scen.get("household")
+    if household_info:
+        household_payload = {
+            "residents_count": household_info["residents_count"],
+            "profile": household_info["profile"],
+            "heating_type": household_info["heating_type"],
+        }
+    else:
+        household_payload = {
+            "residents_count": 6,
+            "profile": _tr(
+                request,
+                (
+                    "Trzypokoleniowy dom: dziadkowie w ciągu dnia, "
+                    "pracujący rodzice, dzieci po szkole"
+                ),
+                (
+                    "Three-generation home: grandparents at home during the day, "
+                    "working parents, children after school"
+                ),
+            ),
+            "heating_type": _tr(
+                request,
+                "Pompa ciepła (reaguje na temperaturę zewnętrzną)",
+                "Heat pump (responds to outdoor temperature)",
+            ),
+        }
+
     return api_success(
         {
-            "location": _tr(request, "Kopenhaga, Dania", "Copenhagen, Denmark"),
-            "household": {
-                "residents_count": 6,
-                "profile": _tr(
-                    request,
-                    "Trzypokoleniowy dom: dziadkowie w ciągu dnia, "
-                    "pracujący rodzice, dzieci po szkole",
-                    "Three-generation home: grandparents at home during the day, "
-                    "working parents, children after school",
-                ),
-                "heating_type": _tr(
-                    request,
-                    "Pompa ciepła (reaguje na temperaturę zewnętrzną)",
-                    "Heat pump (responds to outdoor temperature)",
-                ),
+            "scenario": {
+                "id": scen["id"],
+                "name": scen["name"],
+                "city": scen["city"],
+                "country_code": scen.get("country_code", "DK"),
+                "flag": scen.get("flag_emoji", "🇩🇰"),
             },
+            "location": scen["city"],
+            "household": household_payload,
             "device_profiles": {
                 name: {
                     "energy_range_kwh": profile["energy"],
