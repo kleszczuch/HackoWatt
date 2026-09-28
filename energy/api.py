@@ -2,19 +2,22 @@
 
 Zapewnia szybki i bezpieczny odczyt informacji o optymalnych godzinach
 użycia urządzeń elektrycznych dla osób starszych (dziadków), młodzieży i rodziców.
-API jest całkowicie bezstanowe i ukierunkowane na prosty odczyt danych (GET),
-bez konieczności logowania czy zarządzania tokenami.
+Wymaga autoryzacji za pomocą tokenu Bearer (nagłówek Authorization: Bearer <token>).
 """
 
 import functools
 import json
+import os
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 
+from django.conf import settings
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_http_methods
+from dotenv import load_dotenv
 
 from energy import data, household, pv, tariffs
 from energy.charts import CATEGORY_LABELS
@@ -35,6 +38,47 @@ def api_error(
     if details is not None:
         payload["details"] = details
     return JsonResponse({"status": "error", "error": payload}, status=status)
+
+
+def get_expected_api_key() -> str:
+    """Odczytuje klucz API_KEY z pliku .env za pomocą dotenv oraz ze zmiennych środowiskowych."""
+    base_dir = getattr(settings, "BASE_DIR", Path(__file__).resolve().parent.parent)
+    load_dotenv(base_dir / ".env", override=True)
+    return os.getenv("API_KEY") or getattr(settings, "API_KEY", "")
+
+
+def check_api_secret(request: HttpRequest) -> bool:
+    """Weryfikuje autoryzację API za pomocą tokenu Bearer na podstawie API_KEY z pliku .env."""
+    expected_key = get_expected_api_key()
+    if not expected_key:
+        return False
+
+    # 1. Token Bearer w nagłówku Authorization (główny dla aplikacji mobilnej)
+    auth_header = request.headers.get("Authorization", "").strip()
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split("Bearer ", 1)[1].strip()
+        if token == expected_key:
+            return True
+
+
+    return False
+
+
+def require_api_secret(view_func):
+    """Dekorator wymuszający autoryzację za pomocą tokenu Bearer."""
+
+    @functools.wraps(view_func)
+    def _wrapped_view(request: HttpRequest, *args, **kwargs):
+        if not check_api_secret(request):
+            return api_error(
+                "Wymagana autoryzacja za pomocą tokenu Bearer "
+                "(nagłówek: Authorization: Bearer <token>).",
+                code="UNAUTHORIZED",
+                status=401,
+            )
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped_view
 
 
 def handle_data_errors(view_func):
@@ -81,12 +125,14 @@ def _parse_params(request: HttpRequest) -> tuple[dict, str | None]:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 @handle_data_errors
 def smart_schedule_today(request: HttpRequest) -> JsonResponse:
     """Zwraca czytelny dla seniorów i młodzieży harmonogram dnia.
 
     Dzieli dobę na proste strefy kolorystyczne (zielona, żółta, czerwona),
     wskazuje status na bieżącą godzinę oraz dedykowane wskazówki dla domowników.
+    Wymaga autoryzacji api_secret.
     """
     now_hour = datetime.now().hour
     current_price = tariffs.price_for_hour(now_hour)
@@ -204,6 +250,7 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 def devices_guidance(request: HttpRequest) -> JsonResponse:
     """Zwraca zrozumiałe porady dla każdego kluczowego urządzenia w domu."""
     guidance = [
@@ -282,6 +329,7 @@ def devices_guidance(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 @handle_data_errors
 def dashboard_summary(request: HttpRequest) -> JsonResponse:
     """Zwraca skonsolidowany status na ekran główny aplikacji mobilnej."""
@@ -386,6 +434,7 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 @handle_data_errors
 def consumption_history(request: HttpRequest) -> JsonResponse:
     """Pobiera historię zużycia energii z paginacją i filtrem dat."""
@@ -481,6 +530,7 @@ def consumption_history(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 @handle_data_errors
 def consumption_forecast(request: HttpRequest) -> JsonResponse:
     """Pobiera prognozę zużycia energii dla zadanego horyzontu (24, 72, 168 h)."""
@@ -556,6 +606,7 @@ def consumption_forecast(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 def tariffs_info(request: HttpRequest) -> JsonResponse:
     """Zwraca harmonogram taryfowy, strefy cenowe i aktualne stawki."""
     periods = []
@@ -616,6 +667,7 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET", "POST"])
+@require_api_secret
 @handle_data_errors
 def pv_simulate_api(request: HttpRequest) -> JsonResponse:
     """Symuluje instalację PV o zadanej mocy kWp z porównaniem wariantów A i B."""
@@ -626,13 +678,24 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
 
     kwp_val = params.get("kwp", "5")
     month_val = str(params.get("month", params.get("miesiac", "6")))
+    magazyn_kwh_val = str(params.get("magazyn_kwh", "0"))
+    magazyn_moc_kw_val = str(params.get("magazyn_moc_kw", "5"))
+    magazyn_koszt_eur_val = str(params.get("magazyn_koszt_eur", "0"))
     include_profile = str(params.get("include_week_profile", "false")).lower() in (
         "1",
         "true",
         "yes",
     )
 
-    form = PvForm({"kwp": kwp_val, "miesiac": month_val})
+    form = PvForm(
+        {
+            "kwp": kwp_val,
+            "miesiac": month_val,
+            "magazyn_kwh": magazyn_kwh_val,
+            "magazyn_moc_kw": magazyn_moc_kw_val,
+            "magazyn_koszt_eur": magazyn_koszt_eur_val,
+        }
+    )
     if not form.is_valid():
         return api_error(
             "Niepoprawne parametry symulacji PV.",
@@ -643,9 +706,14 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
 
     kwp = form.cleaned_data["kwp"]
     month = int(form.cleaned_data["miesiac"])
+    storage = pv.StorageConfig(
+        form.cleaned_data["magazyn_kwh"],
+        form.cleaned_data["magazyn_moc_kw"],
+        form.cleaned_data["magazyn_koszt_eur"],
+    )
 
-    sim_result = pv.simulate(records, weather_annual, events, kwp)
-    effects = pv.device_effects(records, weather_annual, events, kwp)
+    sim_result = pv.simulate(records, weather_annual, events, kwp, storage)
+    effects = pv.device_effects(records, weather_annual, events, kwp, storage)
 
     var_a = sim_result.variant_a
     var_b = sim_result.variant_b
@@ -698,7 +766,7 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
 
     if include_profile:
         try:
-            week = pv.representative_week(records, weather_annual, events, kwp, month)
+            week = pv.representative_week(records, weather_annual, events, kwp, month, storage)
             response_data["week_profile"] = {
                 "month": month,
                 "timestamps": [t.isoformat() for t in week.timestamps],
@@ -706,6 +774,7 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
                 "pv_kwh": [_to_float(v) for v in week.pv],
                 "grid_a_kwh": [_to_float(v) for v in week.grid_a],
                 "grid_b_kwh": [_to_float(v) for v in week.grid_b],
+                "battery_b_kwh": [_to_float(v) for v in week.battery_b],
             }
         except StopIteration:
             response_data["week_profile"] = None
@@ -717,6 +786,7 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 @handle_data_errors
 def pv_variants_list(request: HttpRequest) -> JsonResponse:
     """Zwraca tabelę porównawczą typowych mocy instalacji PV (2..10 kWp)."""
@@ -749,6 +819,7 @@ def pv_variants_list(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 @handle_data_errors
 def flexible_events_list(request: HttpRequest) -> JsonResponse:
     """Zwraca listę zarejestrowanych cykli pracy urządzeń elastycznych."""
@@ -805,6 +876,7 @@ def flexible_events_list(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET", "POST"])
+@require_api_secret
 def shift_simulation(request: HttpRequest) -> JsonResponse:
     """Kalkulator korzyści z przesunięcia pracy urządzenia (dostępny przez prosty GET lub POST)."""
     params, parse_err = _parse_params(request)
@@ -904,6 +976,7 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 @handle_data_errors
 def system_assumptions(request: HttpRequest) -> JsonResponse:
     """Zwraca parametry symulacji, urządzeń i koszty taryfowe."""
@@ -950,6 +1023,7 @@ def system_assumptions(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET"])
+@require_api_secret
 @handle_data_errors
 def system_metrics(request: HttpRequest) -> JsonResponse:
     """Zwraca metryki dokładności modelu prognostycznego wobec baseline'u."""

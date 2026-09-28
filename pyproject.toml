@@ -8,6 +8,7 @@ dependencies = [
     "numpy>=2.3",
     "pandas>=2.3",
     "plotly>=6.0",
+    "python-dotenv>=1.2.3",
     "scikit-learn>=1.7",
     "xgboost>=3.0",
 ]
