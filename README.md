@@ -168,11 +168,11 @@ uv run manage.py all
 Jest możliwość konfiguracji powyższej komendy, jeżeli wymagane jest pominięcie jakiegoś kroku:
 
 ```bash
-uv run manage.py all --no-server — wykonuje tylko synchronizację i przygotowanie danych bez uruchamiania serwera.
-uv run manage.py all --no-sync — pomija krok uv sync.
-uv run manage.py all --no-tariffs — pomija pobieranie cen RCE.
-uv run manage.py all --no-data — pomija generowanie symulacji scenariuszy.
-uv run manage.py all --addrport 127.0.0.1:8000 — pozwala zmienić adres lub port serwera.
+uv run manage.py all --no-server  #wykonuje tylko synchronizację i przygotowanie danych bez uruchamiania serwera.
+uv run manage.py all --no-sync  #pomija krok uv sync.
+uv run manage.py all --no-tariffs  #pomija pobieranie cen RCE.
+uv run manage.py all --no-data  #pomija generowanie symulacji scenariuszy.
+uv run manage.py all --addrport 127.0.0.1:8000  #pozwala zmienić adres lub port serwera.
 ```
 
 Poniżej znajduje się krok po kroku, możliwość ręcznego pobrania danych i włączenia serwera
