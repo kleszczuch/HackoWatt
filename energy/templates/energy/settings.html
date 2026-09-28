@@ -99,27 +99,15 @@
 
   <div class="tariff-day-summary" aria-label="{% if is_en %}Daily price summary{% else %}Podsumowanie cen dnia{% endif %}">
     <div><span>{% if is_en %}Market prices available{% else %}Dostępne ceny PSE{% endif %}</span><strong>{{ market_count }}/24</strong></div>
-    <div><span>{% if is_en %}Lowest hourly rate{% else %}Najniższa stawka{% endif %}</span><strong>{{ lowest_price.price|display_currency:current_currency|floatformat:5 }} <small>{{ currency_symbol }}/kWh</small></strong><small>{{ lowest_price.hour }}</small></div>
-    <div><span>{% if is_en %}Highest hourly rate{% else %}Najwyższa stawka{% endif %}</span><strong>{{ highest_price.price|display_currency:current_currency|floatformat:5 }} <small>{{ currency_symbol }}/kWh</small></strong><small>{{ highest_price.hour }}</small></div>
+    <div class="tariff-block-summary cheapest"><span>{% if is_en %}Cheapest 4-hour block{% else %}Najtańszy blok 4 h{% endif %}</span><strong>{{ cheapest_block.interval_label }}</strong><small>{% if is_en %}Average{% else %}Średnio{% endif %} <b>{{ cheapest_block.average|display_currency:current_currency|floatformat:5 }} {{ currency_symbol }}/kWh</b></small></div>
+    <div class="tariff-block-summary highest"><span>{% if is_en %}Priciest 4-hour block{% else %}Najdroższy blok 4 h{% endif %}</span><strong>{{ highest_block.interval_label }}</strong><small>{% if is_en %}Average{% else %}Średnio{% endif %} <b>{{ highest_block.average|display_currency:current_currency|floatformat:5 }} {{ currency_symbol }}/kWh</b></small></div>
   </div>
+  {% if blocks_tied %}<p class="tariff-alert">{% if is_en %}All 4-hour blocks have the same average price. The first and last tied blocks are highlighted.{% else %}Wszystkie bloki 4-godzinne mają tę samą średnią cenę. Zaznaczono pierwszy i ostatni z równych bloków.{% endif %}</p>{% endif %}
   {% if fallback_count %}
-  <p class="tariff-alert">{% if is_en %}No PSE price for {{ fallback_count }} of 24 hours. Those hours use your fixed tariff rate and are marked below.{% else %}Brak ceny PSE dla {{ fallback_count }} z 24 godzin. W tych godzinach obowiązuje stawka stała, oznaczona poniżej.{% endif %}</p>
+  <p class="tariff-alert">{% if is_en %}No PSE price for {{ fallback_count }} of 24 hours. Those hours use your fixed tariff rate and are marked on the chart.{% else %}Brak ceny PSE dla {{ fallback_count }} z 24 godzin. W tych godzinach obowiązuje stawka stała, oznaczona na wykresie.{% endif %}</p>
   {% endif %}
 
-  <div class="table-scroll tariff-table-scroll">
-    <table class="tariff-table">
-      <thead><tr><th scope="col">{% if is_en %}Hour{% else %}Godzina{% endif %}</th><th scope="col">{% if is_en %}Energy price{% else %}Cena energii{% endif %}</th><th scope="col">{% if is_en %}Price source{% else %}Źródło ceny{% endif %}</th></tr></thead>
-      <tbody>
-      {% for row in selected_prices %}
-        <tr{% if row.fallback %} class="tariff-fallback-row"{% endif %}>
-          <th scope="row">{{ row.hour }}</th>
-          <td><strong>{{ row.price|display_currency:current_currency|floatformat:5 }} {{ currency_symbol }}/kWh</strong>{% if row.cheapest %}<span class="tariff-extreme">{% if is_en %}Lowest{% else %}Najtaniej{% endif %}</span>{% elif row.highest %}<span class="tariff-extreme">{% if is_en %}Highest{% else %}Najdrożej{% endif %}</span>{% endif %}</td>
-          <td><span class="tariff-source {% if row.fallback %}tariff-source-fallback{% endif %}">{% if row.fallback %}{% if is_en %}Fixed fallback{% else %}Stawka stała{% endif %}{% else %}PSE + {% if is_en %}margin{% else %}marża{% endif %}{% endif %}</span></td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <div class="plot tariff-chart" aria-label="{% if is_en %}Hourly energy prices{% else %}Godzinowe ceny energii{% endif %}">{{ tariff_chart|safe }}</div>
   <p class="tariff-footnote">{% if is_en %}PSE RCE prices are converted from PLN/MWh to €/kWh at a fixed exchange rate, then the saved provider's margin is added. Fixed fallback rates have no provider margin. Data is downloaded outside page requests.{% else %}Ceny PSE RCE są przeliczane z PLN/MWh na €/kWh stałym kursem, a potem doliczana jest marża zapisanego dostawcy. Do zapasowych stawek stałych marża nie jest doliczana. Dane są pobierane poza żądaniami strony.{% endif %}</p>
 </details>
 
@@ -129,13 +117,22 @@
     const fixed = document.getElementById('tariffFixedPanel');
     const provider = document.getElementById('tariffProviderPanel');
     const preview = document.getElementById('tariffDynamicPreview');
+    const resizePreviewChart = () => {
+      if (!preview.open || preview.hidden || !window.Plotly) return;
+      requestAnimationFrame(() => {
+        const graph = preview.querySelector('.plotly-graph-div');
+        if (graph) Plotly.Plots.resize(graph);
+      });
+    };
     const update = () => {
       const dynamic = document.querySelector('#tariffSettingsForm input[name="mode"]:checked')?.value === 'dynamic';
       fixed.hidden = dynamic;
       provider.hidden = !dynamic;
       preview.hidden = !dynamic;
+      resizePreviewChart();
     };
     radios.forEach(radio => radio.addEventListener('change', update));
+    preview.addEventListener('toggle', resizePreviewChart);
     update();
   })();
 </script>
