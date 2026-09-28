@@ -70,6 +70,8 @@ a { color: var(--charcoal); }
 .metric p { margin: 7px 0 0; color: var(--slate); font-size: 11px; line-height: 1.4; }
 .plot { padding: 0 12px 8px; }
 .plot .plotly-graph-div { width: 100% !important; }
+.interactive-chart .plotly-graph-div .nsewdrag { cursor: grab !important; }
+.interactive-chart .plotly-graph-div:active .nsewdrag { cursor: grabbing !important; }
 .chart-toolbar { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px 18px; padding: 12px 14px 2px; }
 .chart-legend { display: flex; flex: 1 1 520px; flex-wrap: wrap; align-items: center; gap: 6px; }
 .chart-series { position: relative; display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 5px 10px 5px 8px; border: 1px solid var(--line); border-radius: 9px; background: rgba(255, 255, 255, .88); color: var(--charcoal); font-size: 12px; font-weight: 650; line-height: 1.2; cursor: pointer; transition: background-color .15s ease, border-color .15s ease, opacity .15s ease; }
@@ -90,6 +92,12 @@ a { color: var(--charcoal); }
 .chart-legend-actions button { min-height: 34px; padding: 5px 10px; border: 1px solid var(--slate); border-radius: 8px; background: white; color: var(--charcoal); font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
 .chart-legend-actions button:hover { border-color: var(--charcoal); background: var(--chartreuse); }
 .chart-legend-actions button:focus-visible { outline: 2px solid var(--charcoal); outline-offset: 2px; }
+.chart-zoom-actions { display: inline-flex; overflow: hidden; margin-left: auto; border: 1px solid var(--slate); border-radius: 8px; background: white; }
+.chart-zoom-actions button { width: 34px; min-height: 34px; border: 0; background: transparent; color: var(--charcoal); font: inherit; font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; }
+.chart-zoom-actions button + button { border-left: 1px solid var(--line); }
+.chart-zoom-actions button:hover:not(:disabled) { background: var(--chartreuse); }
+.chart-zoom-actions button:focus-visible { outline: 2px solid var(--charcoal); outline-offset: -3px; }
+.chart-zoom-actions button:disabled { color: var(--slate); opacity: .45; cursor: default; }
 .table-panel { overflow: hidden; }
 .table-scroll { overflow-x: auto; padding: 10px 22px 0; }
 table { width: 100%; border-collapse: collapse; white-space: nowrap; font-size: 12px; }
@@ -151,6 +159,7 @@ body:has(.dashboard) footer { padding: 8px 0 12px; }
 .overview-panel .chart-toolbar { padding: 9px 10px 0; }
 .overview-panel .chart-series { min-height: 29px; padding: 4px 7px; font-size: 10px; }
 .overview-panel .chart-legend-actions button { min-height: 29px; font-size: 10px; }
+.overview-panel .chart-zoom-actions button { width: 29px; min-height: 29px; }
 .peaks-strip { display: grid; grid-template-columns: 135px repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 10px; margin-bottom: 10px; }
 .peaks-title { display: flex; flex-direction: column; justify-content: center; padding: 5px 4px; }
 .peaks-title .eyebrow { margin: 0 0 4px; font-size: 10px; }

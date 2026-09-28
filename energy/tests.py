@@ -471,18 +471,40 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(response.context["selected_count"], 7 * 24)
         self.assertEqual(response.context["selected_total"], Decimal(7 * 24))
 
-    def test_charts_keep_hover_but_disable_zoom(self):
-        chart = build_overview_chart(load_history()[-24:], load_weather_history()[-24:])
+    def test_charts_keep_hover_and_allow_horizontal_pan_without_wheel_zoom(self):
+        records = load_history()[-24:]
+        chart = build_overview_chart(records, load_weather_history()[-24:])
         self.assertEqual(chart.layout.hovermode, "x unified")
         self.assertIs(chart.layout.showlegend, False)
         self.assertTrue(all("%{x" not in trace.hovertemplate for trace in chart.data))
         self.assertTrue(all("<extra>" in trace.hovertemplate for trace in chart.data))
         self.assertIs(chart.layout.dragmode, False)
-        for axis in (chart.layout.xaxis, chart.layout.yaxis, chart.layout.yaxis2):
-            self.assertIs(axis.fixedrange, True)
+        self.assertIs(chart.layout.xaxis.fixedrange, False)
+        self.assertIsNotNone(chart.layout.xaxis.minallowed)
+        self.assertIsNotNone(chart.layout.xaxis.maxallowed)
+        self.assertEqual(chart.layout.xaxis.range, (records[0].timestamp, records[-1].timestamp))
+        self.assertEqual(chart.layout.xaxis.minallowed, records[0].timestamp)
+        self.assertEqual(chart.layout.xaxis.maxallowed, records[-1].timestamp)
+        self.assertIs(chart.layout.yaxis.fixedrange, True)
+        self.assertIs(chart.layout.yaxis2.fixedrange, True)
         self.assertIs(PLOTLY_CONFIG["scrollZoom"], False)
         self.assertIs(PLOTLY_CONFIG["doubleClick"], False)
         self.assertIs(PLOTLY_CONFIG["displayModeBar"], False)
+
+    def test_chart_time_bounds_for_empty_and_single_hour(self):
+        empty = build_history_chart([], [])
+        self.assertIsNone(empty.layout.xaxis.range)
+        self.assertIsNone(empty.layout.xaxis.minallowed)
+        self.assertIsNone(empty.layout.xaxis.maxallowed)
+
+        record = load_history()[0]
+        one_hour = build_history_chart([record], [])
+        self.assertEqual(
+            one_hour.layout.xaxis.range,
+            (record.timestamp - timedelta(minutes=30), record.timestamp + timedelta(minutes=30)),
+        )
+        self.assertEqual(one_hour.layout.xaxis.minallowed, one_hour.layout.xaxis.range[0])
+        self.assertEqual(one_hour.layout.xaxis.maxallowed, one_hour.layout.xaxis.range[1])
 
     def test_chart_controls_have_one_checkbox_per_trace_and_are_isolated(self):
         chart = build_overview_chart(load_history()[-24:], load_weather_history()[-24:])
@@ -491,6 +513,9 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(first.count('type="checkbox"'), len(chart.data))
         self.assertIn('data-chart-action="select-all"', first)
         self.assertIn('data-chart-action="deselect-all"', first)
+        self.assertIn('data-chart-zoom="in"', first)
+        self.assertIn('data-chart-zoom="out"', first)
+        self.assertIn('aria-label="Zoom in"', first)
         self.assertIn("Energy use · simulation", first)
         self.assertNotEqual(
             first.split('data-chart-id="')[1].split('"')[0],

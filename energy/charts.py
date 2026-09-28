@@ -1,5 +1,6 @@
 """Wykresy Plotly: historia z temperaturą, prognoza, backtest i symulator PV."""
 
+from datetime import timedelta
 from decimal import Decimal
 
 import plotly.graph_objects as go
@@ -45,6 +46,9 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
 
     min_x = min(all_x) if all_x else None
     max_x = max(all_x) if all_x else None
+    if min_x is not None and min_x == max_x:
+        min_x -= timedelta(minutes=30)
+        max_x += timedelta(minutes=30)
 
     # 2. Główny layout wykresu
     figure.update_layout(
@@ -52,8 +56,8 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
         margin={"l": 45, "r": 20, "t": 20, "b": 45},
         height=height,
         hovermode="x unified",
-        dragmode="pan",  # <-- ZMIANA: włączamy chwytanie i przesuwanie "łapką"
-        legend={"orientation": "h", "y": 1.14, "x": 0},
+        dragmode=False,
+        showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": CHARCOAL},
@@ -61,21 +65,18 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
     )
 
     # 3. OŚ X: Odblokowujemy przesuwanie (fixedrange=False) i nakładamy TWARDE GRANICE
-    figure.update_xaxes(
-        fixedrange=False,       # Pozwala na zoom i przesuwanie
-        minallowed=min_x,       # TWARDY LIMIT W LEWO (koniec z nieskończonością!)
-        maxallowed=max_x,       # TWARDY LIMIT W PRAWO
-        linecolor=SLATE, 
-        gridcolor="rgba(84,84,84,0.12)"
-    )
+    xaxis_options = {
+        "fixedrange": False,
+        "linecolor": SLATE,
+        "gridcolor": "rgba(84,84,84,0.12)",
+    }
+    if min_x is not None:
+        xaxis_options.update(range=[min_x, max_x], minallowed=min_x, maxallowed=max_x)
+    figure.update_xaxes(**xaxis_options)
 
     # 4. OŚ Y: Pozostaje ZABLOKOWANA (fixedrange=True) - piki nigdy się nie utną!
-    figure.update_yaxes(
-        fixedrange=True, 
-        linecolor=SLATE, 
-        gridcolor="rgba(84,84,84,0.12)"
-    )
-    
+    figure.update_yaxes(fixedrange=True, linecolor=SLATE, gridcolor="rgba(84,84,84,0.12)")
+
     return figure
 
 

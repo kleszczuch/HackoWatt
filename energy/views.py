@@ -62,7 +62,10 @@ def _chart_html(figure, include_plotlyjs: bool = False) -> str:
         + '</div><div class="chart-legend-actions">'
         '<button type="button" data-chart-action="select-all">Select all</button>'
         '<button type="button" data-chart-action="deselect-all">Deselect all</button>'
-        "</div></div>"
+        '</div><div class="chart-zoom-actions" role="group" aria-label="Chart zoom">'
+        '<button type="button" data-chart-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>'
+        '<button type="button" data-chart-zoom="out" aria-label="Zoom out" '
+        'title="Zoom out">−</button></div></div>'
     )
     plot = figure.to_html(
         full_html=False, include_plotlyjs=include_plotlyjs, config=PLOTLY_CONFIG, div_id=chart_id
