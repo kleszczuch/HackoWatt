@@ -16,10 +16,25 @@ from energy.tariffs import (
     PV_COST_PER_KWP,
     PV_OPEX_RATE,
     PV_PERFORMANCE_RATIO,
+    TariffConfig,
+    configured_energy_cost,
     energy_cost,
     price_for_hour,
 )
 from energy.weather import WeatherHour
+
+
+def _energy_cost(
+    tariff: TariffConfig | None,
+    timestamps: list[datetime],
+    amounts: list[Decimal],
+    dynamic: dict[datetime, Decimal] | None,
+) -> Decimal:
+    """Koszt energii według wybranej taryfy albo domyślnej stawki stałej."""
+    if tariff is None:
+        return energy_cost(timestamps, amounts)
+    return configured_energy_cost(tariff, timestamps, amounts, dynamic)
+
 
 COMPARE_VARIANTS_KWP = (2, 3, 4, 5, 6, 8, 10)
 PV_WINDOW = range(9, 16)
@@ -206,9 +221,13 @@ def _variant(
     weather: list[WeatherHour],
     kwp: Decimal,
     storage: StorageConfig = StorageConfig(),
+    tariff: TariffConfig | None = None,
+    dynamic: dict[datetime, Decimal] | None = None,
 ) -> tuple[VariantResult, Decimal]:
     """Oblicza wynik jednego wariantu PV: pokrycie, oszczędności i zwrot inwestycji."""
-    cost_without_pv = energy_cost([r.timestamp for r in records], [r.total for r in records])
+    cost_without_pv = _energy_cost(
+        tariff, [r.timestamp for r in records], [r.total for r in records], dynamic
+    )
     radiation = {r.timestamp: r.radiation for r in weather}
     self_kwh = exported = grid = Decimal(0)
     grid_timestamps: list[datetime] = []
@@ -232,7 +251,7 @@ def _variant(
         grid += grid_amount
         grid_timestamps.append(record.timestamp)
         grid_amounts.append(grid_amount)
-    grid_cost = energy_cost(grid_timestamps, grid_amounts)
+    grid_cost = _energy_cost(tariff, grid_timestamps, grid_amounts, dynamic)
     pv_capex = PV_COST_PER_KWP * kwp
     capex = pv_capex + storage.cost_eur
     savings = cost_without_pv - grid_cost + exported * EXPORT_PRICE - PV_OPEX_RATE * pv_capex
@@ -248,11 +267,13 @@ def simulate(
     events: list[FlexEvent],
     kwp: Decimal,
     storage: StorageConfig = StorageConfig(),
+    tariff: TariffConfig | None = None,
+    dynamic: dict[datetime, Decimal] | None = None,
 ) -> SimulationResult:
     """Porównuje wariant A i B dla jednej mocy PV i zwraca kompletne podsumowanie."""
-    variant_a, production = _variant(records, weather, kwp, storage)
+    variant_a, production = _variant(records, weather, kwp, storage, tariff, dynamic)
     shifted = _shift_records(records, events, _radiation_by_hour(weather))
-    variant_b, _ = _variant(shifted, weather, kwp, storage)
+    variant_b, _ = _variant(shifted, weather, kwp, storage, tariff, dynamic)
     consumption = sum((record.total for record in records), Decimal(0))
     return SimulationResult(kwp, production, consumption, variant_a, variant_b, storage)
 
@@ -263,9 +284,14 @@ def compare_variants(
     events: list[FlexEvent],
     variants_kwp: tuple[int, ...] = COMPARE_VARIANTS_KWP,
     storage: StorageConfig = StorageConfig(),
+    tariff: TariffConfig | None = None,
+    dynamic: dict[datetime, Decimal] | None = None,
 ) -> list[SimulationResult]:
     """Uruchamia symulację dla wielu mocy instalacji i zwraca listę wyników."""
-    return [simulate(records, weather, events, Decimal(kwp), storage) for kwp in variants_kwp]
+    return [
+        simulate(records, weather, events, Decimal(kwp), storage, tariff, dynamic)
+        for kwp in variants_kwp
+    ]
 
 
 def choose_capacity(
@@ -274,6 +300,8 @@ def choose_capacity(
     events: list[FlexEvent],
     goal: str,
     storage: StorageConfig = StorageConfig(),
+    tariff: TariffConfig | None = None,
+    dynamic: dict[datetime, Decimal] | None = None,
 ) -> CapacityChoice:
     """Dobierz moc dla 100% pokrycia lub zwrotu wariantu B."""
     if goal not in {"coverage", "payback"}:
@@ -288,7 +316,9 @@ def choose_capacity(
         (
             record.total,
             pv_production(radiation.get(record.timestamp, 0.0), Decimal(1)),
-            price_for_hour(record.timestamp.hour),
+            tariff.price_at(record.timestamp, dynamic)[0]
+            if tariff is not None
+            else price_for_hour(record.timestamp.hour),
         )
         for record in shifted
     ]
@@ -345,17 +375,19 @@ def device_effects(
     events: list[FlexEvent],
     kwp: Decimal,
     storage: StorageConfig = StorageConfig(),
+    tariff: TariffConfig | None = None,
+    dynamic: dict[datetime, Decimal] | None = None,
 ) -> list[DeviceEffect]:
     """Efekt przesunięcia pojedynczego typu urządzenia względem wariantu A.
     Mierzy, jak bardzo przesunięcie jednego typu urządzenia poprawia bilans PV."""
-    variant_a, _ = _variant(records, weather, kwp, storage)
+    variant_a, _ = _variant(records, weather, kwp, storage, tariff, dynamic)
     radiation = _radiation_by_hour(weather)
     effects = []
     for device in RECOMMENDATION_DEVICES:
         device_events = [event for event in events if event.device == device]
         moved = [event for event in device_events if event.start_hour not in PV_WINDOW]
         shifted = _shift_records(records, device_events, radiation, devices=(device,))
-        partial, _ = _variant(shifted, weather, kwp, storage)
+        partial, _ = _variant(shifted, weather, kwp, storage, tariff, dynamic)
         effects.append(
             DeviceEffect(
                 device,

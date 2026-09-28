@@ -358,9 +358,20 @@ body:has(.dashboard) footer { padding: 8px 0 12px; }
 .pv-auto-result { display: flex; flex-direction: column; gap: 5px; padding: 16px 20px; border-left: 5px solid var(--grass); background: var(--paper); color: var(--charcoal); }
 .pv-auto-result strong { font-size: 15px; }
 .pv-auto-result span { font-size: 13px; line-height: 1.5; }
-.pv-storage-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; width: 100%; margin: 2px 0 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 11px; background: rgba(107, 170, 117, .08); }
+.pv-storage-fields { width: 100%; margin: 2px 0 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 11px; background: rgba(107, 170, 117, .08); }
 .pv-storage-fields legend { padding: 0 5px; color: var(--charcoal); font-size: 12px; font-weight: 800; }
-.pv-storage-fields p { flex-basis: 100%; margin: 0; color: var(--charcoal); font-size: 11px; line-height: 1.5; }
+.pv-storage-fields p { grid-column: 1 / -1; margin: 0; color: var(--charcoal); font-size: 11px; line-height: 1.5; }
+.pv-settings-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; column-gap: 16px; row-gap: 20px; }
+.pv-settings-form > .field { min-width: 0; }
+.pv-settings-form .field :is(input, select) { width: 100%; min-width: 0; }
+.pv-settings-form .pv-storage-fields { grid-column: 1 / -1; min-width: 0; margin: 0; }
+.pv-storage-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 16px; }
+.pv-settings-form .pv-storage-fields .field { min-width: 0; }
+.pv-form-actions { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 12px; }
+.pv-form-actions .button { flex: 0 1 auto; }
+@media (max-width: 900px) {
+  .pv-settings-form, .pv-storage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .pv-daily-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; padding: 7px; }
 .pv-daily-summary>div { min-width: 0; padding: 12px 14px; }
 .pv-daily-summary span, .pv-daily-summary small { display: block; color: var(--slate); font-size: 11px; line-height: 1.45; }
@@ -427,6 +438,8 @@ body:has(.dashboard) footer { padding: 8px 0 12px; }
   .table-scroll { padding: 8px 12px 0; }
   .pagination { align-items: flex-start; flex-direction: column; gap: 8px; padding: 14px; }
   .pv-storage-fields .field { width: 100%; }
+  .pv-settings-form, .pv-storage-grid { grid-template-columns: minmax(0, 1fr); }
+  .pv-form-actions .button { width: 100%; }
   .pv-daily-summary strong { font-size: 15px; }
   .device-results { padding: 12px 17px 0; }
   .device-note { padding: 14px 17px 22px; }
@@ -441,11 +454,80 @@ body:has(.dashboard) footer { padding: 8px 0 12px; }
   .button { transition: none; }
 }
 
-.collapsible-panel>summary { cursor: pointer; }
-.collapsible-panel>summary::after { content: "▸"; flex: none; margin-left: auto; color: var(--slate); font-size: 14px; }
-.collapsible-panel[open]>summary::after { content: "▾"; }
+.collapsible-panel>summary { cursor: pointer; list-style: none; }
+.collapsible-panel>summary::-webkit-details-marker { display: none; }
+.collapsible-panel>summary::after { content: "+"; display: grid; place-items: center; flex: none; width: 44px; height: 44px; margin-left: auto; border: 1px solid var(--charcoal); border-radius: 11px; background: rgba(203, 255, 77, .4); color: var(--charcoal); font-size: 26px; font-weight: 700; line-height: 1; }
+.collapsible-panel[open]>summary::after { content: "−"; background: var(--chartreuse); }
+.collapsible-panel>summary:hover::after { background: var(--chartreuse); box-shadow: 0 3px 0 rgba(84, 84, 84, .15); }
 .collapsible-panel:not([open])>summary.section-heading { padding-bottom: 24px; }
 .collapsible-panel:not([open])>summary.section-heading.compact { padding-bottom: 0; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .suggestion-chip { padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); color: var(--charcoal); font-size: 12px; font-weight: 700; cursor: pointer; }
 .suggestion-chip:hover { background: var(--chartreuse); border-color: var(--charcoal); }
+
+.settings-btn { white-space: nowrap; }
+.tariff-note { display: inline-block; margin: 0 0 14px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.tariff-settings .section-heading { padding: 0 0 18px; }
+.tariff-settings .section-heading p { margin: 8px 0 0; font-size: 12px; line-height: 1.5; }
+.tariff-form { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; max-width: 100%; }
+.tariff-mode-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
+.tariff-mode-option { display: flex; align-items: flex-start; gap: 12px; min-height: 84px; padding: 17px 18px; border: 2px solid var(--line); border-radius: 13px; background: white; cursor: pointer; }
+.tariff-mode-option:has(input:checked) { border-color: var(--charcoal); background: rgba(203, 255, 77, .19); }
+.tariff-mode-option:has(input:focus-visible) { outline: 3px solid var(--chartreuse); outline-offset: 2px; }
+.tariff-mode-option input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--charcoal); }
+.tariff-mode-option strong, .tariff-mode-option small { display: block; }
+.tariff-mode-option strong { font-size: 15px; }
+.tariff-mode-option small { margin-top: 5px; color: var(--slate); font-size: 12px; line-height: 1.4; }
+.tariff-mode-panel { width: 100%; margin: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: rgba(107, 170, 117, .08); }
+.tariff-mode-panel[hidden], .tariff-preview[hidden] { display: none; }
+.tariff-mode-panel legend { padding: 0 6px; font-size: 13px; font-weight: 800; }
+.tariff-mode-panel p { margin: 0 0 15px; font-size: 12px; line-height: 1.5; }
+.tariff-fixed-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tariff-fixed-fields .field :is(input, select) { width: 100%; min-width: 0; }
+.tariff-provider-panel .field { max-width: 430px; margin-bottom: 12px; }
+.tariff-provider-panel p { margin-bottom: 0; }
+.tariff-preview { overflow: hidden; padding: 24px 30px; }
+.tariff-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; list-style: none; }
+.tariff-preview-heading::-webkit-details-marker { display: none; }
+.tariff-preview:not([open]) { padding-bottom: 24px; }
+.tariff-preview-heading h2 { margin: 4px 0 7px; font-size: 22px; }
+.tariff-preview-heading .muted { margin: 0; font-size: 11px; line-height: 1.5; }
+.tariff-date-controls { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px; margin: 20px 0; }
+.tariff-date-shortcuts { display: flex; gap: 8px; }
+.tariff-date-shortcuts a { display: inline-flex; align-items: center; min-height: 42px; padding: 0 16px; border: 1px solid var(--slate); border-radius: 10px; background: white; font-size: 12px; font-weight: 800; text-decoration: none; }
+.tariff-date-shortcuts a[aria-current] { border-color: var(--charcoal); background: var(--chartreuse); }
+.tariff-date-form { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+.tariff-date-form label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.tariff-date-form input { min-height: 42px; padding: 0 10px; border: 1px solid var(--slate); border-radius: 10px; background: white; color: var(--charcoal); }
+.tariff-day-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 17px; }
+.tariff-day-summary>div { padding: 14px 16px; border: 1px solid var(--line); border-radius: 11px; background: rgba(107, 170, 117, .08); }
+.tariff-day-summary span, .tariff-day-summary small { display: block; color: var(--slate); font-size: 11px; }
+.tariff-day-summary strong { display: block; margin-top: 6px; font-size: 20px; font-variant-numeric: tabular-nums; }
+.tariff-day-summary strong small { display: inline; font-size: 11px; }
+.tariff-alert { margin: 0 0 16px; padding: 11px 14px; border-left: 4px solid var(--sage); border-radius: 5px; background: rgba(203, 255, 77, .2); font-size: 12px; line-height: 1.5; }
+.tariff-table-scroll { padding: 0; }
+.tariff-table { white-space: normal; font-size: 13px; }
+.tariff-table th, .tariff-table td { padding: 10px 14px; }
+.tariff-table thead th { text-align: left; }
+.tariff-table tbody th { width: 22%; background: transparent; font-size: 12px; font-variant-numeric: tabular-nums; letter-spacing: 0; text-align: left; text-transform: none; }
+.tariff-table td:nth-child(2) { width: 43%; text-align: left; }
+.tariff-table td:last-child { text-align: left; }
+.tariff-table td strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tariff-fallback-row { background: rgba(105, 116, 124, .07); }
+.tariff-source { display: inline-block; padding: 5px 8px; border-radius: 6px; background: rgba(107, 170, 117, .2); font-size: 11px; font-weight: 800; }
+.tariff-source-fallback { background: rgba(105, 116, 124, .17); }
+.tariff-extreme { display: inline-block; margin-left: 10px; color: var(--slate); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.tariff-footnote { margin: 15px 0 0; color: var(--slate); font-size: 11px; line-height: 1.5; }
+@media (max-width: 900px) { .tariff-fixed-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) {
+  .tariff-mode-options, .tariff-day-summary { grid-template-columns: 1fr; }
+  .tariff-preview { padding: 18px 16px; }
+  .tariff-date-form, .tariff-date-form label, .tariff-date-form input, .tariff-date-form button { width: 100%; }
+  .tariff-table th, .tariff-table td { padding: 9px 7px; }
+  .tariff-table td strong { font-size: 11px; }
+  .tariff-source { font-size: 10px; }
+}
+.preferences-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }
+.preferences-form .field { min-width: 190px; flex: 1 1 190px; }
+.preferences-form select { width: 100%; }
+.exchange-note { margin: 14px 0 0; }
