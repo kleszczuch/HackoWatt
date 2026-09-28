@@ -311,7 +311,7 @@ def read_events_csv(path: Path | str) -> list[FlexEvent]:
     with Path(path).open(encoding="utf-8-sig", newline="") as source:
         reader = csv.DictReader(source)
         if reader.fieldnames is None or not set(EVENT_COLUMNS).issubset(reader.fieldnames):
-            raise ValueError(f"Plik {Path(path).name} nie ma wymaganych kolumn zdarzeń.")
+            raise ValueError(f"File {Path(path).name} is missing required event columns.")
         for row in reader:
             events.append(
                 FlexEvent(

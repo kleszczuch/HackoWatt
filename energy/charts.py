@@ -7,16 +7,17 @@ from plotly.subplots import make_subplots
 
 from energy.forecasting import BacktestRow
 from energy.household import CATEGORIES, ConsumptionHour
+from energy.presentation import event_names
 from energy.pv import WeekProfile
 from energy.weather import WeatherHour
 
 CATEGORY_LABELS = (
-    "Baza",
-    "Ogrzewanie",
-    "Oświetlenie",
-    "Gotowanie",
-    "RTV / PC",
-    "Duże AGD",
+    "Base load",
+    "Heating",
+    "Lighting",
+    "Cooking",
+    "TV / computers",
+    "Major appliances",
 )
 CHARCOAL = "#545454"
 SLATE = "#69747C"
@@ -41,11 +42,11 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
         height=height,
         hovermode="x unified",
         dragmode=False,
-        legend={"orientation": "h", "y": 1.14, "x": 0},
+        showlegend=False,
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": CHARCOAL},
-        hoverlabel={"bgcolor": "#FFFFFF", "font_color": CHARCOAL},
+        hoverlabel={"bgcolor": "#FFFFFF", "bordercolor": SLATE, "font_color": CHARCOAL},
     )
     figure.update_xaxes(fixedrange=True, linecolor=SLATE, gridcolor="rgba(84,84,84,0.12)")
     figure.update_yaxes(fixedrange=True, linecolor=SLATE, gridcolor="rgba(84,84,84,0.12)")
@@ -70,7 +71,7 @@ def _consumption_with_temperature(
                     "dash": CATEGORY_DASHES[index],
                 },
                 fillcolor=CATEGORY_FILLS[index],
-                hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
+                hovertemplate="%{fullData.name}: %{y:.5~r} kWh<extra></extra>",
             ),
             secondary_y=False,
         )
@@ -81,15 +82,15 @@ def _consumption_with_temperature(
                 x=[record.timestamp for record in event_points],
                 y=[float(record.total) for record in event_points],
                 mode="markers",
-                name="Zdarzenia",
+                name="Events",
                 marker={
                     "color": CHARTREUSE,
                     "size": 7,
                     "symbol": "diamond",
                     "line": {"color": CHARCOAL, "width": 1.2},
                 },
-                text=[record.events for record in event_points],
-                hovertemplate="%{x|%d.%m %H:%M}: %{text}<extra>Zdarzenia</extra>",
+                text=[event_names(record.events) for record in event_points],
+                hovertemplate="Events: %{text}<extra></extra>",
             ),
             secondary_y=False,
         )
@@ -98,9 +99,9 @@ def _consumption_with_temperature(
             x=[record.timestamp for record in weather],
             y=[record.temperature for record in weather],
             mode="lines",
-            name="Temperatura",
+            name="Temperature",
             line={"color": SLATE, "width": 2, "dash": "dot"},
-            hovertemplate="%{x|%d.%m %H:%M}: %{y:.1f} °C<extra>Temperatura</extra>",
+            hovertemplate="Temperature: %{y:.1f} °C<extra></extra>",
         ),
         secondary_y=True,
     )
@@ -122,7 +123,7 @@ def build_overview_chart(
         go.Scatter(
             x=[record.timestamp for record in records],
             y=[float(record.total) for record in records],
-            name="Zużycie · prognoza" if forecast else "Zużycie · symulacja",
+            name="Energy use · forecast" if forecast else "Energy use · simulation",
             mode="lines",
             line={
                 "color": CHARCOAL if not forecast else SLATE,
@@ -131,7 +132,7 @@ def build_overview_chart(
             },
             fill="tozeroy",
             fillcolor="rgba(107,170,117,0.26)" if not forecast else "rgba(132,221,99,0.28)",
-            hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
+            hovertemplate="%{fullData.name}: %{y:.5~r} kWh<extra></extra>",
         ),
         secondary_y=False,
     )
@@ -139,10 +140,10 @@ def build_overview_chart(
         go.Scatter(
             x=[record.timestamp for record in weather],
             y=[record.temperature for record in weather],
-            name="Temperatura",
+            name="Temperature",
             mode="lines",
             line={"color": SLATE, "width": 1.8, "dash": "dot"},
-            hovertemplate="%{x|%d.%m %H:%M}: %{y:.1f} °C<extra>Temperatura</extra>",
+            hovertemplate="Temperature: %{y:.1f} °C<extra></extra>",
         ),
         secondary_y=True,
     )
@@ -160,9 +161,9 @@ def build_forecast_chart(records: list[ConsumptionHour], weather: list[WeatherHo
 def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
     figure = go.Figure()
     for values, label, color, dash in (
-        ([row.actual for row in rows], "Rzeczywiste (symulacja)", CHARCOAL, "solid"),
+        ([row.actual for row in rows], "Actual (simulation)", CHARCOAL, "solid"),
         ([row.model for row in rows], "Model XGBoost", SLATE, "dash"),
-        ([row.baseline for row in rows], "Baseline: tydzień temu", CHARCOAL, "dot"),
+        ([row.baseline for row in rows], "Baseline: last week", CHARCOAL, "dot"),
     ):
         figure.add_trace(
             go.Scatter(
@@ -171,7 +172,7 @@ def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
                 mode="lines",
                 name=label,
                 line={"color": color, "width": 2, "dash": dash},
-                hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
+                hovertemplate="%{fullData.name}: %{y:.5~r} kWh<extra></extra>",
             )
         )
     figure.update_yaxes(title_text="kWh", rangemode="tozero")
@@ -181,10 +182,10 @@ def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
 def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
     figure = go.Figure()
     traces = (
-        (week.pv, f"Produkcja PV ({kwp} kWp)", CHARCOAL, "solid", "tozeroy"),
-        (week.load, "Zużycie domu", SLATE, "solid", None),
-        (week.grid_a, "Zakup z sieci – obecne nawyki", CHARCOAL, "dash", None),
-        (week.grid_b, "Zakup z sieci – po przesunięciu", SLATE, "dot", None),
+        (week.pv, f"PV output ({kwp} kWp)", CHARCOAL, "solid", "tozeroy"),
+        (week.load, "Household use", SLATE, "solid", None),
+        (week.grid_a, "Grid purchases – current schedule", CHARCOAL, "dash", None),
+        (week.grid_b, "Grid purchases – shifted appliances", SLATE, "dot", None),
     )
     for values, label, color, dash, fill in traces:
         figure.add_trace(
@@ -196,7 +197,7 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
                 fill=fill,
                 fillcolor="rgba(203,255,77,0.42)" if fill else None,
                 line={"color": color, "width": 2, "dash": dash},
-                hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
+                hovertemplate="%{fullData.name}: %{y:.5~r} kWh<extra></extra>",
             )
         )
     if any(value > 0 for value in week.battery_b):
@@ -205,9 +206,9 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
                 x=week.timestamps,
                 y=[float(value) for value in week.battery_b],
                 mode="lines",
-                name="Z magazynu do domu · B",
+                name="Battery to household · B",
                 line={"color": CHARCOAL, "width": 2, "dash": "dashdot"},
-                hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
+                hovertemplate="%{fullData.name}: %{y:.5~r} kWh<extra></extra>",
             )
         )
     figure.update_yaxes(title_text="kWh", rangemode="tozero")
