@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="{% static 'energy/dashboard.css' %}">
   <script src="{% static 'energy/chart-controls.js' %}" defer></script>
 </head>
-<body>
+<body style="--page-background: url('{% static 'energy/Background.webp' %}');">
   <div class="shell">
     <header class="topbar">
       <a class="brand" href="{% url 'dashboard' %}" aria-label="{% if is_en %}eko-dziki – home{% else %}eko-dziki – strona główna{% endif %}">

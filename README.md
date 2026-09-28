@@ -14,14 +14,14 @@ głównym projektu uruchom:
 ```powershell
 uv sync
 uv run python manage.py migrate
-uv run python manage.py prepare_demo_data
+uv run python manage.py prepare_data
 uv run python manage.py runserver 127.0.0.1:8000
 ```
 
-Otwórz `http://127.0.0.1:8000/`. Komenda `prepare_demo_data` wymaga jednorazowo
-dostępu do sieci (Open-Meteo); przy jej błędzie używa wcześniej zapisanych
-plików pogody, więc aplikacja działa offline na gotowej migawce CSV.
-Powtórne wykonanie odświeża pogodę i wszystkie dane.
+Otwórz `http://127.0.0.1:8000/`. Komenda `prepare_data` generuje dane dla pięciu
+scenariuszy i wymaga dostępu do Open-Meteo przy pierwszym uruchomieniu.
+Wygenerowane pliki w `data/` są lokalne i nie są śledzone przez Git.
+Komenda `prepare_data --scenario 4` odświeża tylko scenariusz Kopenhagi.
 
 ## Strony
 
@@ -45,7 +45,7 @@ Powtórne wykonanie odświeża pogodę i wszystkie dane.
   roku modelowego; duże moce i magazyny są wariantami teoretycznymi, których
   wykonalność montażową i cenę trzeba sprawdzić osobno.
 - Interfejs korzysta z palety Charcoal, Slate Grey, Sage Green, Radioactive Grass
-  i Chartreuse oraz dostarczonego tła `data/Background.webp`.
+  i Chartreuse oraz tła `energy/static/energy/Background.webp`.
 - `/export.csv` – eksport historii i prognozy dla wybranego zakresu.
 
 ## REST API dla aplikacji mobilnej (`/api/v1/`)
@@ -83,7 +83,9 @@ urządzeń opisują zarejestrowane cykle i policzone różnice, bez gotowych pol
 
 ## Dane w `data/`
 
-`historia_zuzycie.csv` (840 h), `prognoza_zuzycie.csv` (168 h),
+Każdy scenariusz ma osobny katalog `data/scenario_1/`–`data/scenario_5/`.
+Komenda `prepare_data` zapisuje w nich `historia_zuzycie.csv` (840 h),
+`prognoza_zuzycie.csv` (168 h),
 `pogoda_historia.csv`, `pogoda_prognoza.csv`, `pogoda_roczna.csv` (8760 h),
 `roczne_zuzycie.csv`, `zdarzenia_elastyczne.csv`, `roczne_zdarzenia.csv`,
 `backtest.csv` i `metryki.json`.

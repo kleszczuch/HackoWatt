@@ -14,7 +14,7 @@
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; min-height: 100vh; background: #f7f6ed url("Background.webp") center center / cover fixed no-repeat; }
+body { margin: 0; min-height: 100vh; background: #f7f6ed var(--page-background) center center / cover fixed no-repeat; }
 button, input, select { font: inherit; }
 a { color: var(--charcoal); }
 :is(a, button, input, select, summary):focus-visible { outline: 3px solid var(--charcoal); outline-offset: 3px; box-shadow: 0 0 0 6px var(--chartreuse); }

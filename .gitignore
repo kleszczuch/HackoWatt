@@ -6,10 +6,9 @@ __pycache__/
 .ruff_cache/
 .env
 
-# Baza i dane
+# Baza i generowane dane
 db.sqlite3
-data/*.csv
-data/test-*/
+data/
 
 # Pliki agentowe i planowanie (poza repozytorium)
 .ai/
