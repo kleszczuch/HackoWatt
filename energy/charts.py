@@ -18,8 +18,20 @@ CATEGORY_LABELS = (
     "RTV / PC",
     "Duże AGD",
 )
-COLORS = ("#6b7280", "#e45d47", "#e6a23b", "#3d9b75", "#4e83c2", "#8b70b3")
-TEMPERATURE_COLOR = "#2f6f8f"
+CHARCOAL = "#545454"
+SLATE = "#69747C"
+SAGE = "#6BAA75"
+GRASS = "#84DD63"
+CHARTREUSE = "#CBFF4D"
+CATEGORY_FILLS = (
+    "rgba(84,84,84,0.50)",
+    "rgba(105,116,124,0.55)",
+    "rgba(107,170,117,0.65)",
+    "rgba(132,221,99,0.65)",
+    "rgba(203,255,77,0.85)",
+    "rgba(107,170,117,0.38)",
+)
+CATEGORY_DASHES = ("solid", "solid", "dash", "solid", "dot", "dashdot")
 
 
 def _base_layout(figure: go.Figure, height: int) -> go.Figure:
@@ -32,9 +44,11 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
         legend={"orientation": "h", "y": 1.14, "x": 0},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": CHARCOAL},
+        hoverlabel={"bgcolor": "#FFFFFF", "font_color": CHARCOAL},
     )
-    figure.update_xaxes(fixedrange=True)
-    figure.update_yaxes(fixedrange=True)
+    figure.update_xaxes(fixedrange=True, linecolor=SLATE, gridcolor="rgba(84,84,84,0.12)")
+    figure.update_yaxes(fixedrange=True, linecolor=SLATE, gridcolor="rgba(84,84,84,0.12)")
     return figure
 
 
@@ -42,9 +56,7 @@ def _consumption_with_temperature(
     records: list[ConsumptionHour], weather: list[WeatherHour], height: int
 ) -> go.Figure:
     figure = make_subplots(specs=[[{"secondary_y": True}]])
-    for index, (category, label, color) in enumerate(
-        zip(CATEGORIES, CATEGORY_LABELS, COLORS, strict=True)
-    ):
+    for index, (category, label) in enumerate(zip(CATEGORIES, CATEGORY_LABELS, strict=True)):
         figure.add_trace(
             go.Scatter(
                 x=[record.timestamp for record in records],
@@ -52,7 +64,12 @@ def _consumption_with_temperature(
                 mode="lines",
                 name=label,
                 stackgroup="zuzycie",
-                line={"color": color, "width": 1.2},
+                line={
+                    "color": CHARCOAL if index % 2 == 0 else SLATE,
+                    "width": 1.4,
+                    "dash": CATEGORY_DASHES[index],
+                },
+                fillcolor=CATEGORY_FILLS[index],
                 hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
             ),
             secondary_y=False,
@@ -65,7 +82,12 @@ def _consumption_with_temperature(
                 y=[float(record.total) for record in event_points],
                 mode="markers",
                 name="Zdarzenia",
-                marker={"color": "#c2571f", "size": 6, "symbol": "diamond"},
+                marker={
+                    "color": CHARTREUSE,
+                    "size": 7,
+                    "symbol": "diamond",
+                    "line": {"color": CHARCOAL, "width": 1.2},
+                },
                 text=[record.events for record in event_points],
                 hovertemplate="%{x|%d.%m %H:%M}: %{text}<extra>Zdarzenia</extra>",
             ),
@@ -77,7 +99,7 @@ def _consumption_with_temperature(
             y=[record.temperature for record in weather],
             mode="lines",
             name="Temperatura",
-            line={"color": TEMPERATURE_COLOR, "width": 1.8, "dash": "dot"},
+            line={"color": SLATE, "width": 2, "dash": "dot"},
             hovertemplate="%{x|%d.%m %H:%M}: %{y:.1f} °C<extra>Temperatura</extra>",
         ),
         secondary_y=True,
@@ -102,9 +124,13 @@ def build_overview_chart(
             y=[float(record.total) for record in records],
             name="Zużycie · prognoza" if forecast else "Zużycie · symulacja",
             mode="lines",
-            line={"color": "#19866d" if not forecast else "#db8a3f", "width": 2},
+            line={
+                "color": CHARCOAL if not forecast else SLATE,
+                "width": 2.5,
+                "dash": "solid" if not forecast else "dash",
+            },
             fill="tozeroy",
-            fillcolor="rgba(25,134,109,0.12)" if not forecast else "rgba(219,138,63,0.12)",
+            fillcolor="rgba(107,170,117,0.26)" if not forecast else "rgba(132,221,99,0.28)",
             hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
         ),
         secondary_y=False,
@@ -115,7 +141,7 @@ def build_overview_chart(
             y=[record.temperature for record in weather],
             name="Temperatura",
             mode="lines",
-            line={"color": TEMPERATURE_COLOR, "width": 1.5, "dash": "dot"},
+            line={"color": SLATE, "width": 1.8, "dash": "dot"},
             hovertemplate="%{x|%d.%m %H:%M}: %{y:.1f} °C<extra>Temperatura</extra>",
         ),
         secondary_y=True,
@@ -134,9 +160,9 @@ def build_forecast_chart(records: list[ConsumptionHour], weather: list[WeatherHo
 def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
     figure = go.Figure()
     for values, label, color, dash in (
-        ([row.actual for row in rows], "Rzeczywiste (symulacja)", "#218a72", "solid"),
-        ([row.model for row in rows], "Model XGBoost", "#e59b44", "dash"),
-        ([row.baseline for row in rows], "Baseline: tydzień temu", "#8b70b3", "dot"),
+        ([row.actual for row in rows], "Rzeczywiste (symulacja)", CHARCOAL, "solid"),
+        ([row.model for row in rows], "Model XGBoost", SLATE, "dash"),
+        ([row.baseline for row in rows], "Baseline: tydzień temu", CHARCOAL, "dot"),
     ):
         figure.add_trace(
             go.Scatter(
@@ -155,10 +181,10 @@ def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
 def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
     figure = go.Figure()
     traces = (
-        (week.pv, f"Produkcja PV ({kwp} kWp)", "#e6a23b", "solid", "tozeroy"),
-        (week.load, "Zużycie domu", "#4e83c2", "solid", None),
-        (week.grid_a, "Zakup z sieci — obecne nawyki", "#e45d47", "solid", None),
-        (week.grid_b, "Zakup z sieci — po przesunięciu", "#218a72", "dash", None),
+        (week.pv, f"Produkcja PV ({kwp} kWp)", CHARCOAL, "solid", "tozeroy"),
+        (week.load, "Zużycie domu", SLATE, "solid", None),
+        (week.grid_a, "Zakup z sieci – obecne nawyki", CHARCOAL, "dash", None),
+        (week.grid_b, "Zakup z sieci – po przesunięciu", SLATE, "dot", None),
     )
     for values, label, color, dash, fill in traces:
         figure.add_trace(
@@ -168,6 +194,7 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
                 mode="lines",
                 name=label,
                 fill=fill,
+                fillcolor="rgba(203,255,77,0.42)" if fill else None,
                 line={"color": color, "width": 2, "dash": dash},
                 hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
             )
@@ -179,7 +206,7 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
                 y=[float(value) for value in week.battery_b],
                 mode="lines",
                 name="Z magazynu do domu · B",
-                line={"color": "#7551a8", "width": 2, "dash": "dot"},
+                line={"color": CHARCOAL, "width": 2, "dash": "dashdot"},
                 hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
             )
         )

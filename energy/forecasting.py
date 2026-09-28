@@ -92,7 +92,7 @@ def _mape(actual: list[Decimal], predicted: list[Decimal]) -> Decimal:
 
 
 def _daily_totals(rows: list[BacktestRow], attribute: str) -> list[Decimal]:
-    """Sumy dobowe — MAPE na godzinach jest psuty przez dni wyjazdu (małe mianowniki)."""
+    """Sumy dobowe – MAPE na godzinach jest psuty przez dni wyjazdu (małe mianowniki)."""
     totals: dict = {}
     for row in rows:
         key = row.timestamp.date()

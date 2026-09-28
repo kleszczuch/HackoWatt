@@ -40,7 +40,7 @@ def _data_dir() -> Path:
 
 
 def _missing() -> FileNotFoundError:
-    return FileNotFoundError("Uruchom: uv run python manage.py prepare_demo_data")
+    return FileNotFoundError("Dane są chwilowo niedostępne.")
 
 
 def _read_consumption(path: Path) -> list[ConsumptionHour]:

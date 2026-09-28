@@ -1,11 +1,11 @@
 {% extends "energy/base.html" %}
-{% block title %}HackoWatt · Założenia{% endblock %}
+{% block title %}eko-dziki · Założenia{% endblock %}
 {% block content %}
 <section class="intro">
   <div>
     <p class="eyebrow">JAWNE ZAŁOŻENIA</p>
     <h1>Jak powstały<br><span>te dane i liczby</span></h1>
-    <p class="lead">Harmonogram mieszkańców, praca urządzeń, sposób tworzenia historii, taryfa, model fotowoltaiki i metodologia szacunku rocznego — wszystko w jednym miejscu.</p>
+    <p class="lead">Harmonogram mieszkańców, praca urządzeń, sposób tworzenia historii, taryfa, model fotowoltaiki i metodologia szacunku rocznego – wszystko w jednym miejscu.</p>
   </div>
 </section>
 
@@ -13,13 +13,13 @@
   <div class="section-heading"><div><p class="eyebrow">DANE WEJŚCIOWE</p><h2>Lokalizacja, pogoda i moment przygotowania</h2></div></div>
   <div class="explanation-list">
     <div class="explanation"><strong>Lokalizacja:</strong> Kopenhaga, Dania (55,6761 N, 12,5683 E), czas lokalny Europe/Copenhagen.</div>
-    <div class="explanation"><strong>Pogoda:</strong> Open-Meteo — endpoint prognozy z <code>past_days</code> dla świeżej historii (archiwum ma kilkudniowe opóźnienie), endpoint archiwum dla ostatnich 12 miesięcy. Zmienne: temperatura 2 m, zachmurzenie, promieniowanie krótkofalowe.</div>
+    <div class="explanation"><strong>Pogoda:</strong> Open-Meteo – endpoint prognozy z <code>past_days</code> dla świeżej historii (archiwum ma kilkudniowe opóźnienie), endpoint archiwum dla ostatnich 12 miesięcy. Zmienne: temperatura 2 m, zachmurzenie, promieniowanie krótkofalowe.</div>
     {% if spans %}
     <div class="explanation"><strong>Historia:</strong> {{ spans.history.0|date:"d.m.Y H:i" }} – {{ spans.history.1|date:"d.m.Y H:i" }} ({{ spans.history.2 }} godzin, 35 dni).</div>
     <div class="explanation"><strong>Prognoza:</strong> {{ spans.forecast.0|date:"d.m.Y H:i" }} – {{ spans.forecast.1|date:"d.m.Y H:i" }} ({{ spans.forecast.2 }} godzin, 7 dni).</div>
     <div class="explanation"><strong>Rok szacunkowy:</strong> {{ spans.annual.0|date:"d.m.Y" }} – {{ spans.annual.1|date:"d.m.Y" }} ({{ spans.annual.2 }} godzin realnej pogody archiwalnej).</div>
     {% endif %}
-    {% if metrics.wygenerowano %}<div class="explanation"><strong>Dane przygotowano:</strong> {{ metrics.wygenerowano }} — prognoza pogody jest spójna w ramach tej migawki.</div>{% endif %}
+    {% if metrics.wygenerowano %}<div class="explanation"><strong>Dane przygotowano:</strong> {{ metrics.wygenerowano }} – prognoza pogody jest spójna w ramach tej migawki.</div>{% endif %}
   </div>
 </section>
 
@@ -32,7 +32,7 @@
         <tr><td class="timestamp">6:00–9:00</td><td style="text-align:left">Cały dom w ruchu: śniadanie, czajnik i ekspres kilka razy, oświetlenie, pompa ciepła utrzymuje komfort.</td></tr>
         <tr><td class="timestamp">9:00–14:00</td><td style="text-align:left">Rodzice w pracy, dzieci w szkole; dziadkowie w domu: TV/radio, obiad, drobne prace, czasem pralka.</td></tr>
         <tr><td class="timestamp">14:00–17:00</td><td style="text-align:left">Dzieci wracają ze szkoły: komputery, konsola, ładowarki; dziadkowie nadal aktywni.</td></tr>
-        <tr><td class="timestamp">17:00–22:00</td><td style="text-align:left">Wszyscy w domu: kolacja (indukcja, piekarnik), zmywarka, pranie lub suszenie, RTV/PC, pełne oświetlenie — zwykle szczyt doby.</td></tr>
+        <tr><td class="timestamp">17:00–22:00</td><td style="text-align:left">Wszyscy w domu: kolacja (indukcja, piekarnik), zmywarka, pranie lub suszenie, RTV/PC, pełne oświetlenie – zwykle szczyt doby.</td></tr>
         <tr><td class="timestamp">22:00–6:00</td><td style="text-align:left">Lodówka i zamrażarka, router Wi-Fi, standby, ładowanie telefonów, ogrzewanie z obniżoną temperaturą.</td></tr>
       </tbody>
     </table>
@@ -40,12 +40,12 @@
 </section>
 
 <section class="panel chart-panel">
-  <div class="section-heading"><div><p class="eyebrow">ZMIENNOŚĆ DNI</p><h2>Zdarzenia losowe w generatorze</h2></div><span class="muted">Deterministyczne ziarno 78 — wyniki są powtarzalne</span></div>
+  <div class="section-heading"><div><p class="eyebrow">ZMIENNOŚĆ DNI</p><h2>Zdarzenia losowe w generatorze</h2></div><span class="muted">Deterministyczne ziarno 78 – wyniki są powtarzalne</span></div>
   <div class="explanation-list">
-    <div class="explanation"><strong>Praca zdalna:</strong> ok. 12% dni roboczych — jeden z rodziców na laptopie 9–17.</div>
-    <div class="explanation"><strong>Wyjście dziadków:</strong> ok. 18% dni roboczych — kilka godzin bez TV i obiadu w domu.</div>
-    <div class="explanation"><strong>Goście:</strong> ok. 4% dni roboczych i 9% weekendów — większe gotowanie i wieczorna aktywność.</div>
-    <div class="explanation"><strong>Wyjazd rodziny:</strong> ok. 3% dni roboczych i 7% weekendów — dom zostaje na bazie i ogrzewaniu 17 °C.</div>
+    <div class="explanation"><strong>Praca zdalna:</strong> ok. 12% dni roboczych – jeden z rodziców na laptopie 9–17.</div>
+    <div class="explanation"><strong>Wyjście dziadków:</strong> ok. 18% dni roboczych – kilka godzin bez TV i obiadu w domu.</div>
+    <div class="explanation"><strong>Goście:</strong> ok. 4% dni roboczych i 9% weekendów – większe gotowanie i wieczorna aktywność.</div>
+    <div class="explanation"><strong>Wyjazd rodziny:</strong> ok. 3% dni roboczych i 7% weekendów – dom zostaje na bazie i ogrzewaniu 17 °C.</div>
     <div class="explanation"><strong>Pranie i suszenie:</strong> głównie wtorek i sobota (75% szans), czasem inny dzień; suszarka po ok. 60% prań. <strong>Zmywarka:</strong> 85% dni, start 19–21 (w weekendy po obiedzie).</div>
     <div class="explanation"><strong>Weekendy:</strong> wyższa obecność w ciągu dnia, późniejsze posiłki, więcej elektroniki.</div>
   </div>
@@ -61,7 +61,7 @@
         <tr><td class="timestamp">Lodówka + zamrażarka</td><td style="text-align:left">łącznie ~1,8 kWh/dobę w zużyciu podstawowym (z routerem i standby ~0,11–0,16 kWh/h).</td></tr>
         <tr><td class="timestamp">Czajnik, ekspres</td><td style="text-align:left">2 kW po 3–5 min i 1–1,5 kW po 5–10 min; kilka użyć rano (w kategorii Gotowanie).</td></tr>
         <tr><td class="timestamp">Indukcja + piekarnik</td><td style="text-align:left">kolacja 0,6–2,0 kWh; piekarnik w ok. 35% dni.</td></tr>
-        <tr><td class="timestamp">Pralka / suszarka / zmywarka</td><td style="text-align:left">0,6–1,0 / 1,5–2,5 / 0,8–1,2 kWh na cykl, 1–2 h pracy — zdarzenia elastyczne pod symulator PV.</td></tr>
+        <tr><td class="timestamp">Pralka / suszarka / zmywarka</td><td style="text-align:left">0,6–1,0 / 1,5–2,5 / 0,8–1,2 kWh na cykl, 1–2 h pracy – zdarzenia elastyczne pod symulator PV.</td></tr>
         <tr><td class="timestamp">RTV, konsole, komputery</td><td style="text-align:left">0,08–0,35 kWh/h zależnie od pory i obecności.</td></tr>
         <tr><td class="timestamp">Oświetlenie</td><td style="text-align:left">0,10–0,30 kW po zmroku; pora zmierzchu zależy od miesiąca i zachmurzenia.</td></tr>
       </tbody>
@@ -79,9 +79,9 @@
         <tr><td class="timestamp">Koszt instalacji PV</td><td class="number">1300 €/kWp</td></tr>
         <tr><td class="timestamp">Cena eksportu do sieci</td><td class="number">0,08 €/kWh</td></tr>
         <tr><td class="timestamp">Roczny koszt operacyjny PV</td><td class="number">1% kosztu samej instalacji PV</td></tr>
-        <tr><td class="timestamp">Sprawność systemu PV (założenie własne)</td><td class="number">0,8 — orientacja, nachylenie i straty w jednym współczynniku</td></tr>
+        <tr><td class="timestamp">Sprawność systemu PV (założenie własne)</td><td class="number">0,8 – orientacja, nachylenie i straty w jednym współczynniku</td></tr>
         <tr><td class="timestamp">Magazyn energii</td><td class="number">Pojemność do 5000 kWh i moc do 150 kW podane przez użytkownika; ładowanie wyłącznie z nadwyżki PV</td></tr>
-        <tr><td class="timestamp">Sprawność pełnego obiegu magazynu</td><td class="number">90% — założenie uproszczone, zbliżone do <a href="https://energylibrary.tesla.com/docs/Public/EnergyStorage/Powerwall/3/Datasheet/en-ie/Powerwall-3-Datasheet-IE.pdf">89% w karcie Powerwall 3</a>; rzeczywista wartość zależy od urządzenia</td></tr>
+        <tr><td class="timestamp">Sprawność pełnego obiegu magazynu</td><td class="number">90% – założenie uproszczone, zbliżone do <a href="https://energylibrary.tesla.com/docs/Public/EnergyStorage/Powerwall/3/Datasheet/en-ie/Powerwall-3-Datasheet-IE.pdf">89% w karcie Powerwall 3</a>; rzeczywista wartość zależy od urządzenia</td></tr>
         <tr><td class="timestamp">Koszt magazynu</td><td class="number">Cena zakupu wpisywana z oferty użytkownika, doliczana do nakładu inwestycyjnego; konkurs nie podaje ceny magazynu</td></tr>
       </tbody>
     </table>
@@ -91,7 +91,7 @@
 <section class="panel chart-panel">
   <div class="section-heading"><div><p class="eyebrow">METODOLOGIA</p><h2>Jak szacujemy cały rok z 35 dniami historii</h2></div></div>
   <div class="explanation-list">
-    <div class="explanation"><strong>Ten sam model, dłuższa pogoda:</strong> roczne zużycie generuje identyczny symulator zdarzeń co historia, ale na 12 miesiącach realnej pogody archiwalnej — nakładający się okres zgadza się z historią z definicji.</div>
+    <div class="explanation"><strong>Ten sam model, dłuższa pogoda:</strong> roczne zużycie generuje identyczny symulator zdarzeń co historia, ale na 12 miesiącach realnej pogody archiwalnej – nakładający się okres zgadza się z historią z definicji.</div>
     <div class="explanation"><strong>Sezonowość ogrzewania:</strong> wynika wprost z temperatury godzinowej (zimą pompa ciepła pracuje znacznie dłużej, latem wcale). <strong>Sezonowość oświetlenia:</strong> z miesięcznych godzin zmierzchu dla Kopenhagi. <strong>Sezonowość PV:</strong> z realnego promieniowania godzinowego.</div>
     <div class="explanation"><strong>Granice metody:</strong> nie znamy urlopów, chorób ani realnych odczytów; roczna suma jest szacunkiem scenariuszowym, nie prognozą rozliczeniową. Produkcja PV pomija zacienienie i dokładny azymut dachu (współczynnik 0,8).</div>
     <div class="explanation"><strong>Bilans magazynu i zużycie dzienne:</strong> w każdej godzinie symulacja pokrywa zużycie budynku najpierw z bieżącej produkcji PV, potem z magazynu, a resztę z sieci. Nadwyżka ładuje magazyn do zadanej pojemności i mocy, reszta trafia na eksport. Średnie zużycie dobowe i dzienne sumy tygodnia pochodzą z tych samych godzinowych danych rocznych.</div>
@@ -99,7 +99,7 @@
     <div class="explanation"><strong>Skala instalacji:</strong> ręcznie można badać 1–150 kWp; dobór do 100% używa tego zakresu, a dobór najkrótszego zwrotu porównuje 1–15 kWp co 0,1 kWp. Duże instalacje i magazyny sezonowe są analizą techniczną. Kalkulator nie sprawdza powierzchni dachu ani dostępności montażu i używa liniowego kosztu 1300 €/kWp także dla większych mocy.</div>
     <div class="explanation"><strong>Granice zwrotu z magazynem:</strong> do inwestycji doliczamy podaną cenę magazynu, a roczne 1% kosztu operacyjnego dotyczy tylko PV. Nie modelujemy degradacji, wymiany, kosztów utrzymania baterii ani ładowania z sieci. Magazyn nie wytwarza energii; 100% pokrycia może być nieosiągalne przy zbyt małej produkcji PV, pojemności lub mocy.</div>
     {% if metrics %}
-    <div class="explanation"><strong>Sprawdzalność prognozy:</strong> na ostatnich 7 dniach historii model ma MAE {{ metrics.mae_model|floatformat:3 }} kWh (MAPE na sumach dobowych {{ metrics.mape_model|floatformat:1 }}%), a baseline „ta sama godzina tydzień temu” {{ metrics.mae_baseline|floatformat:3 }} kWh (MAPE {{ metrics.mape_baseline|floatformat:1 }}%) — okres oceny: {{ metrics.okres_od|date:"d.m H:i" }} – {{ metrics.okres_do|date:"d.m H:i" }}. MAPE liczymy na dobach, bo godzinowy jest psuty przez prawie zerowe zużycie w dni wyjazdu.</div>
+    <div class="explanation"><strong>Sprawdzalność prognozy:</strong> na ostatnich 7 dniach historii model ma MAE {{ metrics.mae_model|floatformat:3 }} kWh (MAPE na sumach dobowych {{ metrics.mape_model|floatformat:1 }}%), a baseline „ta sama godzina tydzień temu” {{ metrics.mae_baseline|floatformat:3 }} kWh (MAPE {{ metrics.mape_baseline|floatformat:1 }}%) – okres oceny: {{ metrics.okres_od|date:"d.m H:i" }} – {{ metrics.okres_do|date:"d.m H:i" }}. MAPE liczymy na dobach, bo godzinowy jest psuty przez prawie zerowe zużycie w dni wyjazdu.</div>
     {% endif %}
     <div class="explanation"><strong>Ograniczenia:</strong> znaczniki czasu są lokalnymi etykietami godzin bez rozliczeń DST; symulacja nie jest odczytem licznika, a koszty w EUR są szacunkami według podanych stawek.</div>
   </div>

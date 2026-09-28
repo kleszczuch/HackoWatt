@@ -536,6 +536,9 @@ class ViewTests(SimpleTestCase):
         self.assertContains(response, "Warianty instalacji")
         self.assertContains(response, "Zakup z sieci")
         self.assertContains(response, "Zmywarka")
+        self.assertContains(response, "Efekt zmiany godziny pracy")
+        self.assertNotContains(response, "Wskazówka:")
+        self.assertNotContains(response, "nie ma czego przesuwać")
         self.assertContains(response, "Dobierz do 100% pokrycia")
         self.assertContains(response, "Najkrótszy zwrot (B)")
 
@@ -603,10 +606,11 @@ class ViewTests(SimpleTestCase):
         for phrase in ("Kopenhaga", "1300", "35 dni", "szacunkiem"):
             self.assertContains(response, phrase)
 
-    def test_missing_data_shows_preparation_command(self):
+    def test_missing_data_shows_neutral_status(self):
         (self.data_dir / household.HISTORY_FILENAME).unlink()
         response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, "prepare_demo_data", status_code=200)
+        self.assertContains(response, "Dane są chwilowo niedostępne.", status_code=200)
+        self.assertNotContains(response, "prepare_demo_data")
 
     def test_loaders_parse_fixture_files(self):
         history = load_history()
@@ -633,11 +637,10 @@ class ApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()["data"]
         self.assertIn("current_hour", data)
-        self.assertIn("best_windows", data)
-        self.assertIn("tips_by_generation", data)
-        self.assertIn("dla_dziadkow", data["tips_by_generation"])
-        self.assertIn("dla_mlodziezy", data["tips_by_generation"])
+        self.assertEqual(data["lowest_tariff_hours"], list(range(6)))
+        self.assertEqual(data["highest_tariff_hours"], list(range(17, 22)))
         self.assertEqual(len(data["timeline"]), 24)
+        self.assertNotIn("recommended_action", data["timeline"][0])
 
     def test_devices_guidance_endpoint(self):
         res = self.client.get(reverse("api_devices_guidance"))
@@ -648,6 +651,8 @@ class ApiTests(TestCase):
         self.assertIn("Zmywarka", names)
         self.assertIn("Pralka", names)
         self.assertIn("Suszarka bębnowa", names)
+        self.assertNotIn("tip_pl", devices[0])
+        self.assertIn("annual_energy_kwh", devices[0])
 
     def test_devices_shift_simulation_get_and_post(self):
         # Odczyt przez GET z parametrami URL

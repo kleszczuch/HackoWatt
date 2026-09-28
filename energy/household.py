@@ -244,7 +244,7 @@ def simulate_household(
     days = sorted(by_day)
     plans = {day: _draw_day_plan(rng, day) for day in days}
     if len(days) >= 30 and not any(plan["trip"] for plan in plans.values()):
-        # Scenariusz wymaga wyjazdu całej rodziny — wymuszamy jeden dzień.
+        # Scenariusz wymaga wyjazdu całej rodziny – wymuszamy jeden dzień.
         plans[days[int(rng.randint(0, len(days)))]]["trip"] = True
 
     consumption: list[ConsumptionHour] = []
