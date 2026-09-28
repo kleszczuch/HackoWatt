@@ -726,6 +726,12 @@ class ApiTests(TestCase):
         self.addCleanup(settings_context.disable)
         prepare_fixture_dir(self.data_dir)
 
+        from energy.api import get_expected_api_key
+
+        api_key = get_expected_api_key()
+        if api_key:
+            self.client.defaults["HTTP_AUTHORIZATION"] = f"Bearer {api_key}"
+
     def test_smart_schedule_today_endpoint(self):
         res = self.client.get(reverse("api_smart_schedule_today"))
         self.assertEqual(res.status_code, 200)

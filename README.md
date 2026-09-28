@@ -52,6 +52,10 @@ Powtórne wykonanie odświeża pogodę i wszystkie dane.
 
 ## REST API dla aplikacji mobilnej (`/api/v1/`)
 
+### ABY REST API ZADZIAŁAŁO KONIECZNIE USTAW ZMIENNE ŚRODOWISKOWE
+Utwórz plik .env wewnątrz głównego katalogu i dodaj zmienną API_KEY przechowującą kod secret, ten sam sposób utwórz klucz api po stronie aplikacji mobilnej.
+
+
 Aplikacja udostępnia otwarty, bezstanowy zestaw endpointów JSON REST API pod przedrostkiem
 `/api/v1/`, służący wyłącznie do odczytu danych (bez konieczności logowania, haseł
 i tokenów). API podaje stawki godzinowe, zużycie i wyniki modelu. Pola dotyczące

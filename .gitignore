@@ -4,6 +4,7 @@
 __pycache__/
 *.py[cod]
 .ruff_cache/
+.env
 
 # Baza i dane
 db.sqlite3
