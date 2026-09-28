@@ -182,7 +182,7 @@ uv run python manage.py migrate
 ## 4. Przygotuj dane demonstracyjne
 
 ```bash
-uv run python manage.py prepare_demo_data
+uv run python manage.py prepare_data
 ```
 
 Podczas tego kroku aplikacja może pobrać dane pogodowe z Open-Meteo i wygenerować dane potrzebne do działania dashboardu, prognoz oraz symulatora.
@@ -366,30 +366,10 @@ Walidacja specyfikacji OpenSpec:
 ```bash
 openspec validate magazyn-energii-pv --strict
 ```
-
----
-
-# Założenia modelu
-????
-HackoWatt jest **symulatorem**, a nie systemem odczytu rzeczywistego licznika.
-
-Historia zużycia jest generowana na podstawie modelowanych zdarzeń domowych, takich jak:
-
-* posiłki,
-* pranie,
-* praca zdalna,
-* obecność gości,
-* wyjazdy,
-* wpływ temperatury.
-
-Roczne zużycie jest estymowane przez uruchomienie tego samego generatora na danych pogodowych obejmujących cały rok.
-
-Produkcja PV jest natomiast wyliczana na podstawie danych dotyczących promieniowania.
-
 ---
 
 # Ograniczenia
-??????
+
 Wyniki symulacji należy traktować jako dane demonstracyjne.
 
 Model:
@@ -426,9 +406,8 @@ Projekt wykorzystuje m.in.:
 
 ## Projekt
 
-**HackoWatt**
-Scenariusz 4 — **„Dom pełen pokoleń”**
+**Eko-dziki**
 
-Autor / repozytorium:
+Autorzy:
 
-**kleszczuch / HackoWatt**
+**Marek Kleszcz, Adam Nowak, Bartosz Wiecha, Władysław Kobierski, Michał Przybyła**
