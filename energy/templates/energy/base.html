@@ -1,6 +1,6 @@
 {% load static %}
 <!doctype html>
-<html lang="en">
+<html lang="{{ current_lang|default:'pl' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,29 +12,35 @@
 <body>
   <div class="shell">
     <header class="topbar">
-      <a class="brand" href="{% url 'dashboard' %}" aria-label="eko-dziki – home">
+      <a class="brand" href="{% url 'dashboard' %}" aria-label="{% if is_en %}eko-dziki – home{% else %}eko-dziki – strona główna{% endif %}">
         <img class="brand-icon" src="{% static 'energy/Logo.webp' %}" alt="" width="48" height="48"><span>eko-dziki</span>
       </a>
-      <nav class="topnav" aria-label="Main navigation">
-        <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
-        <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>Hourly data</a>
-        <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>PV simulator</a>
-        <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>Assumptions</a>
-      </nav>
+      <div class="topbar-right">
+        <nav class="topnav" aria-label="{% if is_en %}Main navigation{% else %}Nawigacja główna{% endif %}">
+          <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>{% if is_en %}Dashboard{% else %}Pulpit{% endif %}</a>
+          <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>{% if is_en %}Hourly data{% else %}Godziny{% endif %}</a>
+          <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>{% if is_en %}PV simulator{% else %}Symulator PV{% endif %}</a>
+        </nav>
+        <div class="lang-switcher" role="group" aria-label="{% if is_en %}Language{% else %}Język{% endif %}">
+          <a href="{% url 'change_language' 'pl' %}?next={{ request.get_full_path|urlencode }}" class="lang-btn {% if not is_en %}active{% endif %}" title="Polski" aria-label="Przełącz na język polski">PL</a>
+          <span class="lang-divider" aria-hidden="true">|</span>
+          <a href="{% url 'change_language' 'en' %}?next={{ request.get_full_path|urlencode }}" class="lang-btn {% if is_en %}active{% endif %}" title="English" aria-label="Switch to English">EN</a>
+        </div>
+      </div>
     </header>
 
     <main>
       {% if data_error %}
       <section class="panel empty-state" role="status">
         <span class="empty-icon">◌</span>
-        <h2>Data is not available yet</h2>
+        <h2>{% if is_en %}Data is not available yet{% else %}Dane nie są jeszcze gotowe{% endif %}</h2>
         <p>{{ data_error }}</p>
       </section>
       {% else %}
       {% block content %}{% endblock %}
       {% endif %}
     </main>
-    <footer>eko-dziki · Scenario 4: A House Full of Generations · weather: Open-Meteo, Copenhagen · EUR costs are estimates</footer>
+    <footer>{% if is_en %}eko-dziki · Scenario 4: A House Full of Generations · weather: Open-Meteo, Copenhagen · EUR costs are estimates{% else %}eko-dziki · scenariusz 4 „Dom pełen pokoleń” · pogoda: Open-Meteo, Kopenhaga · koszty w EUR są szacunkami{% endif %}</footer>
   </div>
 </body>
 </html>

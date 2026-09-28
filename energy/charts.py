@@ -12,7 +12,15 @@ from energy.presentation import event_names
 from energy.pv import WeekProfile
 from energy.weather import WeatherHour
 
-CATEGORY_LABELS = (
+CATEGORY_LABELS_PL = (
+    "Baza",
+    "Ogrzewanie",
+    "Oświetlenie",
+    "Gotowanie",
+    "RTV / PC",
+    "Duże AGD",
+)
+CATEGORY_LABELS_EN = (
     "Base load",
     "Heating",
     "Lighting",
@@ -20,6 +28,9 @@ CATEGORY_LABELS = (
     "TV / computers",
     "Major appliances",
 )
+
+CATEGORY_LABELS = CATEGORY_LABELS_EN
+
 CHARCOAL = "#545454"
 SLATE = "#69747C"
 SAGE = "#6BAA75"
@@ -81,10 +92,25 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
 
 
 def _consumption_with_temperature(
-    records: list[ConsumptionHour], weather: list[WeatherHour], height: int
+    records: list[ConsumptionHour],
+    weather: list[WeatherHour],
+    height: int,
+    lang: str = "en",
 ) -> go.Figure:
+    category_labels = CATEGORY_LABELS_EN if lang == "en" else CATEGORY_LABELS_PL
+    events_label = "Events" if lang == "en" else "Zdarzenia"
+    events_hover = (
+        "Events: %{text}<extra></extra>" if lang == "en" else "Zdarzenia: %{text}<extra></extra>"
+    )
+    temp_label = "Temperature" if lang == "en" else "Temperatura"
+    temp_hover = (
+        "Temperature: %{y:.1f} °C<extra></extra>"
+        if lang == "en"
+        else "Temperatura: %{y:.1f} °C<extra></extra>"
+    )
+
     figure = make_subplots(specs=[[{"secondary_y": True}]])
-    for index, (category, label) in enumerate(zip(CATEGORIES, CATEGORY_LABELS, strict=True)):
+    for index, (category, label) in enumerate(zip(CATEGORIES, category_labels, strict=True)):
         figure.add_trace(
             go.Scatter(
                 x=[record.timestamp for record in records],
@@ -109,15 +135,15 @@ def _consumption_with_temperature(
                 x=[record.timestamp for record in event_points],
                 y=[float(record.total) for record in event_points],
                 mode="markers",
-                name="Events",
+                name=events_label,
                 marker={
                     "color": CHARTREUSE,
                     "size": 7,
                     "symbol": "diamond",
                     "line": {"color": CHARCOAL, "width": 1.2},
                 },
-                text=[event_names(record.events) for record in event_points],
-                hovertemplate="Events: %{text}<extra></extra>",
+                text=[event_names(record.events, lang=lang) for record in event_points],
+                hovertemplate=events_hover,
             ),
             secondary_y=False,
         )
@@ -126,9 +152,9 @@ def _consumption_with_temperature(
             x=[record.timestamp for record in weather],
             y=[record.temperature for record in weather],
             mode="lines",
-            name="Temperature",
+            name=temp_label,
             line={"color": SLATE, "width": 2, "dash": "dot"},
-            hovertemplate="Temperature: %{y:.1f} °C<extra></extra>",
+            hovertemplate=temp_hover,
         ),
         secondary_y=True,
     )
@@ -137,20 +163,37 @@ def _consumption_with_temperature(
     return _base_layout(figure, height)
 
 
-def build_history_chart(records: list[ConsumptionHour], weather: list[WeatherHour]) -> go.Figure:
-    return _consumption_with_temperature(records, weather, 400)
+def build_history_chart(
+    records: list[ConsumptionHour],
+    weather: list[WeatherHour],
+    lang: str = "en",
+) -> go.Figure:
+    return _consumption_with_temperature(records, weather, 400, lang=lang)
 
 
 def build_overview_chart(
-    records: list[ConsumptionHour], weather: list[WeatherHour], *, forecast: bool = False
+    records: list[ConsumptionHour],
+    weather: list[WeatherHour],
+    *,
+    forecast: bool = False,
+    lang: str = "en",
 ) -> go.Figure:
     """Zwarty trend całkowitego zużycia i temperatury na pulpit."""
+    if lang == "en":
+        usage_name = "Energy use · forecast" if forecast else "Energy use · simulation"
+        temp_name = "Temperature"
+        temp_hover = "Temperature: %{y:.1f} °C<extra></extra>"
+    else:
+        usage_name = "Zużycie · prognoza" if forecast else "Zużycie · symulacja"
+        temp_name = "Temperatura"
+        temp_hover = "Temperatura: %{y:.1f} °C<extra></extra>"
+
     figure = make_subplots(specs=[[{"secondary_y": True}]])
     figure.add_trace(
         go.Scatter(
             x=[record.timestamp for record in records],
             y=[float(record.total) for record in records],
-            name="Energy use · forecast" if forecast else "Energy use · simulation",
+            name=usage_name,
             mode="lines",
             line={
                 "color": CHARCOAL if not forecast else SLATE,
@@ -167,10 +210,10 @@ def build_overview_chart(
         go.Scatter(
             x=[record.timestamp for record in weather],
             y=[record.temperature for record in weather],
-            name="Temperature",
+            name=temp_name,
             mode="lines",
             line={"color": SLATE, "width": 1.8, "dash": "dot"},
-            hovertemplate="Temperature: %{y:.1f} °C<extra></extra>",
+            hovertemplate=temp_hover,
         ),
         secondary_y=True,
     )
@@ -179,19 +222,31 @@ def build_overview_chart(
     return _base_layout(figure, 250)
 
 
-def build_forecast_chart(records: list[ConsumptionHour], weather: list[WeatherHour]) -> go.Figure:
-    figure = _consumption_with_temperature(records, weather, 340)
+def build_forecast_chart(
+    records: list[ConsumptionHour],
+    weather: list[WeatherHour],
+    lang: str = "en",
+) -> go.Figure:
+    figure = _consumption_with_temperature(records, weather, 340, lang=lang)
     figure.update_traces(patch={"line": {"dash": "dash"}}, selector={"stackgroup": "zuzycie"})
     return figure
 
 
-def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
+def build_backtest_chart(rows: list[BacktestRow], lang: str = "en") -> go.Figure:
     figure = go.Figure()
-    for values, label, color, dash in (
-        ([row.actual for row in rows], "Actual (simulation)", CHARCOAL, "solid"),
-        ([row.model for row in rows], "Model XGBoost", SLATE, "dash"),
-        ([row.baseline for row in rows], "Baseline: last week", CHARCOAL, "dot"),
-    ):
+    if lang == "en":
+        trace_defs = (
+            ([row.actual for row in rows], "Actual (simulation)", CHARCOAL, "solid"),
+            ([row.model for row in rows], "Model XGBoost", SLATE, "dash"),
+            ([row.baseline for row in rows], "Baseline: last week", CHARCOAL, "dot"),
+        )
+    else:
+        trace_defs = (
+            ([row.actual for row in rows], "Rzeczywiste (symulacja)", CHARCOAL, "solid"),
+            ([row.model for row in rows], "Model XGBoost", SLATE, "dash"),
+            ([row.baseline for row in rows], "Baseline: tydzień temu", CHARCOAL, "dot"),
+        )
+    for values, label, color, dash in trace_defs:
         figure.add_trace(
             go.Scatter(
                 x=[row.timestamp for row in rows],
@@ -206,14 +261,25 @@ def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
     return _base_layout(figure, 320)
 
 
-def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
+def build_pv_chart(week: WeekProfile, kwp: Decimal, lang: str = "en") -> go.Figure:
     figure = go.Figure()
-    traces = (
-        (week.pv, f"PV output ({kwp} kWp)", CHARCOAL, "solid", "tozeroy"),
-        (week.load, "Household use", SLATE, "solid", None),
-        (week.grid_a, "Grid purchases – current schedule", CHARCOAL, "dash", None),
-        (week.grid_b, "Grid purchases – shifted appliances", SLATE, "dot", None),
-    )
+    if lang == "en":
+        traces = (
+            (week.pv, f"PV output ({kwp} kWp)", CHARCOAL, "solid", "tozeroy"),
+            (week.load, "Household use", SLATE, "solid", None),
+            (week.grid_a, "Grid purchases – current schedule", CHARCOAL, "dash", None),
+            (week.grid_b, "Grid purchases – shifted appliances", SLATE, "dot", None),
+        )
+        battery_name = "Battery to household · B"
+    else:
+        traces = (
+            (week.pv, f"Produkcja PV ({kwp} kWp)", CHARCOAL, "solid", "tozeroy"),
+            (week.load, "Zużycie domu", SLATE, "solid", None),
+            (week.grid_a, "Zakup z sieci – obecne nawyki", CHARCOAL, "dash", None),
+            (week.grid_b, "Zakup z sieci – po przesunięciu", SLATE, "dot", None),
+        )
+        battery_name = "Z magazynu do domu · B"
+
     for values, label, color, dash, fill in traces:
         figure.add_trace(
             go.Scatter(
@@ -233,7 +299,7 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
                 x=week.timestamps,
                 y=[float(value) for value in week.battery_b],
                 mode="lines",
-                name="Battery to household · B",
+                name=battery_name,
                 line={"color": CHARCOAL, "width": 2, "dash": "dashdot"},
                 hovertemplate="%{fullData.name}: %{y:.5~r} kWh<extra></extra>",
             )

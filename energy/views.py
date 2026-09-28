@@ -6,12 +6,14 @@ from html import escape
 from uuid import uuid4
 
 from django.core.paginator import Paginator
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from energy import data, pv
 from energy.charts import (
-    CATEGORY_LABELS,
+    CATEGORY_LABELS_EN,
+    CATEGORY_LABELS_PL,
     build_backtest_chart,
     build_history_chart,
     build_overview_chart,
@@ -38,7 +40,27 @@ PV_DEFAULTS = {
 }
 
 
-def _chart_html(figure, include_plotlyjs: bool = False) -> str:
+def _current_lang(request: HttpRequest) -> str:
+    lang = request.session.get("django_language") or request.COOKIES.get("django_language") or "pl"
+    return lang if lang in ("pl", "en") else "pl"
+
+
+def change_language(request: HttpRequest, lang_code: str) -> HttpResponse:
+    if lang_code not in ("pl", "en"):
+        lang_code = "pl"
+    request.session["django_language"] = lang_code
+    request.session["lang"] = lang_code
+
+    next_url = request.GET.get("next") or request.META.get("HTTP_REFERER") or "/"
+    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        next_url = "/"
+
+    response = HttpResponseRedirect(next_url)
+    response.set_cookie("django_language", lang_code, max_age=365 * 24 * 3600, samesite="Lax")
+    return response
+
+
+def _chart_html(figure, include_plotlyjs: bool = False, lang: str = "en") -> str:
     chart_id = f"chart-{uuid4().hex}"
     controls = []
     for index, trace in enumerate(figure.data):
@@ -55,17 +77,35 @@ def _chart_html(figure, include_plotlyjs: bool = False) -> str:
             f'--series-fill:{escape(str(trace.fillcolor or "transparent"))}" '
             f'aria-hidden="true"></span><span>{escape(str(trace.name))}</span></label>'
         )
+
+    if lang == "en":
+        legend_aria = "Chart series"
+        select_all = "Select all"
+        deselect_all = "Deselect all"
+        zoom_aria = "Chart zoom"
+        zoom_in = "Zoom in"
+        zoom_out = "Zoom out"
+    else:
+        legend_aria = "Serie wykresu"
+        select_all = "Zaznacz wszystkie"
+        deselect_all = "Odznacz wszystkie"
+        zoom_aria = "Przybliżenie wykresu"
+        zoom_in = "Przybliż"
+        zoom_out = "Oddal"
+
     legend = (
-        '<div class="chart-toolbar"><div class="chart-legend" role="group" '
-        'aria-label="Chart series">'
+        f'<div class="chart-toolbar">'
+        f'<div class="chart-legend" role="group" aria-label="{legend_aria}">'
         + "".join(controls)
         + '</div><div class="chart-legend-actions">'
-        '<button type="button" data-chart-action="select-all">Select all</button>'
-        '<button type="button" data-chart-action="deselect-all">Deselect all</button>'
-        '</div><div class="chart-zoom-actions" role="group" aria-label="Chart zoom">'
-        '<button type="button" data-chart-zoom="in" aria-label="Zoom in" title="Zoom in">+</button>'
-        '<button type="button" data-chart-zoom="out" aria-label="Zoom out" '
-        'title="Zoom out">−</button></div></div>'
+        f'<button type="button" data-chart-action="select-all">{select_all}</button>'
+        f'<button type="button" data-chart-action="deselect-all">{deselect_all}</button>'
+        f'</div><div class="chart-zoom-actions" role="group" aria-label="{zoom_aria}">'
+        f'<button type="button" data-chart-zoom="in" '
+        f'aria-label="{zoom_in}" title="{zoom_in}">+</button>'
+        f'<button type="button" data-chart-zoom="out" '
+        f'aria-label="{zoom_out}" title="{zoom_out}">−</button>'
+        "</div></div>"
     )
     plot = figure.to_html(
         full_html=False, include_plotlyjs=include_plotlyjs, config=PLOTLY_CONFIG, div_id=chart_id
@@ -73,17 +113,17 @@ def _chart_html(figure, include_plotlyjs: bool = False) -> str:
     return f'<div class="interactive-chart" data-chart-id="{chart_id}">{legend}{plot}</div>'
 
 
-def _date_range(request: HttpRequest, history):
+def _date_range(request: HttpRequest, history, lang: str = "pl"):
     if request.GET.get("start") or request.GET.get("end"):
-        form = DateRangeForm(request.GET)
+        form = DateRangeForm(request.GET, lang=lang)
     else:
         start, end = data.default_dates(history)
-        form = DateRangeForm({"start": start.isoformat(), "end": end.isoformat()})
+        form = DateRangeForm({"start": start.isoformat(), "end": end.isoformat()}, lang=lang)
     return form
 
 
-def _horizon(request: HttpRequest) -> int:
-    form = HorizonForm({"horyzont": request.GET.get("horyzont", "24")})
+def _horizon(request: HttpRequest, lang: str = "pl") -> int:
+    form = HorizonForm({"horyzont": request.GET.get("horyzont", "24")}, lang=lang)
     if form.is_valid():
         return int(form.cleaned_data["horyzont"])
     return 24
@@ -98,6 +138,7 @@ def _simulation_days(request: HttpRequest) -> int:
 
 
 def dashboard(request: HttpRequest) -> HttpResponse:
+    lang = _current_lang(request)
     try:
         history = data.load_history()
         forecast = data.load_forecast()
@@ -105,8 +146,13 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         weather_forecast = data.load_weather_forecast()
         backtest_rows = data.load_backtest()
         metrics = data.load_metrics()
-    except (FileNotFoundError, data.DemoDataError) as exc:
-        return render(request, "energy/dashboard.html", {"data_error": str(exc)})
+    except FileNotFoundError, data.DemoDataError:
+        err = (
+            "Dane są chwilowo niedostępne."
+            if lang == "pl"
+            else "Demo data is temporarily unavailable."
+        )
+        return render(request, "energy/dashboard.html", {"data_error": err})
 
     days = _simulation_days(request)
     selected_history = history[-days * 24 :]
@@ -119,7 +165,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
     selected_weather = [
         record for record in selected_weather if record.timestamp in selected_timestamps
     ]
-    horizon_hours = _horizon(request)
+    horizon_hours = _horizon(request, lang=lang)
     forecast_slice = forecast[:horizon_hours]
     weather_by_timestamp = {record.timestamp: record for record in weather_forecast}
     weather_forecast_slice = [
@@ -128,40 +174,57 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         if record.timestamp in weather_by_timestamp
     ]
 
+    forecast_options = (
+        ((24, "24 h"), (72, "3 days"), (168, "7 days"))
+        if lang == "en"
+        else ((24, "24 h"), (72, "3 dni"), (168, "7 dni"))
+    )
+
     context = {
         "simulation_days": days,
         "simulation_options": SIMULATION_DAYS,
         "metrics": metrics,
         "horizon_hours": horizon_hours,
-        "forecast_options": ((24, "24 h"), (72, "3 days"), (168, "7 days")),
+        "forecast_options": forecast_options,
         "start": selected_history[0].timestamp.date().isoformat(),
         "end": selected_history[-1].timestamp.date().isoformat(),
         "selected_count": len(selected_history),
         "selected_total": sum((record.total for record in selected_history), Decimal(0)),
         "history_chart": _chart_html(
-            build_overview_chart(selected_history, selected_weather), include_plotlyjs=True
+            build_overview_chart(selected_history, selected_weather, lang=lang),
+            include_plotlyjs=True,
+            lang=lang,
         ),
-        "backtest_chart": _chart_html(build_backtest_chart(backtest_rows)),
+        "backtest_chart": _chart_html(build_backtest_chart(backtest_rows, lang=lang), lang=lang),
     }
     forecast_total = sum((record.total for record in forecast_slice), Decimal(0))
     context.update(
         {
             "forecast_total": forecast_total,
             "forecast_chart": _chart_html(
-                build_overview_chart(forecast_slice, weather_forecast_slice, forecast=True)
+                build_overview_chart(
+                    forecast_slice, weather_forecast_slice, forecast=True, lang=lang
+                ),
+                lang=lang,
             ),
-            "peaks": explain_peaks(forecast_slice, weather_forecast_slice),
+            "peaks": explain_peaks(forecast_slice, weather_forecast_slice, lang=lang),
         }
     )
     return render(request, "energy/dashboard.html", context)
 
 
 def hourly_history(request: HttpRequest) -> HttpResponse:
+    lang = _current_lang(request)
     try:
         history = data.load_history()
         weather_history = data.load_weather_history()
-    except (FileNotFoundError, data.DemoDataError) as exc:
-        return render(request, "energy/hourly.html", {"data_error": str(exc)})
+    except FileNotFoundError, data.DemoDataError:
+        err = (
+            "Dane są chwilowo niedostępne."
+            if lang == "pl"
+            else "Demo data is temporarily unavailable."
+        )
+        return render(request, "energy/hourly.html", {"data_error": err})
 
     rolling_days = (
         _simulation_days(request)
@@ -174,11 +237,14 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
             {
                 "start": selected[0].timestamp.date().isoformat(),
                 "end": selected[-1].timestamp.date().isoformat(),
-            }
+            },
+            lang=lang,
         )
     else:
-        form = _date_range(request, history)
-    context = {"form": form, "category_labels": CATEGORY_LABELS, "rolling_days": rolling_days}
+        form = _date_range(request, history, lang=lang)
+
+    category_labels = CATEGORY_LABELS_EN if lang == "en" else CATEGORY_LABELS_PL
+    context = {"form": form, "category_labels": category_labels, "rolling_days": rolling_days}
     if form.is_valid():
         start = form.cleaned_data["start"]
         end = form.cleaned_data["end"]
@@ -197,56 +263,119 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
                 "selected_count": len(selected_history),
                 "selected_total": sum((record.total for record in selected_history), Decimal(0)),
                 "history_chart": _chart_html(
-                    build_history_chart(selected_history, selected_weather), include_plotlyjs=True
+                    build_history_chart(selected_history, selected_weather, lang=lang),
+                    include_plotlyjs=True,
+                    lang=lang,
                 ),
             }
         )
     return render(request, "energy/hourly.html", context)
 
 
-def get_behavioral_advice(device_name, moved_kwh):
-    if moved_kwh <= 0:
+def get_behavioral_advice(device_name: str, moved_kwh: Decimal, lang: str = "pl"):
+    if lang == "pl":
+        if moved_kwh <= 0:
+            return {
+                "headline": "Jest dobrze!",
+                "action": (
+                    "Urządzenie już teraz pracuje w godzinach najwyższej produkcji słonecznej."
+                ),
+                "comfort": "Nic nie zmieniaj - Wasze obecne nawyki są wzorowe.",
+            }
+        if device_name in ("Zmywarka", "Dishwasher"):
+            return {
+                "headline": "Opóźniony start",
+                "action": (
+                    "Zamiast czekać do wieczora, można załadować zmywarkę po obiedzie i używać "
+                    "funkcji opóźnionego startu celując w okolice 13:00."
+                ),
+                "comfort": (
+                    "Zmywarka pracuje bezgłośnie, gdy jesteście poza domem. "
+                    "Wieczorem macie puste zlewy - zero stresu!"
+                ),
+            }
+        if device_name in ("Pralka", "Washing machine"):
+            return {
+                "headline": "Darmowe pranie",
+                "action": (
+                    "Skoro dziadkowie lub osoby na Home Office są rano w domu, nastawiajcie pranie "
+                    "w okolicach 10:00 - 12:00."
+                ),
+                "comfort": (
+                    "Pralka skończy cykl w dzień, co ułatwi szybkie suszenie ubrań "
+                    "na świeżym powietrzu."
+                ),
+            }
+        if device_name in ("Suszarka", "Tumble dryer"):
+            return {
+                "headline": "Wykorzystaj ciepło dnia",
+                "action": (
+                    "Należy unikać uruchamiania suszarki w nocy. "
+                    "Najlepsze okno to wczesne popołudnie."
+                ),
+                "comfort": (
+                    "Suszarka generuje ciepło. Uruchomienie jej w dzień, gdy mniej osób "
+                    "jest w domu, zmniejszy wieczorny zaduch."
+                ),
+            }
         return {
-            "headline": "Already within the solar window",
-            "action": "No recorded cycles of this appliance start outside 9:00–15:00.",
-            "comfort": "The model can still compare different start times within that window.",
+            "headline": "Drobna zmiana, duży efekt",
+            "action": "Spróbujcie przenieść pracę tego urządzenia na godziny wczesnopopołudniowe.",
+            "comfort": (
+                "Każde zasilenie urządzenia w dzień to mniejszy rachunek i więcej oszczędności."
+            ),
         }
-    if device_name == "Zmywarka":
+    else:
+        if moved_kwh <= 0:
+            return {
+                "headline": "Already within the solar window",
+                "action": "No recorded cycles of this appliance start outside 9:00–15:00.",
+                "comfort": "The model can still compare different start times within that window.",
+            }
+        if device_name in ("Zmywarka", "Dishwasher"):
+            return {
+                "headline": "Shift dishwasher cycles",
+                "action": "A delayed start can move a cycle into the 9:00–15:00 solar window.",
+                "comfort": "Choose a start time that suits the household's routine.",
+            }
+        if device_name in ("Pralka", "Washing machine"):
+            return {
+                "headline": "Shift washing cycles",
+                "action": "A daytime start can align a washing cycle with solar production.",
+                "comfort": "The simulated benefit is shown above for this appliance alone.",
+            }
+        if device_name in ("Suszarka", "Tumble dryer"):
+            return {
+                "headline": "Shift drying cycles",
+                "action": (
+                    "Running the tumble dryer during solar production may reduce grid purchases."
+                ),
+                "comfort": "The simulated benefit is shown above for this appliance alone.",
+            }
         return {
-            "headline": "Shift dishwasher cycles",
-            "action": "A delayed start can move a cycle into the 9:00–15:00 solar window.",
-            "comfort": "Choose a start time that suits the household's routine.",
+            "headline": "Consider a daytime start",
+            "action": "The model compares this appliance's schedule with a solar-window start.",
+            "comfort": "Check the calculated change in grid use and savings above.",
         }
-    if device_name == "Pralka":
-        return {
-            "headline": "Shift washing cycles",
-            "action": "A daytime start can align a washing cycle with solar production.",
-            "comfort": "The simulated benefit is shown above for this appliance alone.",
-        }
-    if device_name == "Suszarka":
-        return {
-            "headline": "Shift drying cycles",
-            "action": "Running the tumble dryer during solar production may reduce grid purchases.",
-            "comfort": "The simulated benefit is shown above for this appliance alone.",
-        }
-    return {
-        "headline": "Consider a daytime start",
-        "action": "The model compares this appliance's schedule with a solar-window start.",
-        "comfort": "Check the calculated change in grid use and savings above.",
-    }
 
 
 def pv_simulator(request: HttpRequest) -> HttpResponse:
+    lang = _current_lang(request)
     try:
         records, weather, events = data.load_annual()
-    except (FileNotFoundError, data.DemoDataError) as exc:
-        return render(request, "energy/pv.html", {"data_error": str(exc)})
+    except FileNotFoundError, data.DemoDataError:
+        err = (
+            "Dane są chwilowo niedostępne."
+            if lang == "pl"
+            else "Demo data is temporarily unavailable."
+        )
+        return render(request, "energy/pv.html", {"data_error": err})
 
     goal = request.GET.get("cel")
     parameters = {**PV_DEFAULTS, **request.GET.dict()}
     if goal in {"coverage", "payback"}:
         parameters["kwp"] = "5"
-    form = PvForm(parameters)
+    form = PvForm(parameters, lang=lang)
     context = {"form": form, "currency": CURRENCY}
     if not form.is_valid():
         return render(request, "energy/pv.html", context)
@@ -264,7 +393,7 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
         if choice.kwp is not None:
             kwp = choice.kwp
             parameters["kwp"] = str(kwp)
-            form = PvForm(parameters)
+            form = PvForm(parameters, lang=lang)
             context["form"] = form
     comparison = pv.compare_variants(records, weather, events, storage=storage)
     selected = next((result for result in comparison if result.kwp == kwp), None)
@@ -273,19 +402,14 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
 
     selected = pv.simulate(records, weather, events, kwp, storage)
 
-    # 1. Pobieramy oryginalne efekty (zamrożone)
     oryginalne_efekty = pv.device_effects(records, weather, events, kwp, storage)
 
-    # 2. Przepisujemy je do nowej, "odmrożonej" listy
     effects = []
     for effect in oryginalne_efekty:
-        # Pobieramy poradę (tu używamy kropek, bo czytamy z zamrożonego obiektu)
-        porada = get_behavioral_advice(effect.device, effect.moved_kwh)
-
-        # Tworzymy nowy, elastyczny słownik ze starymi danymi + naszą poradą!
+        porada = get_behavioral_advice(effect.device, effect.moved_kwh, lang=lang)
         effects.append(
             {
-                "device": device_name(effect.device),
+                "device": device_name(effect.device, lang=lang),
                 "moved_kwh": effect.moved_kwh,
                 "grid_saved_kwh": effect.grid_saved_kwh,
                 "money_saved": effect.money_saved,
@@ -305,7 +429,9 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
             "comparison": comparison,
             "selected": selected,
             "effects": effects,
-            "pv_chart": _chart_html(build_pv_chart(week, kwp), include_plotlyjs=True),
+            "pv_chart": _chart_html(
+                build_pv_chart(week, kwp, lang=lang), include_plotlyjs=True, lang=lang
+            ),
             "consumption_kwh": selected.consumption_kwh,
             "daily_average_kwh": selected.consumption_kwh / Decimal(day_count),
             "week_days": pv.daily_week_summary(week),
@@ -317,64 +443,79 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
     return render(request, "energy/pv.html", context)
 
 
-def assumptions(request: HttpRequest) -> HttpResponse:
-    context: dict = {"currency": CURRENCY}
-    try:
-        history = data.load_history()
-        forecast = data.load_forecast()
-        records, weather, _ = data.load_annual()
-        context["metrics"] = data.load_metrics()
-        context["spans"] = {
-            "history": (history[0].timestamp, history[-1].timestamp, len(history)),
-            "forecast": (forecast[0].timestamp, forecast[-1].timestamp, len(forecast)),
-            "annual": (records[0].timestamp, records[-1].timestamp, len(records)),
-            "weather_annual": (weather[0].timestamp, weather[-1].timestamp, len(weather)),
-        }
-    except (FileNotFoundError, data.DemoDataError) as exc:
-        context["data_error"] = str(exc)
-    return render(request, "energy/zalozenia.html", context)
-
-
 def export_csv(request: HttpRequest) -> HttpResponse:
+    lang = _current_lang(request)
     try:
         history = data.load_history()
         forecast = data.load_forecast()
-    except (FileNotFoundError, data.DemoDataError) as exc:
-        return HttpResponse(str(exc), status=400)
+    except FileNotFoundError, data.DemoDataError:
+        err = (
+            "Dane są chwilowo niedostępne."
+            if lang == "pl"
+            else "Demo data is temporarily unavailable."
+        )
+        return HttpResponse(err, status=400)
+
+    sim_label = "Simulation" if lang == "en" else "Symulacja"
+    forecast_label = "Forecast" if lang == "en" else "Prognoza"
 
     if request.GET.get("dni") and not (request.GET.get("start") or request.GET.get("end")):
         days = _simulation_days(request)
-        selected = [("Simulation", record) for record in history[-days * 24 :]]
+        selected = [(sim_label, record) for record in history[-days * 24 :]]
     else:
-        form = _date_range(request, history)
+        form = _date_range(request, history, lang=lang)
         if not form.is_valid():
-            return HttpResponse("Invalid date range.", status=400)
+            err_msg = (
+                "The end date cannot be earlier than the start date."
+                if lang == "en"
+                else "Niepoprawny zakres dat."
+            )
+            return HttpResponse(err_msg, status=400)
 
         start = form.cleaned_data["start"]
         end = form.cleaned_data["end"]
         selected = sorted(
-            [("Simulation", record) for record in data.filter_records(history, start, end)]
-            + [("Forecast", record) for record in data.filter_records(forecast, start, end)],
+            [(sim_label, record) for record in data.filter_records(history, start, end)]
+            + [(forecast_label, record) for record in data.filter_records(forecast, start, end)],
             key=lambda item: item[1].timestamp,
         )
     response = HttpResponse(content_type="text/csv; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="hackowatt_energy.csv"'
+    filename = "hackowatt_energy.csv" if lang == "en" else "hackowatt_dane.csv"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
     response.write("\ufeff")
     writer = csv.writer(response)
-    writer.writerow(
-        [
-            "Date_Time",
-            "Data_Type",
-            "Base_kWh",
-            "Heating_kWh",
-            "Lighting_kWh",
-            "Cooking_kWh",
-            "TV_Computers_kWh",
-            "Major_Appliances_kWh",
-            "Total_Consumption_kWh",
-            "Events",
-        ]
-    )
+
+    if lang == "en":
+        writer.writerow(
+            [
+                "Date_Time",
+                "Data_Type",
+                "Base_kWh",
+                "Heating_kWh",
+                "Lighting_kWh",
+                "Cooking_kWh",
+                "TV_Computers_kWh",
+                "Major_Appliances_kWh",
+                "Total_Consumption_kWh",
+                "Events",
+            ]
+        )
+    else:
+        writer.writerow(
+            [
+                "Data_Czas",
+                "Typ_danych",
+                "Baza_kWh",
+                "Ogrzewanie_kWh",
+                "Oswietlenie_kWh",
+                "Gotowanie_kWh",
+                "RTV_PC_kWh",
+                "Duze_AGD_kWh",
+                "Calkowite_Zuzycie_kWh",
+                "Zdarzenia",
+            ]
+        )
+
     for kind, record in selected:
         writer.writerow(
             [
@@ -382,7 +523,7 @@ def export_csv(request: HttpRequest) -> HttpResponse:
                 kind,
                 *[f"{value:.3f}" for value in record.categories],
                 f"{record.total:.3f}",
-                event_names(record.events),
+                event_names(record.events, lang=lang),
             ]
         )
     return response

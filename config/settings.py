@@ -41,13 +41,13 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
 ]
 CORS_ALLOW_HEADERS = [
-    'accept',
-    'authorization',
-    'content-type',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
+    "accept",
+    "authorization",
+    "content-type",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -62,6 +62,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "energy.context_processors.language_context",
             ],
         },
     },
@@ -69,7 +70,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
-LANGUAGE_CODE = "en"
+LANGUAGE_CODE = "pl"
 TIME_ZONE = "Europe/Warsaw"
 USE_I18N = True
 USE_TZ = True

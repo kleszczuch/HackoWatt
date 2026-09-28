@@ -60,7 +60,6 @@ def check_api_secret(request: HttpRequest) -> bool:
         if token == expected_key:
             return True
 
-
     return False
 
 
@@ -135,6 +134,9 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
     Wymaga autoryzacji api_secret.
     """
     now_hour = datetime.now().hour
+    prices = [tariffs.price_for_hour(h) for h in range(24)]
+    low = min(prices)
+    high = max(prices)
 
     def band(price: Decimal) -> tuple[str, str]:
         if price == low:

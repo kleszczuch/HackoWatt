@@ -450,6 +450,8 @@ class PvTests(SimpleTestCase):
 
 
 class ViewTests(SimpleTestCase):
+    databases = {"default"}
+
     def setUp(self):
         self.data_dir = make_test_dir()
         self.addCleanup(clean_test_dir, self.data_dir)
@@ -461,15 +463,23 @@ class ViewTests(SimpleTestCase):
     def test_dashboard_shows_charts_peaks_and_error_panel(self):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Energy use and temperature")
-        self.assertContains(response, "Model versus baseline")
-        self.assertContains(response, "Peak:")
-        self.assertContains(response, "0.123")
-        self.assertContains(response, "Explore hourly data")
-        self.assertContains(response, "What could rooftop solar deliver?")
-        self.assertNotContains(response, "Hourly history")
+        self.assertContains(response, "Zużycie i temperatura")
+        self.assertContains(response, "Model kontra baseline")
+        self.assertContains(response, "Szczyt:")
+        self.assertContains(response, "0,123")
+        self.assertContains(response, "Przegląd godzinowy")
+        self.assertContains(response, "Ile da dach z panelami?")
+        self.assertNotContains(response, "Historia godzinowa")
         self.assertEqual(response.context["selected_count"], 7 * 24)
         self.assertEqual(response.context["selected_total"], Decimal(7 * 24))
+
+        response_en = self.client.get(reverse("dashboard"), HTTP_COOKIE="django_language=en")
+        self.assertEqual(response_en.status_code, 200)
+        self.assertContains(response_en, "Energy use and temperature")
+        self.assertContains(response_en, "Model versus baseline")
+        self.assertContains(response_en, "Peak:")
+        self.assertContains(response_en, "Explore hourly data")
+        self.assertContains(response_en, "What could rooftop solar deliver?")
 
     def test_charts_keep_hover_and_allow_horizontal_pan_without_wheel_zoom(self):
         records = load_history()[-24:]
@@ -564,7 +574,7 @@ class ViewTests(SimpleTestCase):
         )
         self.assertEqual(response.context["selected_count"], 48)
         self.assertContains(response, "1.000")
-        self.assertContains(response, "Download CSV")
+        self.assertContains(response, "Pobierz CSV")
         page_two = self.client.get(
             reverse("hourly_history"),
             {"start": "2026-09-20", "end": "2026-09-22", "page": 2},
@@ -577,17 +587,39 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(export.status_code, 200)
         rows = list(csv.reader(io.StringIO(export.content.decode("utf-8-sig"))))
         self.assertEqual(len(rows), 49)
-        self.assertEqual(rows[0][0:2], ["Date_Time", "Data_Type"])
-        self.assertEqual(rows[0][-1], "Events")
-        self.assertEqual(rows[1][1], "Simulation")
+        self.assertEqual(rows[0][0:2], ["Data_Czas", "Typ_danych"])
+        self.assertEqual(rows[0][-1], "Zdarzenia")
+        self.assertEqual(rows[1][1], "Symulacja")
         self.assertEqual(rows[1][2], "1.000")
         self.assertEqual(rows[1][-2], "1.000")
 
+        # English language test
+        response_en = self.client.get(
+            reverse("hourly_history"),
+            {"start": "2026-09-20", "end": "2026-09-21"},
+            HTTP_COOKIE="django_language=en",
+        )
+        self.assertContains(response_en, "Download CSV")
+        export_en = self.client.get(
+            reverse("export_csv"),
+            {"start": "2026-09-20", "end": "2026-09-21"},
+            HTTP_COOKIE="django_language=en",
+        )
+        rows_en = list(csv.reader(io.StringIO(export_en.content.decode("utf-8-sig"))))
+        self.assertEqual(rows_en[0][0:2], ["Date_Time", "Data_Type"])
+        self.assertEqual(rows_en[0][-1], "Events")
+        self.assertEqual(rows_en[1][1], "Simulation")
+
     def test_polish_demo_labels_are_translated_for_presentation(self):
-        self.assertEqual(device_name("Zmywarka"), "Dishwasher")
+        self.assertEqual(device_name("Zmywarka", lang="en"), "Dishwasher")
+        self.assertEqual(device_name("Zmywarka", lang="pl"), "Zmywarka")
         self.assertEqual(
-            event_names("goście; pralka; praca zdalna"),
+            event_names("goście; pralka; praca zdalna", lang="en"),
             "guests; washing machine; working from home",
+        )
+        self.assertEqual(
+            event_names("goście; pralka; praca zdalna", lang="pl"),
+            "goście; pralka; praca zdalna",
         )
 
     def test_hourly_history_uses_exact_rolling_period_from_dashboard(self):
@@ -605,30 +637,46 @@ class ViewTests(SimpleTestCase):
     def test_pv_simulator_shows_variants_and_recommendations(self):
         response = self.client.get(reverse("pv_simulator"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "PV system options")
-        self.assertContains(response, "Grid purchases")
-        self.assertContains(response, "Dishwasher")
-        self.assertContains(response, "Effect of shifting appliance use")
+        self.assertContains(response, "Warianty instalacji")
+        self.assertContains(response, "Zakup z sieci")
+        self.assertContains(response, "Zmywarka")
+        self.assertContains(response, "Efekt zmiany godziny pracy")
         self.assertNotContains(response, "Wskazówka:")
         self.assertNotContains(response, "nie ma czego przesuwać")
-        self.assertContains(response, "Find 100% coverage")
-        self.assertContains(response, "Shortest payback (B)")
+        self.assertContains(response, "Dobierz do 100% pokrycia")
+        self.assertContains(response, "Najkrótszy zwrot (B)")
+
+        response_en = self.client.get(reverse("pv_simulator"), HTTP_COOKIE="django_language=en")
+        self.assertEqual(response_en.status_code, 200)
+        self.assertContains(response_en, "PV system options")
+        self.assertContains(response_en, "Grid purchases")
+        self.assertContains(response_en, "Dishwasher")
+        self.assertContains(response_en, "Effect of shifting appliance use")
+        self.assertContains(response_en, "Find 100% coverage")
+        self.assertContains(response_en, "Shortest payback (B)")
 
     def test_pv_auto_choices_show_result_and_preserve_manual_mode(self):
         coverage = self.client.get(reverse("pv_simulator"), {"cel": "coverage", "miesiac": "6"})
         self.assertEqual(coverage.status_code, 200)
-        self.assertContains(coverage, "100% coverage is not achievable")
+        self.assertContains(coverage, "100% pokrycia nie jest osiągalne")
         self.assertEqual(coverage.context["kwp"], Decimal("1.0"))
         self.assertEqual(coverage.context["form"]["miesiac"].value(), "6")
 
         payback = self.client.get(reverse("pv_simulator"), {"cel": "payback", "miesiac": "6"})
         self.assertEqual(payback.status_code, 200)
-        self.assertContains(payback, "No positive payback")
+        self.assertContains(payback, "Brak dodatniego zwrotu")
         self.assertEqual(payback.context["kwp"], Decimal("5"))
 
         manual = self.client.get(reverse("pv_simulator"), {"kwp": "4", "miesiac": "6"})
         self.assertEqual(manual.context["kwp"], Decimal("4"))
-        self.assertNotContains(manual, "Automatic sizing result")
+        self.assertNotContains(manual, "Wynik automatycznego doboru")
+
+        coverage_en = self.client.get(
+            reverse("pv_simulator"),
+            {"cel": "coverage", "miesiac": "6"},
+            HTTP_COOKIE="django_language=en",
+        )
+        self.assertContains(coverage_en, "100% coverage is not achievable")
 
     def test_pv_storage_form_and_daily_results(self):
         params = {
@@ -642,21 +690,21 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["selected"].investment_eur, Decimal("13500"))
         self.assertEqual(len(response.context["week_days"]), 7)
-        self.assertContains(response, "Average daily household use")
-        self.assertContains(response, "Household use in the selected week")
-        self.assertContains(response, "Purchase price")
+        self.assertContains(response, "Średnie dzienne zużycie budynku")
+        self.assertContains(response, "Zużycie budynku w wybranym tygodniu")
+        self.assertContains(response, "Cena zakupu")
 
         no_price = self.client.get(reverse("pv_simulator"), {**params, "magazyn_koszt_eur": "0"})
-        self.assertContains(no_price, "Enter a battery purchase price above zero")
+        self.assertContains(no_price, "Podaj dodatnią cenę zakupu magazynu")
         self.assertNotIn("selected", no_price.context)
 
         no_battery = self.client.get(reverse("pv_simulator"), {**params, "magazyn_kwh": "0"})
-        self.assertContains(no_battery, "With 0 kWh capacity, the price must be zero")
+        self.assertContains(no_battery, "Przy pojemności 0 kWh cena musi wynosić 0")
 
         automatic = self.client.get(reverse("pv_simulator"), {**params, "cel": "coverage"})
         self.assertEqual(automatic.status_code, 200)
         self.assertEqual(automatic.context["storage"].capacity_kwh, Decimal("10"))
-        self.assertContains(automatic, "Even at 150")
+        self.assertContains(automatic, "Nawet przy 150")
 
         large = self.client.get(
             reverse("pv_simulator"),
@@ -670,19 +718,51 @@ class ViewTests(SimpleTestCase):
         )
         self.assertEqual(large.status_code, 200)
         self.assertEqual(large.context["kwp"], Decimal("100"))
-        self.assertContains(large, "theoretical scenarios")
+        self.assertContains(large, "scenariuszem teoretycznym")
 
-    def test_assumptions_page_documents_everything(self):
-        response = self.client.get(reverse("assumptions"))
-        self.assertEqual(response.status_code, 200)
-        for phrase in ("Copenhagen", "1,300", "35 days", "estimate"):
-            self.assertContains(response, phrase)
+        # English check
+        response_en = self.client.get(
+            reverse("pv_simulator"), params, HTTP_COOKIE="django_language=en"
+        )
+        self.assertContains(response_en, "Average daily household use")
+        self.assertContains(response_en, "Purchase price")
 
     def test_missing_data_shows_neutral_status(self):
         (self.data_dir / household.HISTORY_FILENAME).unlink()
         response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, "Demo data is temporarily unavailable.", status_code=200)
+        self.assertContains(response, "Dane są chwilowo niedostępne.", status_code=200)
         self.assertNotContains(response, "prepare_demo_data")
+
+        response_en = self.client.get(reverse("dashboard"), HTTP_COOKIE="django_language=en")
+        self.assertContains(response_en, "Demo data is temporarily unavailable.", status_code=200)
+
+    def test_language_switcher_and_toggle(self):
+        res_default = self.client.get(reverse("dashboard"))
+        self.assertContains(res_default, '<html lang="pl">')
+        self.assertContains(res_default, "Pulpit")
+
+        # Switch to English
+        res_switch = self.client.get(
+            reverse("change_language", args=["en"]) + "?next=" + reverse("dashboard")
+        )
+        self.assertEqual(res_switch.status_code, 302)
+        self.assertEqual(res_switch.cookies["django_language"].value, "en")
+
+        res_en = self.client.get(reverse("dashboard"), HTTP_COOKIE="django_language=en")
+        self.assertContains(res_en, '<html lang="en">')
+        self.assertContains(res_en, "Dashboard")
+        self.assertContains(res_en, "Explore hourly data")
+
+        # Switch back to Polish
+        res_switch_pl = self.client.get(
+            reverse("change_language", args=["pl"]) + "?next=" + reverse("dashboard")
+        )
+        self.assertEqual(res_switch_pl.status_code, 302)
+        self.assertEqual(res_switch_pl.cookies["django_language"].value, "pl")
+
+        res_pl = self.client.get(reverse("dashboard"), HTTP_COOKIE="django_language=pl")
+        self.assertContains(res_pl, '<html lang="pl">')
+        self.assertContains(res_pl, "Pulpit")
 
     def test_loaders_parse_fixture_files(self):
         history = load_history()

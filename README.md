@@ -46,8 +46,6 @@ Powtórne wykonanie odświeża pogodę i wszystkie dane.
   wykonalność montażową i cenę trzeba sprawdzić osobno.
 - Interfejs korzysta z palety Charcoal, Slate Grey, Sage Green, Radioactive Grass
   i Chartreuse oraz dostarczonego tła `data/Background.webp`.
-- `/zalozenia/` – harmonogram mieszkańców, parametry urządzeń, sposób tworzenia
-  historii, taryfa, założenia PV i metodologia szacunku rocznego.
 - `/export.csv` – eksport historii i prognozy dla wybranego zakresu.
 
 ## REST API dla aplikacji mobilnej (`/api/v1/`)
