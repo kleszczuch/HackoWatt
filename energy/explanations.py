@@ -23,6 +23,7 @@ _CATEGORY_PHRASES = (
 
 @dataclass(frozen=True)
 class PeakExplanation:
+    """Krótka odpowiedź opisująca szczytowe zużycie w czytelnym języku."""
     timestamp: datetime
     total: Decimal
     sentence: str
@@ -30,6 +31,7 @@ class PeakExplanation:
 
 
 def _temperature_phrase(temperature: float) -> str:
+    """Zamienia temperaturę na prosty opis typu: zimno, chłodno, umiarkowanie, gorąco."""
     value = f"{temperature:.0f} °C".replace("-", "−")
     if temperature < 5:
         return f"cold (about {value})"
@@ -43,6 +45,7 @@ def _temperature_phrase(temperature: float) -> str:
 def explain_peaks(
     forecast: list[ConsumptionHour], weather: list[WeatherHour], top: int = 3
 ) -> list[PeakExplanation]:
+    """Tworzy czytelne wyjaśnienia dla najważniejszych szczytów zużycia w prognozie."""
     temperatures = {record.timestamp: record.temperature for record in weather}
     peaks = sorted(forecast, key=lambda record: record.total, reverse=True)[:top]
     peaks.sort(key=lambda record: record.timestamp)

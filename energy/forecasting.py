@@ -27,6 +27,7 @@ BACKTEST_COLUMNS = ("Data_Czas", "Rzeczywiste_kWh", "Model_kWh", "Baseline_kWh")
 
 @dataclass(frozen=True)
 class BacktestRow:
+    """Jedna godzina wyniku backtestu: rzeczywiste, model i baseline."""
     timestamp: datetime
     actual: Decimal
     model: Decimal
@@ -34,10 +35,12 @@ class BacktestRow:
 
 
 def _q3(value: float) -> Decimal:
+    """Zaokrągla wartość do 3 miejsc po przecinku dla stabilnych danych modelu."""
     return Decimal(str(round(float(value), 3)))
 
 
 def _features(timestamps: list[datetime], temperatures: list[float]) -> pd.DataFrame:
+    """Buduje macierz cech dla modelu na podstawie godziny, dnia tygodnia i temperatury."""
     stamps = pd.Series(pd.to_datetime(timestamps))
     return pd.DataFrame(
         {
@@ -51,10 +54,12 @@ def _features(timestamps: list[datetime], temperatures: list[float]) -> pd.DataF
 
 
 def _temperature_lookup(weather: list[WeatherHour]) -> dict[datetime, float]:
+    """Tworzy mapę daty -> temperatury, aby łatwo pobierać dane warunków pogodowych."""
     return {record.timestamp: record.temperature for record in weather}
 
 
 def _train_models(features: pd.DataFrame, consumption: list[ConsumptionHour]) -> dict:
+    """Trenuje osobny model XGBoost dla każdej kategorii zużycia."""
     models = {}
     for index, category in enumerate(CATEGORIES):
         model = xgb.XGBRegressor(
@@ -71,6 +76,7 @@ def _train_models(features: pd.DataFrame, consumption: list[ConsumptionHour]) ->
 
 
 def _predict(models: dict, features: pd.DataFrame) -> list[tuple[Decimal, ...]]:
+    """Generuje prognozę dla każdej kategorii zużycia na podstawie wytrenowanych modeli."""
     predicted = {
         category: models[category].predict(features).clip(min=0) for category in CATEGORIES
     }
@@ -81,18 +87,20 @@ def _predict(models: dict, features: pd.DataFrame) -> list[tuple[Decimal, ...]]:
 
 
 def _mae(actual: list[Decimal], predicted: list[Decimal]) -> Decimal:
+    """Liczy Mean Absolute Error dla porównania właściwego błędu modelu."""
     return sum((abs(a - p) for a, p in zip(actual, predicted, strict=True)), Decimal(0)) / len(
         actual
     )
 
 
 def _mape(actual: list[Decimal], predicted: list[Decimal]) -> Decimal:
+    """Liczy MAPE dla danych, ignorując zera, aby nie dzielić przez zero."""
     terms = [abs(a - p) / a for a, p in zip(actual, predicted, strict=True) if a > 0]
     return sum(terms, Decimal(0)) / len(terms) * 100
 
 
 def _daily_totals(rows: list[BacktestRow], attribute: str) -> list[Decimal]:
-    """Sumy dobowe – MAPE na godzinach jest psuty przez dni wyjazdu (małe mianowniki)."""
+    """Sumuje wartości do poziomu dziennego, aby MAPE był stabilniejszy niż na poziomie godzin."""
     totals: dict = {}
     for row in rows:
         key = row.timestamp.date()
@@ -103,7 +111,7 @@ def _daily_totals(rows: list[BacktestRow], attribute: str) -> list[Decimal]:
 def backtest(
     consumption: list[ConsumptionHour], history_weather: list[WeatherHour]
 ) -> tuple[list[BacktestRow], dict]:
-    """Oceń model i baseline na ostatnich 7 dniach historii."""
+    """Ocena jakości modelu i baseline'u na ostatnich 7 dniach historii."""
     if len(consumption) < 2 * BACKTEST_HOURS:
         raise ValueError("Historia jest za krótka do oceny błędu (min. 14 dni).")
     temperatures = _temperature_lookup(history_weather)
@@ -156,7 +164,7 @@ def forecast(
     history_weather: list[WeatherHour],
     forecast_weather: list[WeatherHour],
 ) -> list[ConsumptionHour]:
-    """Wytrenuj na pełnej historii i prognozuj na godziny prognozy pogody."""
+    """Trenuje model na pełnej historii i przewiduje zużycie dla przyszłych godzin."""
     temperatures = _temperature_lookup(history_weather)
     models = _train_models(
         _features(
@@ -177,6 +185,7 @@ def forecast(
 
 
 def write_backtest_csv(rows: list[BacktestRow], path: Path | str) -> None:
+    """Zapisuje wyniki backtestu do CSV w formacie gotowym do odczytu przez aplikację."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
 
@@ -195,6 +204,7 @@ def write_backtest_csv(rows: list[BacktestRow], path: Path | str) -> None:
 
 
 def write_metrics_json(metrics: dict, path: Path | str) -> None:
+    """Zapisuje metryki modelu do pliku JSON z czytelnym formatem i nową linią."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

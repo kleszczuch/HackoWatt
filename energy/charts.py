@@ -1,4 +1,5 @@
-"""Wykresy Plotly: historia z temperaturą, prognoza, backtest i symulator PV."""
+"""Wykresy Plotly: historia z temperaturą, prognoza, backtest i symulator PV.
+Plik odpowiada za generowanie wykresów i wizualizacji danych energetycznych."""
 
 from datetime import timedelta
 from decimal import Decimal
@@ -37,6 +38,7 @@ CATEGORY_DASHES = ("solid", "solid", "dash", "solid", "dot", "dashdot")
 
 
 def _base_layout(figure: go.Figure, height: int) -> go.Figure:
+    """Ustawia wspólny styl i właściwości osi dla wszystkich wykresów Plotly."""
     # 1. Automatycznie znajdujemy początek i koniec osi czasu w danych tego wykresu:
     all_x = []
     for trace in figure.data:
@@ -83,6 +85,7 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
 def _consumption_with_temperature(
     records: list[ConsumptionHour], weather: list[WeatherHour], height: int
 ) -> go.Figure:
+    """Buduje wykres zużycia według kategorii wraz z temperaturą na drugiej osi."""
     figure = make_subplots(specs=[[{"secondary_y": True}]])
     for index, (category, label) in enumerate(zip(CATEGORIES, CATEGORY_LABELS, strict=True)):
         figure.add_trace(
@@ -138,13 +141,14 @@ def _consumption_with_temperature(
 
 
 def build_history_chart(records: list[ConsumptionHour], weather: list[WeatherHour]) -> go.Figure:
+    """Tworzy wykres historii zużycia z temperaturą do szczegółowej analizy czasu."""
     return _consumption_with_temperature(records, weather, 400)
 
 
 def build_overview_chart(
     records: list[ConsumptionHour], weather: list[WeatherHour], *, forecast: bool = False
 ) -> go.Figure:
-    """Zwarty trend całkowitego zużycia i temperatury na pulpit."""
+    """Tworzy zwięzły wykres podsumowania zużycia i temperatury dla pulpitu."""
     figure = make_subplots(specs=[[{"secondary_y": True}]])
     figure.add_trace(
         go.Scatter(
@@ -180,12 +184,14 @@ def build_overview_chart(
 
 
 def build_forecast_chart(records: list[ConsumptionHour], weather: list[WeatherHour]) -> go.Figure:
+    """Generuje wersję wykresu prognozy z liniami stylizowanymi pod przewidywanie."""
     figure = _consumption_with_temperature(records, weather, 340)
     figure.update_traces(patch={"line": {"dash": "dash"}}, selector={"stackgroup": "zuzycie"})
     return figure
 
 
 def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
+    """Porównuje rzeczywiste zużycie z modelem i baseline'em w ramach testu backtest."""
     figure = go.Figure()
     for values, label, color, dash in (
         ([row.actual for row in rows], "Actual (simulation)", CHARCOAL, "solid"),
@@ -207,6 +213,7 @@ def build_backtest_chart(rows: list[BacktestRow]) -> go.Figure:
 
 
 def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
+    """Rysuje prototyp wykresu PV pokazujący produkcję, obciążenie i zakupy z sieci."""
     figure = go.Figure()
     traces = (
         (week.pv, f"PV output ({kwp} kWp)", CHARCOAL, "solid", "tozeroy"),

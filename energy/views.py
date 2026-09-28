@@ -1,4 +1,9 @@
-"""Widoki: pulpit scenariusza, symulator PV, założenia i eksport CSV."""
+"""Widoki: pulpit scenariusza, symulator PV, założenia i eksport CSV.
+
+Plik obsługuje widoki aplikacji Django.
+
+Głównym zadaniem modułu jest renderowanie stron interfejsu użytkownika
+oraz przygotowywanie danych dla dashboardu, historii godzinowej i symulatora PV."""
 
 import csv
 from decimal import Decimal
@@ -39,6 +44,7 @@ PV_DEFAULTS = {
 
 
 def _chart_html(figure, include_plotlyjs: bool = False) -> str:
+    """Renderuje wykres Plotly wraz z checkboxami i kontrolkami zoomu dla widoku HTML."""
     chart_id = f"chart-{uuid4().hex}"
     controls = []
     for index, trace in enumerate(figure.data):
@@ -74,6 +80,7 @@ def _chart_html(figure, include_plotlyjs: bool = False) -> str:
 
 
 def _date_range(request: HttpRequest, history):
+    """Buduje formularz zakresu dat z danych historycznych lub z parametrów GET."""
     if request.GET.get("start") or request.GET.get("end"):
         form = DateRangeForm(request.GET)
     else:
@@ -83,6 +90,7 @@ def _date_range(request: HttpRequest, history):
 
 
 def _horizon(request: HttpRequest) -> int:
+    """Pobiera horyzont prognozy z formularza lub zwraca wartość domyślną."""
     form = HorizonForm({"horyzont": request.GET.get("horyzont", "24")})
     if form.is_valid():
         return int(form.cleaned_data["horyzont"])
@@ -90,6 +98,7 @@ def _horizon(request: HttpRequest) -> int:
 
 
 def _simulation_days(request: HttpRequest) -> int:
+    """Validaduje liczbę dni symulacji i zwraca jedną z dozwolonych wartości."""
     try:
         days = int(request.GET.get("dni", "7"))
     except TypeError, ValueError:
@@ -98,6 +107,7 @@ def _simulation_days(request: HttpRequest) -> int:
 
 
 def dashboard(request: HttpRequest) -> HttpResponse:
+    """Renderuje pulpit z historią, prognozą, backtestem i podsumowaniem systemu."""
     try:
         history = data.load_history()
         forecast = data.load_forecast()
@@ -157,6 +167,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
 
 def hourly_history(request: HttpRequest) -> HttpResponse:
+    """Pokazuje godzinową historię zużycia z filtrem dat, paginacją i wykresem."""
     try:
         history = data.load_history()
         weather_history = data.load_weather_history()
@@ -205,6 +216,7 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
 
 
 def get_behavioral_advice(device_name, moved_kwh):
+    """Tworzy prostą rekomendację dla urządzeń, które można przesunąć do okna PV."""
     if moved_kwh <= 0:
         return {
             "headline": "Already within the solar window",
@@ -237,6 +249,7 @@ def get_behavioral_advice(device_name, moved_kwh):
 
 
 def pv_simulator(request: HttpRequest) -> HttpResponse:
+    """Uruchamia symulator PV z porównaniem wariantów, magazynem i rekomendacjami."""
     try:
         records, weather, events = data.load_annual()
     except (FileNotFoundError, data.DemoDataError) as exc:
@@ -318,6 +331,7 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
 
 
 def assumptions(request: HttpRequest) -> HttpResponse:
+    """Pokazuje stronę z założeniami modelu, datami i parametrami referencyjnymi."""
     context: dict = {"currency": CURRENCY}
     try:
         history = data.load_history()
@@ -336,6 +350,7 @@ def assumptions(request: HttpRequest) -> HttpResponse:
 
 
 def export_csv(request: HttpRequest) -> HttpResponse:
+    """Eksportuje wybrane dane do CSV z historią i prognozą w jednym pliku."""
     try:
         history = data.load_history()
         forecast = data.load_forecast()
