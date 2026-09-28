@@ -1,5 +1,5 @@
 {% extends "energy/base.html" %}
-{% block title %}HackoWatt · Pulpit zużycia{% endblock %}
+{% block title %}eko-dziki · Pulpit zużycia{% endblock %}
 {% block content %}
 <div class="dashboard">
   <header class="dashboard-heading">
@@ -48,7 +48,7 @@
 
   <section class="peaks-strip" aria-label="Godziny szczytu prognozy">
     <div class="peaks-title"><span class="eyebrow">PROGNOZA</span><strong>Godziny szczytu</strong></div>
-    {% for peak in peaks %}<div class="peak-item"><span class="peak-number">0{{ forloop.counter }}</span><span><strong>Szczyt:</strong> {{ peak.sentence }}</span></div>{% endfor %}
+    {% for peak in peaks %}<div class="peak-item"><span class="peak-number">0{{ forloop.counter }}</span><span><strong>Szczyt: {{ peak.timestamp|date:"d.m H:i" }} · {{ peak.total|floatformat:1 }} kWh</strong><small>{{ peak.components|join:", " }}</small></span></div>{% endfor %}
   </section>
 
   <details class="panel backtest-details" id="backtest-details">

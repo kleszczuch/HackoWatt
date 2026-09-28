@@ -1,4 +1,4 @@
-# HackoWatt — Scenariusz 4 „Dom pełen pokoleń”
+# eko-dziki – Scenariusz 4 „Dom pełen pokoleń”
 
 Lokalna aplikacja Django dla konkursowego scenariusza trzypokoleniowego domu
 w Kopenhadze: **35 dni godzinowej historii** zużycia z generatora zdarzeń
@@ -25,16 +25,16 @@ Powtórne wykonanie odświeża pogodę i wszystkie dane.
 
 ## Strony
 
-- `/` — zwarty pulpit: wybór ostatnich 1 / 3 / 5 / 7 / 14 / 31 dni
+- `/` – zwarty pulpit: wybór ostatnich 1 / 3 / 5 / 7 / 14 / 31 dni
   symulowanej historii i prognozy 24 h / 3 / 7 dni, sumy kWh, trendy
   zużycia i temperatury, godziny szczytu oraz błąd modelu wobec baseline'u.
-- `/godziny/` — szczegółowy wykres i tabela godzinowa z kategoriami,
+- `/godziny/` – szczegółowy wykres i tabela godzinowa z kategoriami,
   filtrem dat, stronicowaniem i eksportem dokładnych wartości do CSV.
-- `/symulator-pv/` — wybór mocy kWp, tabela porównawcza wariantów, roczna
+- `/symulator-pv/` – wybór mocy kWp, tabela porównawcza wariantów, roczna
   produkcja z realnego promieniowania, pokrycie zapotrzebowania, mniej energii
   z sieci, oszczędności i czas zwrotu: A (obecne nawyki) i B (po przesunięciu
   zmywarki, pralki i suszarki w godziny 9–15), wspólny wykres tygodniowy
-  oraz rekomendacje z efektem w kWh i €. Przyciski automatycznie dobierają moc
+  oraz policzony efekt zmiany godziny pracy urządzeń w kWh i €. Przyciski automatycznie dobierają moc
   do możliwie pełnego pokrycia w zakresie 1–150 kWp lub najkrótszego zwrotu
   wariantu B w zakresie 1–15 kWp, co 0,1 kWp. Opcjonalny magazyn ma wpisywaną pojemność [kWh],
   moc [kW] i cenę zakupu [EUR]. Godzinowy bilans uwzględnia 90% sprawności
@@ -44,18 +44,18 @@ Powtórne wykonanie odświeża pogodę i wszystkie dane.
   z sieci. W pełnym roku stan magazynu na granicy lat ustala się po powtórzeniu
   roku modelowego; duże moce i magazyny są wariantami teoretycznymi, których
   wykonalność montażową i cenę trzeba sprawdzić osobno.
-- `/zalozenia/` — harmonogram mieszkańców, parametry urządzeń, sposób tworzenia
+- Interfejs korzysta z palety Charcoal, Slate Grey, Sage Green, Radioactive Grass
+  i Chartreuse oraz dostarczonego tła `data/Background.webp`.
+- `/zalozenia/` – harmonogram mieszkańców, parametry urządzeń, sposób tworzenia
   historii, taryfa, założenia PV i metodologia szacunku rocznego.
-- `/export.csv` — eksport historii i prognozy dla wybranego zakresu.
+- `/export.csv` – eksport historii i prognozy dla wybranego zakresu.
 
 ## REST API dla aplikacji mobilnej (`/api/v1/`)
 
 Aplikacja udostępnia otwarty, bezstanowy zestaw endpointów JSON REST API pod przedrostkiem
 `/api/v1/`, służący wyłącznie do odczytu danych (bez konieczności logowania, haseł
-i tokenów). Interfejs został zaprojektowany z myślą o osobach starszych (dziadkach
-obecnych w domu przed południem) oraz młodszych (dzieciach i młodzieży wracających
-ze szkoły), ułatwiając natychmiastowe sprawdzenie, w jakich godzinach najrozsądniej
-uruchomić urządzenia elektryczne.
+i tokenów). API podaje stawki godzinowe, zużycie i wyniki modelu. Pola dotyczące
+urządzeń opisują zarejestrowane cykle i policzone różnice, bez gotowych poleceń.
 
 ### Format odpowiedzi
 
@@ -66,18 +66,18 @@ uruchomić urządzenia elektryczne.
 
 | Metoda | Ścieżka | Opis | Główne parametry |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/v1/smart-schedule/today/` | **Główny harmonogram dnia:** 24 h z kolorami (zielony/żółty/czerwony) i poradami dla seniorów i młodzieży | brak |
-| `GET` | `/api/v1/devices/guidance/` | **Przewodnik po urządzeniach:** kiedy uruchamiać zmywarkę, pralkę, suszarkę, piekarnik i konsolę | brak |
+| `GET` | `/api/v1/smart-schedule/today/` | Stawki każdej godziny i godziny najtańszej oraz najdroższej taryfy | brak |
+| `GET` | `/api/v1/devices/guidance/` | Roczne liczby cykli i energii urządzeń w danych modelowych | brak |
 | `GET` | `/api/v1/dashboard/summary/` | Bieżący pulpit (odczyt, prosta ocena taryfy, 24 h, najbliższy szczyt) | brak |
 | `GET` | `/api/v1/devices/shift-simulation/` | Kalkulator przesunięcia pracy urządzenia (dostępny przez prosty GET) | `device`, `original_hour`, `target_hour`, `energy_kwh` |
-| `GET` | `/api/v1/tariffs/` | Strefy taryfowe (€/kWh), bieżąca stawka i optymalne okna | brak |
+| `GET` | `/api/v1/tariffs/` | Strefy taryfowe (€/kWh) i bieżąca stawka | brak |
 | `GET` | `/api/v1/consumption/history/` | Historia zużycia z paginacją i filtrem dat | `start`, `end`, `page`, `page_size` |
 | `GET` | `/api/v1/consumption/forecast/` | Prognoza zapotrzebowania i wyjaśnienia szczytów | `horizon` (24, 72, 168) |
-| `GET` | `/api/v1/pv/simulate/` | Symulator PV (wariant A vs B, oszczędności, zwrot) | `kwp`, `month`, `include_week_profile` |
+| `GET` | `/api/v1/pv/simulate/` | Symulator PV (wariant A vs B, oszczędności, zwrot) | `kwp`, `month`, `magazyn_kwh`, `magazyn_moc_kw`, `magazyn_koszt_eur`, `include_week_profile` |
 | `GET` | `/api/v1/pv/variants/` | Zestawienie typowych mocy instalacji PV (2–10 kWp) | brak |
 | `GET` | `/api/v1/devices/flexible-events/` | Lista zarejestrowanych cykli elastycznych urządzeń | `device`, `page`, `page_size` |
 | `GET` | `/api/v1/system/assumptions/` | Parametry urządzeń, domu i instalacji | brak |
-| `GET` | `/api/v1/system/metrics/` | Metryki dokładności modelu AI (MAE, MAPE) | brak |
+| `GET` | `/api/v1/system/metrics/` | Metryki dokładności prognozy (MAE, MAPE) | brak |
 
 ## Dane w `data/`
 
@@ -99,7 +99,7 @@ openspec validate magazyn-energii-pv --strict
 ## Zakres i uczciwość wyliczeń
 
 Historia jest **symulacją** zdarzeń (posiłki, pranie, praca zdalna, goście,
-wyjazdy) warunkowaną temperaturą z Open-Meteo — nie odczytem licznika. Roczne
+wyjazdy) warunkowaną temperaturą z Open-Meteo – nie odczytem licznika. Roczne
 zużycie szacuje ten sam generator uruchomiony na 12 miesiącach realnej pogody;
 sezonowość ogrzewania wynika z temperatury, a produkcji PV z promieniowania.
 Koszty w EUR według załącznika „Common Challenge Assumptions” (taryfa

@@ -1,11 +1,11 @@
 {% extends "energy/base.html" %}
-{% block title %}HackoWatt · Symulator PV{% endblock %}
+{% block title %}eko-dziki · Symulator PV{% endblock %}
 {% block content %}
 <section class="intro">
   <div>
     <p class="eyebrow">SYMULATOR FOTOWOLTAIKI</p>
     <h1>Ile da dach<br><span>z panelami?</span></h1>
-    <p class="lead">Wybierz moc instalacji w kWp i porównaj warianty: roczną produkcję, pokrycie zapotrzebowania, mniej energii z sieci, oszczędności i czas zwrotu — bez zmiany nawyków (A) oraz po przesunięciu zmywarki, pralki i suszarki w godziny produkcji (B).</p>
+    <p class="lead">Roczna produkcja, pokrycie zapotrzebowania, zakup z sieci, oszczędności i czas zwrotu dla dwóch sposobów korzystania z urządzeń: obecnego (A) i po przesunięciu zmywarki, pralki oraz suszarki (B).</p>
   </div>
   <div class="intro-aside">
     <span class="pulse"></span>
@@ -16,7 +16,7 @@
 
 <section class="notice" aria-label="Charakter obliczeń">
   <span class="notice-icon">i</span>
-  <p><strong>To są szacunki.</strong> Roczne zużycie pochodzi z tego samego generatora co 35-dniowa historia, uruchomionego na 12 miesiącach realnej pogody. Koszt PV 1300 €/kWp, eksport 0,08 €/kWh, koszt operacyjny PV 1% rocznie. Cenę magazynu wpisujesz z własnej oferty — szczegóły na stronie „Założenia”.</p>
+  <p><strong>To są szacunki.</strong> Roczne zużycie pochodzi z tego samego generatora co 35-dniowa historia, uruchomionego na 12 miesiącach realnej pogody. Koszt PV 1300 €/kWp, eksport 0,08 €/kWh, koszt operacyjny PV 1% rocznie. Cena magazynu pochodzi z wartości podanej w formularzu. Szczegóły są na stronie „Założenia”.</p>
 </section>
 
 <section class="panel filter-panel" aria-labelledby="pv-form-heading">
@@ -31,7 +31,7 @@
       <div class="field"><label for="{{ form.magazyn_kwh.id_for_label }}">Pojemność [kWh] · do 5000</label>{{ form.magazyn_kwh }}</div>
       <div class="field"><label for="{{ form.magazyn_moc_kw.id_for_label }}">Moc [kW] · do 150</label>{{ form.magazyn_moc_kw }}</div>
       <div class="field"><label for="{{ form.magazyn_koszt_eur.id_for_label }}">Cena zakupu [€]</label>{{ form.magazyn_koszt_eur }}</div>
-      <p>Wpisz 0 kWh i 0 € bez magazynu. Sprawność obiegu: 90%; magazyn ładuje się tylko z nadwyżki PV. Dobór do 100% zmienia moc PV przy podanych parametrach magazynu. Duże instalacje są scenariuszem teoretycznym — sprawdź dostępną powierzchnię i rzeczywistą ofertę cenową.</p>
+      <p>0 kWh i 0 € oznacza brak magazynu. Sprawność obiegu: 90%; magazyn ładuje się tylko z nadwyżki PV. Dobór do 100% zmienia moc PV przy podanych parametrach magazynu. Duże instalacje są scenariuszem teoretycznym; kalkulator nie sprawdza powierzchni dachu ani cen ofertowych.</p>
     </fieldset>
     <button class="button primary" type="submit">Przelicz <span aria-hidden="true">→</span></button>
     <button class="button secondary" type="submit" name="cel" value="coverage">Dobierz do 100% pokrycia</button>
@@ -64,7 +64,7 @@
   <article class="metric"><span>Roczna produkcja PV</span><strong>{{ selected.production_kwh|floatformat:0 }} <small>kWh</small></strong><p>Instalacja {{ kwp }} kWp · zużycie domu {{ consumption_kwh|floatformat:0 }} kWh/rok</p></article>
   <article class="metric"><span>Pokrycie zapotrzebowania</span><strong>{{ selected.coverage_a|floatformat:1 }}<small>%</small></strong><p>Po przesunięciu nawyków: {{ selected.coverage_b|floatformat:1 }}%</p></article>
   <article class="metric"><span>Mniej energii z sieci</span><strong>{{ selected.variant_a.self_kwh|floatformat:0 }} <small>kWh/rok</small></strong><p>Wariant B: {{ selected.variant_b.self_kwh|floatformat:0 }} kWh/rok</p></article>
-  <article class="metric"><span>Czas zwrotu A → B</span><strong>{% if selected.variant_a.payback_years %}{{ selected.variant_a.payback_years|floatformat:1 }}{% else %}—{% endif %} → {% if selected.variant_b.payback_years %}{{ selected.variant_b.payback_years|floatformat:1 }}{% else %}—{% endif %} <small>lat</small></strong><p>Inwestycja {{ selected.investment_eur|floatformat:0 }} € · oszczędności B {{ selected.variant_b.savings|floatformat:0 }} €/rok</p></article>
+  <article class="metric"><span>Czas zwrotu A → B</span><strong>{% if selected.variant_a.payback_years %}{{ selected.variant_a.payback_years|floatformat:1 }}{% else %}–{% endif %} → {% if selected.variant_b.payback_years %}{{ selected.variant_b.payback_years|floatformat:1 }}{% else %}–{% endif %} <small>lat</small></strong><p>Inwestycja {{ selected.investment_eur|floatformat:0 }} € · oszczędności B {{ selected.variant_b.savings|floatformat:0 }} €/rok</p></article>
 </section>
 
 <section class="panel pv-daily-summary" aria-label="Dzienne zużycie budynku i magazyn">
@@ -94,8 +94,8 @@
           <td class="number">{{ result.variant_b.self_kwh|floatformat:0 }} kWh</td>
           <td class="number">{{ result.variant_a.savings|floatformat:0 }} €</td>
           <td class="number">{{ result.variant_b.savings|floatformat:0 }} €</td>
-          <td class="number total">{% if result.variant_a.payback_years %}{{ result.variant_a.payback_years|floatformat:1 }} l.{% else %}—{% endif %}</td>
-          <td class="number total">{% if result.variant_b.payback_years %}{{ result.variant_b.payback_years|floatformat:1 }} l.{% else %}—{% endif %}</td>
+          <td class="number total">{% if result.variant_a.payback_years %}{{ result.variant_a.payback_years|floatformat:1 }} l.{% else %}–{% endif %}</td>
+          <td class="number total">{% if result.variant_b.payback_years %}{{ result.variant_b.payback_years|floatformat:1 }} l.{% else %}–{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -116,54 +116,19 @@
   </table></div>
 </section>
 
-<section class="panel chart-panel" aria-labelledby="reco-heading" style="padding: 24px; border-radius: 12px; background-color: #f8fafc; border: 1px solid #e2e8f0;">
-  <div class="section-heading" style="margin-bottom: 24px;">
-    <div>
-      <p class="eyebrow" style="color: #64748b; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.05em; text-transform: uppercase;">Praktyczne Rekomendacje</p>
-      <h2 id="reco-heading" style="color: #0f172a; margin-top: 4px;">Jak oszczędzać bez utraty komfortu?</h2>
-    </div>
-    <span class="muted" style="color: #64748b; font-size: 0.9rem;">Efekt roczny dla instalacji <strong>{{ kwp }} kWp</strong></span>
-  </div>
-  
-  <div class="explanation-list">
+<section class="panel chart-panel" aria-labelledby="reco-heading">
+  <div class="section-heading"><div><p class="eyebrow">OBLICZENIE DLA URZĄDZEŃ</p><h2 id="reco-heading">Efekt zmiany godziny pracy</h2></div><span class="muted">Roczny wynik dla {{ kwp }} kWp i wskazanego magazynu</span></div>
+  <div class="device-results">
     {% for effect in effects %}
-    
-    <!-- Kolor paska bocznego: Pomarańczowy lub Zielony (ZAMKNIĘTY IF) -->
-    {% if effect.moved_kwh > 0 %}
-    <div class="explanation" style="border-left: 4px solid #f59e0b; padding: 16px; margin-bottom: 20px; background: white; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-    {% else %}
-    <div class="explanation" style="border-left: 4px solid #10b981; padding: 16px; margin-bottom: 20px; background: white; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-    {% endif %}
-      
-      <!-- Tytuł urządzenia + Headline z views.py -->
-      <h3 style="margin-top: 0; font-size: 1.1rem; color: #1e293b;">
-        <strong>{{ effect.device }}</strong>: {{ effect.advice.headline }}
-      </h3>
-      
-      <!-- Porady z views.py -->
-      <div style="margin-top: 12px; line-height: 1.5; color: #475569;">
-        <p style="margin: 4px 0;"> <strong>Co warto zrobić:</strong> {{ effect.advice.action }}</p>
-        <p style="margin: 4px 0;"> <strong>Twój komfort:</strong> {{ effect.advice.comfort }}</p>
-      </div>
-      
-      <!-- Box pokazujący dane (ZAMKNIĘTY IF) -->
-      {% if effect.moved_kwh > 0 %}
-      <div style="margin-top: 16px; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 12px 16px; border-radius: 8px; color: #065f46; font-size: 0.95rem;">
-        Przeniesione zostanie <strong>~{{ effect.moved_kwh|floatformat:0 }} kWh/rok</strong> ze słabych godzin bezpośrednio w słoneczne.<br/>
-        Ominięta zostanie konieczność kupowania <strong>{{ effect.grid_saved_kwh|floatformat:0 }} kWh</strong> z sieci, 
-        co obniży rachunki o <strong style="font-size: 1.1rem;">ok. {{ effect.money_saved|floatformat:0 }} € w skali roku</strong>!
-      </div>
-      {% endif %}
-      
-    </div> <!-- Koniec diva "explanation" -->
+    <article class="device-result">
+      <h3>{{ effect.device }}</h3>
+      <div><span>Mniej z sieci</span><strong>{{ effect.grid_saved_kwh|floatformat:1 }} <small>kWh/rok</small></strong></div>
+      <div><span>Zmiana oszczędności</span><strong>{{ effect.money_saved|floatformat:1 }} <small>€/rok</small></strong></div>
+      <p>{{ effect.moved_kwh|floatformat:0 }} kWh cykli zaczynało się poza oknem 9:00–15:00.</p>
+    </article>
     {% endfor %}
-    
-    <!-- Tip dla "Domu pełnego pokoleń" -->
-    <div class="explanation" style="margin-top: 24px; padding: 16px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #f1f5f9;">
-      <strong>Wskazówka ogólna dla dużej rodziny:</strong> Jako dom wielopokoleniowy macie supermoc – ktoś najczęściej jest w domu!
-      Jeśli dziadkowie włączą energochłonne sprzęty wokół południa, zdejmują obowiązek domowy z młodszych, a darmowa energia słoneczna zostaje w pełni skonsumowana. To klasyczna sytuacja <em>win-win</em>!
-    </div>
   </div>
+  <p class="device-note">Każde urządzenie porównano osobno z wariantem A. Godzina docelowa ma najwyższe promieniowanie w oknie 9:00–15:00. Dodatni wynik oznacza korzyść; zmiana w obrębie tego okna też może zmniejszyć zakup.</p>
 </section>
 
 {% endif %}
