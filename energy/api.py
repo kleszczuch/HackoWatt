@@ -1,4 +1,4 @@
-"""Endpointy REST API dla aplikacji mobilnej HackoWatt.
+"""Endpointy REST API dla aplikacji mobilnej eko-dziki.
 
 Zapewnia szybki i bezpieczny odczyt informacji o optymalnych godzinach
 użycia urządzeń elektrycznych dla osób starszych (dziadków), młodzieży i rodziców.
@@ -81,199 +81,82 @@ def _parse_params(request: HttpRequest) -> tuple[dict, str | None]:
 
 
 @require_http_methods(["GET"])
-@handle_data_errors
 def smart_schedule_today(request: HttpRequest) -> JsonResponse:
-    """Zwraca czytelny dla seniorów i młodzieży harmonogram dnia.
-
-    Dzieli dobę na proste strefy kolorystyczne (zielona, żółta, czerwona),
-    wskazuje status na bieżącą godzinę oraz dedykowane wskazówki dla domowników.
-    """
+    """Godzinowy rozkład stawek taryfy bez porad o pracy urządzeń."""
+    prices = [tariffs.price_for_hour(hour) for hour in range(24)]
+    low, high = min(prices), max(prices)
     now_hour = datetime.now().hour
-    current_price = tariffs.price_for_hour(now_hour)
 
-    # Ocena bieżącej godziny
-    if 0 <= now_hour < 6:
-        current_status_code = "green"
-        current_status_title = "Bardzo tania dolina nocna (0,18 €/kWh)"
-        current_status_tip = "Świetny czas na ładowanie akumulatorów, telefonów i nocne pranie."
-    elif 9 <= now_hour < 15:
-        current_status_code = "green"
-        current_status_title = "Darmowy prąd ze słońca (Fotowoltaika)"
-        current_status_tip = (
-            "Najlepsza pora dnia! Panele PV pracują najmocniej. Włącz zmywarkę lub pralkę."
-        )
-    elif 17 <= now_hour < 22:
-        current_status_code = "red"
-        current_status_title = "Drogi szczyt popołudniowy (0,40 €/kWh) — unikaj!"
-        current_status_tip = (
-            "Prąd z sieci jest teraz najdroższy. Odłóż włączenie zmywarki, pralki lub suszarki."
-        )
-    else:
-        current_status_code = "yellow"
-        current_status_title = "Standardowa stawka dzienna (0,28 €/kWh)"
-        current_status_tip = "Umiarkowana cena energii. Można korzystać ze standardowych urządzeń."
+    def band(price: Decimal) -> tuple[str, str]:
+        if price == low:
+            return "green", "Najniższa stawka"
+        if price == high:
+            return "red", "Najwyższa stawka"
+        return "yellow", "Stawka pośrednia"
 
-    # Przegląd 24 godzin doby
-    hours_schedule = []
-    for h in range(24):
-        price = tariffs.price_for_hour(h)
-        if 0 <= h < 6:
-            code = "green"
-            badge = "Tania noc"
-            action = "Świetna pora na pracę urządzeń z programatorem nocnym"
-        elif 9 <= h < 15:
-            code = "green"
-            badge = "Słońce / PV"
-            action = "Najlepszy czas na zmywarkę, pralkę i suszarkę (darmowy prąd)"
-        elif 17 <= h < 22:
-            code = "red"
-            badge = "Drogi szczyt"
-            action = "Unikaj włączania dużego AGD (stawka 0,40 €/kWh)"
-        else:
-            code = "yellow"
-            badge = "Standard"
-            action = "Zwykłe korzystanie z domu, umiarkowana stawka"
-
-        hours_schedule.append(
-            {
-                "hour": h,
-                "hour_label": f"{h:02d}:00 – {(h + 1):02d}:00",
-                "status_code": code,
-                "badge": badge,
-                "price_per_kwh": _to_float(price),
-                "is_current": (h == now_hour),
-                "recommended_action": action,
-            }
-        )
-
+    current_code, current_title = band(prices[now_hour])
+    timeline = [
+        {
+            "hour": hour,
+            "hour_label": f"{hour:02d}:00 – {(hour + 1):02d}:00",
+            "status_code": band(price)[0],
+            "badge": band(price)[1],
+            "price_per_kwh": _to_float(price),
+            "is_current": hour == now_hour,
+        }
+        for hour, price in enumerate(prices)
+    ]
     return api_success(
         {
             "current_hour": {
                 "hour": now_hour,
-                "status_code": current_status_code,
-                "status_title": current_status_title,
-                "price_per_kwh": _to_float(current_price),
+                "status_code": current_code,
+                "status_title": current_title,
+                "price_per_kwh": _to_float(prices[now_hour]),
                 "currency": tariffs.CURRENCY,
-                "tip": current_status_tip,
             },
-            "best_windows": {
-                "day_solar_window": {
-                    "hours": "09:00 – 15:00",
-                    "label": "Okno słoneczne (Fotowoltaika)",
-                    "for_who": "Idealne dla dziadków będących w domu w ciągu dnia",
-                    "recommended_devices": ["Zmywarka", "Pralka", "Suszarka"],
-                },
-                "night_valley_window": {
-                    "hours": "00:00 – 06:00",
-                    "label": "Tania dolina nocna (0,18 €/kWh)",
-                    "for_who": "Idealne na opóźniony start (timer) na noc",
-                    "recommended_devices": ["Zmywarka", "Ładowanie urządzeń"],
-                },
-                "peak_avoid_window": {
-                    "hours": "17:00 – 22:00",
-                    "label": "Szczyt popołudniowy (0,40 €/kWh)",
-                    "for_who": "Wszyscy domownicy",
-                    "advice": "Nie uruchamiaj jednocześnie pralki, suszarki i piekarnika",
-                },
-            },
-            "tips_by_generation": {
-                "dla_dziadkow": (
-                    "Dziadkowie w domu (9:00–14:00): To najlepszy czas na zmywarkę lub pranie. "
-                    "Świeci słońce, domowa fotowoltaika produkuje darmową energię, "
-                    "a sieć jest znacznie tańsza niż wieczorem."
-                ),
-                "dla_mlodziezy": (
-                    "Młodzież i dzieci (po 14:00): Korzystanie z komputera, telewizora i ładowanie "
-                    "telefonu po szkole jest w porządku. Pamiętajcie tylko, aby nie włączać "
-                    "pralki ani suszarki między 17:00 a 22:00, bo wtedy prąd jest najdroższy!"
-                ),
-                "dla_rodzicow": (
-                    "Rodzice (wieczorem i rano): Jeśli zmywarka lub pralka nie została włączona "
-                    "w południe, nastawcie opóźniony start (timer) na godzinę 1:00 w nocy — "
-                    "taryfa nocna wynosi zaledwie 0,18 €/kWh."
-                ),
-            },
-            "timeline": hours_schedule,
+            "lowest_tariff_hours": [hour for hour, price in enumerate(prices) if price == low],
+            "highest_tariff_hours": [hour for hour, price in enumerate(prices) if price == high],
+            "timeline": timeline,
         }
     )
 
 
 # ----------------------------------------------------------------------
-# 2. Przewodnik po urządzeniach (kiedy i jak oszczędzać)
+# 2. Dane o pracy urządzeń w roku modelowym
 # ----------------------------------------------------------------------
 
 
 @require_http_methods(["GET"])
+@handle_data_errors
 def devices_guidance(request: HttpRequest) -> JsonResponse:
-    """Zwraca zrozumiałe porady dla każdego kluczowego urządzenia w domu."""
-    guidance = [
-        {
-            "device": "Zmywarka",
-            "icon": "dishwasher",
-            "energy_per_cycle_kwh": 1.0,
-            "best_hours": "09:00 – 15:00 lub 00:00 – 06:00",
-            "worst_hours": "17:00 – 22:00 (drogi szczyt 0,40 €/kWh)",
-            "annual_savings_potential_eur": 26.40,
-            "tip_pl": (
-                "Uruchamiaj zmywarkę w południe po obiedzie, gdy działa fotowoltaika, "
-                "albo ustaw opóźnienie startu na noc (po północy)."
-            ),
-            "target_group": "Dziadkowie w ciągu dnia / Rodzice programujący start na noc",
-        },
-        {
-            "device": "Pralka",
-            "icon": "washing_machine",
-            "energy_per_cycle_kwh": 0.8,
-            "best_hours": "09:00 – 14:00",
-            "worst_hours": "17:00 – 22:00",
-            "annual_savings_potential_eur": 21.60,
-            "tip_pl": (
-                "Świetne zadanie dla dziadków obecnych w domu przed południem. "
-                "Pranie zrobione o godz. 11:00 zużywa darmowy prąd ze słońca."
-            ),
-            "target_group": "Dziadkowie w domu przed południem",
-        },
-        {
-            "device": "Suszarka bębnowa",
-            "icon": "tumble_dryer",
-            "energy_per_cycle_kwh": 2.0,
-            "best_hours": "11:00 – 15:00",
-            "worst_hours": "17:00 – 22:00",
-            "annual_savings_potential_eur": 36.00,
-            "tip_pl": (
-                "Suszarka zużywa najwięcej prądu ze sprzętów AGD (ok. 2 kWh). "
-                "Włączaj ją wyłącznie w pełnym słońcu lub przy tańszej taryfie nocnej."
-            ),
-            "target_group": "Wszyscy dorośli",
-        },
-        {
-            "device": "Komputery, konsole i telewizory",
-            "icon": "gaming_and_tv",
-            "energy_per_cycle_kwh": 0.2,
-            "best_hours": "Dowolne poza kumulacją w szczycie",
-            "worst_hours": "Jednoczesna praca z piekarnikiem i pralką (17:00–20:00)",
-            "annual_savings_potential_eur": 12.00,
-            "tip_pl": (
-                "Wskazówka dla dzieci: po szkole można spokojnie grać i uczyć się, "
-                "pamiętajcie jedynie o wyłączaniu konsoli i monitora z trybu czuwania na noc."
-            ),
-            "target_group": "Dzieci i młodzież",
-        },
-        {
-            "device": "Piekarnik i płyta indukcyjna",
-            "icon": "cooking",
-            "energy_per_cycle_kwh": 2.5,
-            "best_hours": "Wcześniejszy obiad (do 16:30) lub po 20:00",
-            "worst_hours": "Godziny 18:00 – 20:00",
-            "annual_savings_potential_eur": 18.00,
-            "tip_pl": (
-                "Gotowanie generuje wysoki pobór chwilowy. Jeśli pieczesz obiad w szczycie, "
-                "nie włączaj w tym samym czasie pralki ani zmywarki."
-            ),
-            "target_group": "Osoby przygotowujące posiłki",
-        },
-    ]
-    return api_success({"currency": tariffs.CURRENCY, "devices": guidance})
+    """Rzeczywiste liczby cykli i energii w wygenerowanym roku modelowym."""
+    records, _, events = data.load_annual()
+    devices = []
+    for device, display_name in (
+        ("Zmywarka", "Zmywarka"),
+        ("Pralka", "Pralka"),
+        ("Suszarka", "Suszarka bębnowa"),
+    ):
+        selected = [event for event in events if event.device == device]
+        total = sum((event.energy_kwh for event in selected), Decimal(0))
+        outside = sum(
+            (event.energy_kwh for event in selected if event.start_hour not in pv.PV_WINDOW),
+            Decimal(0),
+        )
+        devices.append(
+            {
+                "device": display_name,
+                "annual_events": len(selected),
+                "annual_energy_kwh": _to_float(total),
+                "energy_per_cycle_kwh": _to_float(total / len(selected)) if selected else None,
+                "energy_started_outside_pv_window_kwh": _to_float(outside),
+            }
+        )
+    for label, index in (("Komputery i RTV", 4), ("Gotowanie", 3)):
+        total = sum((record.categories[index] for record in records), Decimal(0))
+        devices.append({"device": label, "annual_energy_kwh": _to_float(total)})
+    return api_success({"devices": devices, "pv_window": "09:00–15:00"})
 
 
 # ----------------------------------------------------------------------
@@ -325,19 +208,18 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
     if current_price >= Decimal("0.40"):
         period_label = "Szczyt popołudniowy (drogo)"
         period_color = "red"
-        period_advice = "Unikaj włączania pralki i zmywarki"
     elif current_price <= Decimal("0.18"):
         period_label = "Dolina nocna (bardzo tanio)"
         period_color = "green"
-        period_advice = "Świetna pora na energochłonne urządzenia"
     elif 9 <= current_hour_idx < 15:
-        period_label = "Okno słoneczne (fotowoltaika)"
+        period_label = "Taryfa dzienna (okno modelu PV)"
         period_color = "green"
-        period_advice = "Darmowa energia ze słońca — włączaj śmiało AGD"
     else:
         period_label = "Standardowa stawka dzienna"
         period_color = "yellow"
-        period_advice = "Zwykłe korzystanie z urządzeń"
+
+    annual_records, annual_weather, annual_events = data.load_annual()
+    pv_preview = pv.simulate(annual_records, annual_weather, annual_events, Decimal(5))
 
     # Dominująca kategoria w ostatniej godzinie
     max_cat_idx = max(range(len(last_hour.categories)), key=lambda i: last_hour.categories[i])
@@ -365,7 +247,6 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
                 "price_eur": _to_float(current_price),
                 "period_label": period_label,
                 "period_color": period_color,
-                "period_advice": period_advice,
                 "currency": tariffs.CURRENCY,
             },
             "history_last_24h_kwh": _to_float(sum_last_24h),
@@ -373,8 +254,8 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
             "next_peak": next_peak,
             "pv_preview": {
                 "reference_kwp": 5.0,
-                "typical_annual_coverage_percent": 33.5,
-                "optimized_annual_coverage_percent": 39.5,
+                "typical_annual_coverage_percent": _to_float(pv_preview.coverage_a, 2),
+                "optimized_annual_coverage_percent": _to_float(pv_preview.coverage_b, 2),
             },
         }
     )
@@ -591,19 +472,16 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
                     "start_hour": 0,
                     "end_hour": 6,
                     "price_per_kwh": 0.18,
-                    "tip": "Optymalne godziny na ładowanie akumulatorów lub nocną pracę urządzeń.",
                 },
                 "pv_window": {
                     "start_hour": 9,
                     "end_hour": 15,
                     "price_per_kwh": 0.28,
-                    "tip": "Optymalne godziny na pranie i zmywanie pod kątem własnej fotowoltaiki.",
                 },
                 "peak_window": {
                     "start_hour": 17,
                     "end_hour": 22,
                     "price_per_kwh": 0.40,
-                    "tip": "Unikaj włączania dużego AGD (zmywarka, pralka, suszarka).",
                 },
             },
         }
@@ -632,7 +510,15 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
         "yes",
     )
 
-    form = PvForm({"kwp": kwp_val, "miesiac": month_val})
+    form = PvForm(
+        {
+            "kwp": kwp_val,
+            "miesiac": month_val,
+            "magazyn_kwh": params.get("magazyn_kwh", "0"),
+            "magazyn_moc_kw": params.get("magazyn_moc_kw", "5"),
+            "magazyn_koszt_eur": params.get("magazyn_koszt_eur", "0"),
+        }
+    )
     if not form.is_valid():
         return api_error(
             "Niepoprawne parametry symulacji PV.",
@@ -643,9 +529,14 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
 
     kwp = form.cleaned_data["kwp"]
     month = int(form.cleaned_data["miesiac"])
+    storage = pv.StorageConfig(
+        form.cleaned_data["magazyn_kwh"],
+        form.cleaned_data["magazyn_moc_kw"],
+        form.cleaned_data["magazyn_koszt_eur"],
+    )
 
-    sim_result = pv.simulate(records, weather_annual, events, kwp)
-    effects = pv.device_effects(records, weather_annual, events, kwp)
+    sim_result = pv.simulate(records, weather_annual, events, kwp, storage)
+    effects = pv.device_effects(records, weather_annual, events, kwp, storage)
 
     var_a = sim_result.variant_a
     var_b = sim_result.variant_b
@@ -660,6 +551,9 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
     response_data: dict[str, Any] = {
         "kwp": _to_float(kwp, 1),
         "currency": tariffs.CURRENCY,
+        "storage_capacity_kwh": _to_float(storage.capacity_kwh),
+        "storage_power_kw": _to_float(storage.power_kw),
+        "investment_eur": _to_float(sim_result.investment_eur, 2),
         "annual_consumption_kwh": _to_float(sim_result.consumption_kwh),
         "annual_production_kwh": _to_float(sim_result.production_kwh),
         "variant_a": {
@@ -698,7 +592,7 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
 
     if include_profile:
         try:
-            week = pv.representative_week(records, weather_annual, events, kwp, month)
+            week = pv.representative_week(records, weather_annual, events, kwp, month, storage)
             response_data["week_profile"] = {
                 "month": month,
                 "timestamps": [t.isoformat() for t in week.timestamps],
@@ -805,6 +699,7 @@ def flexible_events_list(request: HttpRequest) -> JsonResponse:
 
 
 @require_http_methods(["GET", "POST"])
+@handle_data_errors
 def shift_simulation(request: HttpRequest) -> JsonResponse:
     """Kalkulator korzyści z przesunięcia pracy urządzenia (dostępny przez prosty GET lub POST)."""
     params, parse_err = _parse_params(request)
@@ -852,31 +747,12 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
     target_cost = target_price * energy_kwh
     savings_per_cycle = orig_cost - target_cost
 
-    # Szacunek roczny (przyjmując ok. 150-220 cykli rocznie w 6-osobowym domu)
-    annual_cycles = 220 if device == "Zmywarka" else (180 if device == "Pralka" else 150)
+    _, _, annual_events = data.load_annual()
+    annual_cycles = sum(event.device == device for event in annual_events)
     annual_savings = savings_per_cycle * annual_cycles
 
     in_pv_window = target_h in pv.PV_WINDOW
     in_night_valley = target_h in range(0, 6)
-
-    tip_parts = []
-    if savings_per_cycle > 0:
-        tip_parts.append(
-            f"Przesunięcie z godziny {orig_h}:00 na {target_h}:00 oszczędza "
-            f"{_to_float(savings_per_cycle, 3)} EUR na jeden cykl."
-        )
-    elif savings_per_cycle < 0:
-        tip_parts.append(f"Uwaga: godzina {target_h}:00 ma wyższą stawkę taryfową niż {orig_h}:00.")
-    else:
-        tip_parts.append("Obie godziny mają tę samą stawkę taryfową z sieci.")
-
-    if in_pv_window:
-        tip_parts.append(
-            "Godzina docelowa przypada w oknie maksymalnego promieniowania PV (9:00–15:00), "
-            "co pozwala zasilić urządzenie darmową energią ze słońca!"
-        )
-    elif in_night_valley:
-        tip_parts.append("Godzina docelowa przypada w najtańszej dolinie nocnej (0,18 EUR/kWh).")
 
     return api_success(
         {
@@ -891,9 +767,14 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
             "savings_per_cycle_eur": _to_float(savings_per_cycle),
             "estimated_annual_cycles": annual_cycles,
             "estimated_annual_savings_eur": _to_float(annual_savings, 2),
+            "annual_cycles_source": "liczba zdarzeń w roku modelowym",
             "in_pv_window": in_pv_window,
             "in_night_valley": in_night_valley,
-            "recommendation": " ".join(tip_parts),
+            "recommendation": (
+                f"Koszt jednego cyklu według taryfy: {_to_float(orig_cost, 3)} EUR "
+                f"o {orig_h}:00 i {_to_float(target_cost, 3)} EUR o {target_h}:00. "
+                "Porównanie nie uwzględnia produkcji PV w konkretnej godzinie."
+            ),
         }
     )
 

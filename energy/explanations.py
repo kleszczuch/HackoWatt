@@ -1,6 +1,6 @@
 """Wyjaśnienia godzin szczytu prostym językiem.
 
-Budowane z udziałów kategorii w prognozie, temperatury i typu dnia —
+Budowane z udziałów kategorii w prognozie, temperatury i typu dnia –
 bez żargonu i bez obiecywania dokładności.
 """
 
@@ -26,6 +26,7 @@ class PeakExplanation:
     timestamp: datetime
     total: Decimal
     sentence: str
+    components: tuple[str, ...]
 
 
 def _temperature_phrase(temperature: float) -> str:
@@ -64,9 +65,9 @@ def explain_peaks(
         joined = reasons[0] if len(reasons) == 1 else ", ".join(reasons[:-1]) + f" i {reasons[-1]}"
         total_text = str(total.quantize(Decimal("0.1"))).replace(".", ",")
         sentence = (
-            f"{weekday.capitalize()} {record.timestamp:%d.%m}, godz. {record.timestamp:%H}:00 — "
-            f"ok. {total_text} kWh ({day_kind}). "
-            f"Główne przyczyny: {joined}.{weather_part}"
+            f"{weekday.capitalize()} {record.timestamp:%d.%m}, godz. {record.timestamp:%H}:00 – "
+            f"{total_text} kWh ({day_kind}). Największe składniki zużycia: {joined}."
+            f"{weather_part}"
         )
-        explanations.append(PeakExplanation(record.timestamp, total, sentence))
+        explanations.append(PeakExplanation(record.timestamp, total, sentence, tuple(reasons)))
     return explanations
