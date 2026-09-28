@@ -1,42 +1,43 @@
 {% extends "energy/base.html" %}
-{% block title %}eko-dziki · Przegląd godzinowy{% endblock %}
+{% load energy_labels %}
+{% block title %}eko-dziki · Hourly data{% endblock %}
 {% block content %}
 <section class="hourly-heading">
-  <div><p class="eyebrow">DOKŁADNE WARTOŚCI · SYMULACJA</p><h1>Przegląd godzinowy</h1><p>Każda godzina i kategoria zużycia z zapisanej historii symulacji.</p></div>
-  <a class="button secondary" href="{% url 'dashboard' %}">← Pulpit</a>
+  <div><p class="eyebrow">EXACT VALUES · SIMULATION</p><h1>Hourly data</h1><p>Every hour and consumption category from the saved simulation history.</p></div>
+  <a class="button secondary" href="{% url 'dashboard' %}">← Dashboard</a>
 </section>
 <section class="panel filter-panel" aria-labelledby="filter-heading">
-  <div class="section-heading compact"><div><p class="eyebrow">WYBIERZ DANE</p><h2 id="filter-heading">Zakres dat</h2></div></div>
+  <div class="section-heading compact"><div><p class="eyebrow">SELECT DATA</p><h2 id="filter-heading">Date range</h2></div></div>
   <form class="filter-form" method="get" action="{% url 'hourly_history' %}">
-    <div class="field"><label for="{{ form.start.id_for_label }}">Historia od</label>{{ form.start }}</div>
-    <div class="field"><label for="{{ form.end.id_for_label }}">Historia do</label>{{ form.end }}</div>
-    <button class="button primary" type="submit">Pokaż godziny →</button>
-    {% if form.is_valid %}{% if rolling_days %}<a class="button secondary" href="{% url 'export_csv' %}?dni={{ rolling_days }}">Pobierz CSV</a>{% else %}<a class="button secondary" href="{% url 'export_csv' %}?start={{ start }}&amp;end={{ end }}">Pobierz CSV</a>{% endif %}{% endif %}
+    <div class="field"><label for="{{ form.start.id_for_label }}">History from</label>{{ form.start }}</div>
+    <div class="field"><label for="{{ form.end.id_for_label }}">History to</label>{{ form.end }}</div>
+    <button class="button primary" type="submit">Show hours →</button>
+    {% if form.is_valid %}{% if rolling_days %}<a class="button secondary" href="{% url 'export_csv' %}?dni={{ rolling_days }}">Download CSV</a>{% else %}<a class="button secondary" href="{% url 'export_csv' %}?start={{ start }}&amp;end={{ end }}">Download CSV</a>{% endif %}{% endif %}
   </form>
   {% if form.errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}{{ form.start.errors }}{{ form.end.errors }}</div>{% endif %}
 </section>
 {% if form.is_valid %}
 <section class="panel chart-panel" aria-labelledby="history-heading">
-  <div class="section-heading"><div><p class="eyebrow">HISTORIA · SYMULACJA</p><h2 id="history-heading">Zużycie i temperatura</h2></div><span class="muted">{% if rolling_days %}Ostatnie {{ rolling_days }} dni · {% endif %}{{ selected_count }} godzin · {{ selected_total|floatformat:1 }} kWh</span></div>
+  <div class="section-heading"><div><p class="eyebrow">HISTORY · SIMULATION</p><h2 id="history-heading">Energy use and temperature</h2></div><span class="muted">{% if rolling_days %}Last {{ rolling_days }} days · {% endif %}{{ selected_count }} hours · {{ selected_total|floatformat:1 }} kWh</span></div>
   <div class="plot">{{ history_chart|safe }}</div>
 </section>
 <section class="panel table-panel" aria-labelledby="table-heading">
-  <div class="section-heading"><div><p class="eyebrow">DOKŁADNE WARTOŚCI</p><h2 id="table-heading">Historia godzinowa</h2></div><span class="muted">{{ selected_count }} rekordów · wszystkie wartości w kWh</span></div>
+  <div class="section-heading"><div><p class="eyebrow">EXACT VALUES</p><h2 id="table-heading">Hourly history</h2></div><span class="muted">{{ selected_count }} records · all values in kWh</span></div>
   <div class="table-scroll">
     <table>
-      <thead><tr><th>Data i godzina</th>{% for label in category_labels %}<th>{{ label }}</th>{% endfor %}<th>Razem</th><th>Zdarzenia</th></tr></thead>
+      <thead><tr><th>Date and time</th>{% for label in category_labels %}<th>{{ label }}</th>{% endfor %}<th>Total</th><th>Events</th></tr></thead>
       <tbody>
         {% for record in page %}<tr>
           <td class="timestamp">{{ record.timestamp|date:"d.m.Y H:i" }}</td>
           {% for value in record.categories %}<td class="number">{{ value }}</td>{% endfor %}
-          <td class="number total">{{ record.total }}</td><td>{{ record.events }}</td>
-        </tr>{% empty %}<tr><td colspan="9" class="table-empty">Brak godzin dla tego zakresu.</td></tr>{% endfor %}
+          <td class="number total">{{ record.total }}</td><td>{{ record.events|english_events }}</td>
+        </tr>{% empty %}<tr><td colspan="9" class="table-empty">No hourly data for this range.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Strony tabeli">
-    <span>Strona {{ page.number }} z {{ page.paginator.num_pages }}</span>
-    <div>{% if page.has_previous %}<a class="button secondary" href="?{% if rolling_days %}dni={{ rolling_days }}{% else %}start={{ start }}&amp;end={{ end }}{% endif %}&amp;page={{ page.previous_page_number }}">← Poprzednia</a>{% endif %}{% if page.has_next %}<a class="button secondary" href="?{% if rolling_days %}dni={{ rolling_days }}{% else %}start={{ start }}&amp;end={{ end }}{% endif %}&amp;page={{ page.next_page_number }}">Następna →</a>{% endif %}</div>
+  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Table pages">
+    <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+    <div>{% if page.has_previous %}<a class="button secondary" href="?{% if rolling_days %}dni={{ rolling_days }}{% else %}start={{ start }}&amp;end={{ end }}{% endif %}&amp;page={{ page.previous_page_number }}">← Previous</a>{% endif %}{% if page.has_next %}<a class="button secondary" href="?{% if rolling_days %}dni={{ rolling_days }}{% else %}start={{ start }}&amp;end={{ end }}{% endif %}&amp;page={{ page.next_page_number }}">Next →</a>{% endif %}</div>
   </nav>{% endif %}
 </section>
 {% endif %}

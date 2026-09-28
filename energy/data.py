@@ -40,7 +40,7 @@ def _data_dir() -> Path:
 
 
 def _missing() -> FileNotFoundError:
-    return FileNotFoundError("Dane są chwilowo niedostępne.")
+    return FileNotFoundError("Demo data is temporarily unavailable.")
 
 
 def _read_consumption(path: Path) -> list[ConsumptionHour]:
@@ -51,7 +51,7 @@ def _read_consumption(path: Path) -> list[ConsumptionHour]:
     with path.open(encoding="utf-8-sig", newline="") as source:
         reader = csv.DictReader(source)
         if reader.fieldnames is None or not required.issubset(reader.fieldnames):
-            raise DemoDataError(f"Plik {path.name} nie ma wymaganych kolumn.")
+            raise DemoDataError(f"File {path.name} is missing required columns.")
         for line_number, row in enumerate(reader, start=2):
             try:
                 timestamp = datetime.strptime(row["Data_Czas"], "%Y-%m-%d %H:%M:%S")
@@ -59,14 +59,14 @@ def _read_consumption(path: Path) -> list[ConsumptionHour]:
                 total = Decimal(row[TOTAL_COLUMN])
                 values = (*categories, total)
                 if any(not value.is_finite() or value < 0 for value in values):
-                    raise ValueError("wartość ujemna lub nieskończona")
+                    raise ValueError("negative or infinite value")
                 if sum(categories, Decimal(0)) != total:
-                    raise ValueError("suma kategorii różni się od sumy całkowitej")
+                    raise ValueError("category sum differs from the total")
             except (TypeError, ValueError, InvalidOperation) as exc:
-                raise DemoDataError(f"Błąd w {path.name}, wiersz {line_number}: {exc}") from exc
+                raise DemoDataError(f"Error in {path.name}, row {line_number}: {exc}") from exc
             records.append(ConsumptionHour(timestamp, categories, row.get(EVENTS_COLUMN, "")))
     if not records:
-        raise DemoDataError(f"Plik {path.name} nie zawiera żadnych godzin.")
+        raise DemoDataError(f"File {path.name} contains no hourly records.")
     return records
 
 
@@ -124,7 +124,7 @@ def load_backtest() -> list[BacktestRow]:
     with path.open(encoding="utf-8-sig", newline="") as source:
         reader = csv.DictReader(source)
         if reader.fieldnames is None or not set(BACKTEST_COLUMNS).issubset(reader.fieldnames):
-            raise DemoDataError(f"Plik {path.name} nie ma wymaganych kolumn.")
+            raise DemoDataError(f"File {path.name} is missing required columns.")
         for row in reader:
             try:
                 rows.append(
@@ -136,9 +136,9 @@ def load_backtest() -> list[BacktestRow]:
                     )
                 )
             except (TypeError, ValueError, InvalidOperation) as exc:
-                raise DemoDataError(f"Błąd w {path.name}: {exc}") from exc
+                raise DemoDataError(f"Error in {path.name}: {exc}") from exc
     if not rows:
-        raise DemoDataError(f"Plik {path.name} nie zawiera danych backtestu.")
+        raise DemoDataError(f"File {path.name} contains no backtest data.")
     return rows
 
 
@@ -149,7 +149,7 @@ def load_metrics() -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise DemoDataError(f"Plik {path.name} nie jest poprawnym JSON: {exc}") from exc
+        raise DemoDataError(f"File {path.name} is not valid JSON: {exc}") from exc
 
 
 def default_dates(history: list[ConsumptionHour]) -> tuple[date, date]:
