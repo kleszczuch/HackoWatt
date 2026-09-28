@@ -1,0 +1,38 @@
+{% load static %}
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}HackoWatt{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'energy/dashboard.css' %}">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="{% url 'dashboard' %}" aria-label="HackoWatt — strona główna">
+        <span class="brand-icon">⚡</span><span>Hacko<span class="brand-accent">Watt</span></span>
+      </a>
+      <nav class="topnav" aria-label="Nawigacja główna">
+        <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>Pulpit</a>
+        <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>Symulator PV</a>
+        <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>Założenia</a>
+      </nav>
+    </header>
+
+    <main>
+      {% if data_error %}
+      <section class="panel empty-state" role="status">
+        <span class="empty-icon">◌</span>
+        <h2>Dane nie są jeszcze gotowe</h2>
+        <p>{{ data_error }}</p>
+        <code>uv run python manage.py prepare_demo_data</code>
+      </section>
+      {% else %}
+      {% block content %}{% endblock %}
+      {% endif %}
+    </main>
+    <footer>HackoWatt · scenariusz 4 „Dom pełen pokoleń” · pogoda: Open-Meteo, Kopenhaga · koszty w EUR są szacunkami</footer>
+  </div>
+</body>
+</html>

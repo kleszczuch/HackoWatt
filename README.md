@@ -1,9 +1,10 @@
-# HackoWatt
+# HackoWatt — Scenariusz 4 „Dom pełen pokoleń”
 
-Lokalny dashboard Django pokazujący **syntetyczne** godzinowe zużycie energii
-w 2026 roku oraz 90-dniową prognozę z modelu XGBoost. Wykres roczny pokazuje
-sumy dzienne, sześć wykresów szczegółowych pokazuje kategorie godzinowe,
-a tabela zawiera dokładne wartości z wygenerowanych plików CSV.
+Lokalna aplikacja Django dla konkursowego scenariusza trzypokoleniowego domu
+w Kopenhadze: **35 dni godzinowej historii** zużycia z generatora zdarzeń
+domowników na **realnej pogodzie Open-Meteo**, **prognoza 24 h / 3 / 7 dni**
+z oceną błędu wobec baseline'u oraz **symulator fotowoltaiki** z dwoma
+wariantami zwrotu inwestycji.
 
 ## Uruchomienie
 
@@ -17,17 +18,32 @@ uv run python manage.py prepare_demo_data
 uv run python manage.py runserver 127.0.0.1:8000
 ```
 
-Otwórz `http://127.0.0.1:8000/`. Komenda `prepare_demo_data` tworzy
-`data/zuzycie_energii_barbara_jan.csv` (8760 godzin) i
-`data/prognoza_energii_barbara_jan.csv` (2160 godzin). Przy kolejnych
-uruchomieniach serwera nie trzeba jej powtarzać. Powtórne wykonanie nadpisuje
-oba pliki powtarzalnymi danymi i ponownie trenuje sześć modeli.
+Otwórz `http://127.0.0.1:8000/`. Komenda `prepare_demo_data` wymaga jednorazowo
+dostępu do sieci (Open-Meteo); przy jej błędzie używa wcześniej zapisanych
+plików pogody, więc aplikacja działa offline na gotowej migawce CSV.
+Powtórne wykonanie odświeża pogodę i wszystkie dane.
 
-Wybierz daty **Od** i **Do**, aby zawęzić wykresy godzinowe i tabelę. Domyślny
-zakres obejmuje koniec symulacji i początek prognozy. Tabela pokazuje 48
-rekordów na stronie; przycisk **Pobierz CSV** eksportuje wszystkie rekordy
-wybranego zakresu z dokładnością zapisaną w plikach. Wykresy działają
-lokalnie bez połączenia z CDN.
+## Strony
+
+- `/` — pulpit: wykres historii zużycia i temperatury (35 dni), wybór zakresu
+  dat i horyzontu prognozy (24 h / 3 / 7 dni), sumy kWh, godziny szczytu
+  z prostymi wyjaśnieniami oraz panel „model kontra baseline tydzień temu”
+  (MAE i MAPE na ostatnich 7 dniach historii).
+- `/symulator-pv/` — wybór mocy kWp, tabela porównawcza wariantów, roczna
+  produkcja z realnego promieniowania, pokrycie zapotrzebowania, mniej energii
+  z sieci, oszczędności i czas zwrotu: A (obecne nawyki) i B (po przesunięciu
+  zmywarki, pralki i suszarki w godziny 9–15), wspólny wykres tygodniowy
+  oraz rekomendacje z efektem w kWh i €.
+- `/zalozenia/` — harmonogram mieszkańców, parametry urządzeń, sposób tworzenia
+  historii, taryfa, założenia PV i metodologia szacunku rocznego.
+- `/export.csv` — eksport historii i prognozy dla wybranego zakresu.
+
+## Dane w `data/`
+
+`historia_zuzycie.csv` (840 h), `prognoza_zuzycie.csv` (168 h),
+`pogoda_historia.csv`, `pogoda_prognoza.csv`, `pogoda_roczna.csv` (8760 h),
+`roczne_zuzycie.csv`, `zdarzenia_elastyczne.csv`, `roczne_zdarzenia.csv`,
+`backtest.csv` i `metryki.json`.
 
 ## Sprawdzenie
 
@@ -36,21 +52,20 @@ uv run python manage.py test
 uv run python manage.py check
 uv run ruff check .
 uv run ruff format --check .
-openspec validate dashboard-danych-demo --strict
+openspec validate scenariusz-4-dom-pokolen --strict
 ```
 
-Sprawdzone lokalnie: 7 testów przechodzi; kontrole Django i Ruff przechodzą.
-Żądanie strony głównej zwraca HTTP 200, a eksport dla 31 grudnia 2026 i
-1 stycznia 2027 zawiera 48 godzin danych.
+## Zakres i uczciwość wyliczeń
 
-## Zakres
+Historia jest **symulacją** zdarzeń (posiłki, pranie, praca zdalna, goście,
+wyjazdy) warunkowaną temperaturą z Open-Meteo — nie odczytem licznika. Roczne
+zużycie szacuje ten sam generator uruchomiony na 12 miesiącach realnej pogody;
+sezonowość ogrzewania wynika z temperatury, a produkcji PV z promieniowania.
+Koszty w EUR według załącznika „Common Challenge Assumptions” (taryfa
+0,18/0,28/0,40 €/kWh, PV 1300 €/kWp, eksport 0,08 €/kWh, OPEX 1%) są
+szacunkami, nie rozliczeniem.
 
-Dane są wygenerowane przez dostarczony `generuj_zuzycie.py`. Prognozę wylicza
-adaptacja `chart_generator.py`; model służy wyłącznie do demonstracji.
-Znaczniki czasu są etykietami godzin syntetycznych i nie uwzględniają zmian
-czasu letniego. To nie są rzeczywiste odczyty licznika ani wyliczenie rachunku.
-
-Aktywna [zmiana OpenSpec](openspec/changes/dashboard-danych-demo/proposal.md)
-opisuje dashboard. [Wcześniejszy plan](openspec/changes/domowa-optymalizacja-energii/proposal.md)
-dotyczący importu realnych odczytów, taryf i rekomendacji pozostaje osobnym,
-niewdrożonym zakresem.
+Aktywna [zmiana OpenSpec](openspec/changes/scenariusz-4-dom-pokolen/proposal.md)
+opisuje rozwiązanie scenariusza. [Wcześniejszy plan](openspec/changes/domowa-optymalizacja-energii/proposal.md)
+dotyczący importu realnych odczytów i taryf pozostaje osobnym, niewdrożonym
+zakresem.

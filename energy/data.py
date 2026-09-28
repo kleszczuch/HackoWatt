@@ -1,88 +1,161 @@
-"""Odczyt gotowych CSV bez trenowania modeli podczas żądania HTTP."""
+"""Odczyt przygotowanych plików CSV/JSON; bez pobierania i treningu w HTTP."""
 
 import csv
-from dataclasses import dataclass
+import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from django.conf import settings
 
-from chart_generator import FORECAST_FILENAME
-from generuj_zuzycie import CATEGORIES, HISTORY_FILENAME
-
-TOTAL_COLUMN = "Calkowite_Zuzycie_kWh"
-REQUIRED_COLUMNS = {"Data_Czas", *CATEGORIES, TOTAL_COLUMN}
+from energy.forecasting import BACKTEST_COLUMNS, FORECAST_FILENAME, METRICS_FILENAME, BacktestRow
+from energy.household import (
+    ANNUAL_CONSUMPTION_FILENAME,
+    ANNUAL_EVENTS_FILENAME,
+    CATEGORIES,
+    EVENTS_COLUMN,
+    FLEX_EVENTS_FILENAME,
+    HISTORY_FILENAME,
+    TOTAL_COLUMN,
+    ConsumptionHour,
+    FlexEvent,
+    read_events_csv,
+)
+from energy.weather import (
+    FORECAST_WEATHER_FILENAME,
+    HISTORY_WEATHER_FILENAME,
+    YEAR_WEATHER_FILENAME,
+    WeatherFetchError,
+    WeatherHour,
+    read_weather_csv,
+)
 
 
 class DemoDataError(ValueError):
     """Plik demonstracyjny ma nieoczekiwany lub niepoprawny format."""
 
 
-@dataclass(frozen=True)
-class EnergyRecord:
-    timestamp: datetime
-    kind: str
-    categories: tuple[str, ...]
-    total: str
-
-    @property
-    def date(self) -> date:
-        return self.timestamp.date()
-
-    @property
-    def category_cells(self) -> tuple[str, ...]:
-        return self.categories
-
-    @property
-    def total_decimal(self) -> Decimal:
-        return Decimal(self.total)
+def _data_dir() -> Path:
+    return settings.DEMO_DATA_DIR
 
 
-def _read_file(path: Path, kind: str) -> list[EnergyRecord]:
-    records = []
+def _missing() -> FileNotFoundError:
+    return FileNotFoundError("Uruchom: uv run python manage.py prepare_demo_data")
+
+
+def _read_consumption(path: Path) -> list[ConsumptionHour]:
+    if not path.is_file():
+        raise _missing()
+    required = {"Data_Czas", *CATEGORIES, TOTAL_COLUMN}
+    records: list[ConsumptionHour] = []
     with path.open(encoding="utf-8-sig", newline="") as source:
         reader = csv.DictReader(source)
-        if reader.fieldnames is None or not REQUIRED_COLUMNS.issubset(reader.fieldnames):
+        if reader.fieldnames is None or not required.issubset(reader.fieldnames):
             raise DemoDataError(f"Plik {path.name} nie ma wymaganych kolumn.")
-
         for line_number, row in enumerate(reader, start=2):
             try:
                 timestamp = datetime.strptime(row["Data_Czas"], "%Y-%m-%d %H:%M:%S")
-                categories = tuple(row[name] for name in CATEGORIES)
-                total = row[TOTAL_COLUMN]
-                values = [Decimal(value) for value in (*categories, total)]
+                categories = tuple(Decimal(row[name]) for name in CATEGORIES)
+                total = Decimal(row[TOTAL_COLUMN])
+                values = (*categories, total)
                 if any(not value.is_finite() or value < 0 for value in values):
                     raise ValueError("wartość ujemna lub nieskończona")
-                if sum(values[:-1]) != values[-1]:
+                if sum(categories, Decimal(0)) != total:
                     raise ValueError("suma kategorii różni się od sumy całkowitej")
             except (TypeError, ValueError, InvalidOperation) as exc:
                 raise DemoDataError(f"Błąd w {path.name}, wiersz {line_number}: {exc}") from exc
-            records.append(EnergyRecord(timestamp, kind, categories, total))
+            records.append(ConsumptionHour(timestamp, categories, row.get(EVENTS_COLUMN, "")))
+    if not records:
+        raise DemoDataError(f"Plik {path.name} nie zawiera żadnych godzin.")
     return records
 
 
-def load_demo_data() -> tuple[list[EnergyRecord], list[EnergyRecord]]:
-    folder = settings.DEMO_DATA_DIR
-    history_path = folder / HISTORY_FILENAME
-    forecast_path = folder / FORECAST_FILENAME
-    if not history_path.is_file() or not forecast_path.is_file():
-        raise FileNotFoundError("Uruchom: uv run python manage.py prepare_demo_data")
-
-    history = _read_file(history_path, "Symulacja")
-    forecast = _read_file(forecast_path, "Prognoza")
-    if not history or not forecast:
-        raise DemoDataError("Pliki danych nie mogą być puste.")
-    if history[-1].timestamp >= forecast[0].timestamp:
-        raise DemoDataError("Historia i prognoza nachodzą na siebie.")
-    return history, forecast
+def _read_weather(path: Path) -> list[WeatherHour]:
+    if not path.is_file():
+        raise _missing()
+    try:
+        return read_weather_csv(path)
+    except (WeatherFetchError, ValueError) as exc:
+        raise DemoDataError(str(exc)) from exc
 
 
-def default_dates(history: list[EnergyRecord], forecast: list[EnergyRecord]) -> tuple[date, date]:
-    return history[-1].date - timedelta(days=6), min(
-        forecast[-1].date, forecast[0].date + timedelta(days=6)
+def _read_events(path: Path) -> list[FlexEvent]:
+    if not path.is_file():
+        raise _missing()
+    try:
+        return read_events_csv(path)
+    except ValueError as exc:
+        raise DemoDataError(str(exc)) from exc
+
+
+def load_history() -> list[ConsumptionHour]:
+    return _read_consumption(_data_dir() / HISTORY_FILENAME)
+
+
+def load_forecast() -> list[ConsumptionHour]:
+    return _read_consumption(_data_dir() / FORECAST_FILENAME)
+
+
+def load_weather_history() -> list[WeatherHour]:
+    return _read_weather(_data_dir() / HISTORY_WEATHER_FILENAME)
+
+
+def load_weather_forecast() -> list[WeatherHour]:
+    return _read_weather(_data_dir() / FORECAST_WEATHER_FILENAME)
+
+
+def load_history_events() -> list[FlexEvent]:
+    return _read_events(_data_dir() / FLEX_EVENTS_FILENAME)
+
+
+def load_annual() -> tuple[list[ConsumptionHour], list[WeatherHour], list[FlexEvent]]:
+    return (
+        _read_consumption(_data_dir() / ANNUAL_CONSUMPTION_FILENAME),
+        _read_weather(_data_dir() / YEAR_WEATHER_FILENAME),
+        _read_events(_data_dir() / ANNUAL_EVENTS_FILENAME),
     )
 
 
-def filter_records(records: list[EnergyRecord], start: date, end: date) -> list[EnergyRecord]:
-    return [record for record in records if start <= record.date <= end]
+def load_backtest() -> list[BacktestRow]:
+    path = _data_dir() / "backtest.csv"
+    if not path.is_file():
+        raise _missing()
+    rows: list[BacktestRow] = []
+    with path.open(encoding="utf-8-sig", newline="") as source:
+        reader = csv.DictReader(source)
+        if reader.fieldnames is None or not set(BACKTEST_COLUMNS).issubset(reader.fieldnames):
+            raise DemoDataError(f"Plik {path.name} nie ma wymaganych kolumn.")
+        for row in reader:
+            try:
+                rows.append(
+                    BacktestRow(
+                        datetime.strptime(row["Data_Czas"], "%Y-%m-%d %H:%M:%S"),
+                        Decimal(row["Rzeczywiste_kWh"]),
+                        Decimal(row["Model_kWh"]),
+                        Decimal(row["Baseline_kWh"]),
+                    )
+                )
+            except (TypeError, ValueError, InvalidOperation) as exc:
+                raise DemoDataError(f"Błąd w {path.name}: {exc}") from exc
+    if not rows:
+        raise DemoDataError(f"Plik {path.name} nie zawiera danych backtestu.")
+    return rows
+
+
+def load_metrics() -> dict:
+    path = _data_dir() / METRICS_FILENAME
+    if not path.is_file():
+        raise _missing()
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise DemoDataError(f"Plik {path.name} nie jest poprawnym JSON: {exc}") from exc
+
+
+def default_dates(history: list[ConsumptionHour]) -> tuple[date, date]:
+    end = history[-1].timestamp.date()
+    return end - timedelta(days=6), end
+
+
+def filter_records(records: list, start: date, end: date) -> list:
+    return [record for record in records if start <= record.timestamp.date() <= end]
