@@ -38,9 +38,9 @@ PV_DEFAULTS = {
 
 def _chart_html(figure, include_plotlyjs=False):
     return figure.to_html(
-        full_html=False, 
+        full_html=False,
         include_plotlyjs=include_plotlyjs,
-        config={"scrollZoom": True}  
+        config={"scrollZoom": True}
     )
 
 
