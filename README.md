@@ -152,16 +152,34 @@ Wersja Pythona jest określona bezpośrednio w `pyproject.toml`:
 
 ---
 
-## 1. Sklonuj repozytorium
+## Sklonuj repozytorium
 
 ```bash
 git clone --recurse-submodules https://github.com/kleszczuch/HackoWatt.git
 cd HackoWatt
 ```
 
+Następnie jedną komendą możesz włączyć serwer z pobranymi danymi:
+
+```bash
+uv run manage.py all
+```
+
+Jest możliwość konfiguracji powyższej komendy, jeżeli wymagane jest pominięcie jakiegoś kroku:
+
+```bash
+uv run manage.py all --no-server — wykonuje tylko synchronizację i przygotowanie danych bez uruchamiania serwera.
+uv run manage.py all --no-sync — pomija krok uv sync.
+uv run manage.py all --no-tariffs — pomija pobieranie cen RCE.
+uv run manage.py all --no-data — pomija generowanie symulacji scenariuszy.
+uv run manage.py all --addrport 127.0.0.1:8000 — pozwala zmienić adres lub port serwera.
+```
+
+Poniżej znajduje się krok po kroku, możliwość ręcznego pobrania danych i włączenia serwera
+
 ---
 
-## 2. Zainstaluj zależności
+## 1. Zainstaluj zależności
 
 Projekt wykorzystuje `uv` do zarządzania środowiskiem i zależnościami:
 
@@ -171,14 +189,14 @@ uv sync
 
 ---
 
-## 3. Wykonaj migracje Django
+## 2. Wykonaj migracje Django
 
 ```bash
 uv run python manage.py migrate
 ```
 ---
 
-## 4. Pobierz ceny dla taryfy dynamicznej
+## 3. Pobierz ceny dla taryfy dynamicznej
 
 ```bash
 uv run python manage.py fetch_tariff_prices
@@ -186,7 +204,7 @@ uv run python manage.py fetch_tariff_prices
 
 ---
 
-## 5. Przygotuj dane demonstracyjne
+## 4. Przygotuj dane demonstracyjne
 
 ```bash
 uv run python manage.py prepare_data
@@ -198,7 +216,7 @@ Ponowne uruchomienie tej komendy odświeża dane.
 
 ---
 
-## 6. Uruchom aplikację
+## 5. Uruchom aplikację
 
 ```bash
 uv run python manage.py runserver 127.0.0.1:8000
