@@ -127,34 +127,35 @@
   
   <div class="explanation-list">
     {% for effect in effects %}
-    <!-- Warunkowy kolor paska bocznego: Pomarańczowy (jest co poprawiać) lub Zielony (jest idealnie) -->
+    
+    <!-- Kolor paska bocznego: Pomarańczowy lub Zielony (ZAMKNIĘTY IF) -->
     {% if effect.moved_kwh > 0 %}
-        <div class="explanation" style="border-left: 4px solid #f59e0b; padding: 16px; margin-bottom: 20px; background: white; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        {% else %}
-        <div class="explanation" style="border-left: 4px solid #10b981; padding: 16px; margin-bottom: 20px; background: white; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        {% endif %}
+    <div class="explanation" style="border-left: 4px solid #f59e0b; padding: 16px; margin-bottom: 20px; background: white; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    {% else %}
+    <div class="explanation" style="border-left: 4px solid #10b981; padding: 16px; margin-bottom: 20px; background: white; border-radius: 0 8px 8px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    {% endif %}
       
-      <!-- Tytuł urządzenia + Nasz nowy Headline z views.py -->
+      <!-- Tytuł urządzenia + Headline z views.py -->
       <h3 style="margin-top: 0; font-size: 1.1rem; color: #1e293b;">
         <strong>{{ effect.device }}</strong>: {{ effect.advice.headline }}
       </h3>
       
-      <!-- Nasze porady wygenerowane w views.py -->
+      <!-- Porady z views.py -->
       <div style="margin-top: 12px; line-height: 1.5; color: #475569;">
-        <p style="margin: 4px 0;">🎯 <strong>Co warto zrobić:</strong> {{ effect.advice.action }}</p>
-        <p style="margin: 4px 0;">🛋️ <strong>Twój komfort:</strong> {{ effect.advice.comfort }}</p>
+        <p style="margin: 4px 0;"> <strong>Co warto zrobić:</strong> {{ effect.advice.action }}</p>
+        <p style="margin: 4px 0;"> <strong>Twój komfort:</strong> {{ effect.advice.comfort }}</p>
       </div>
       
-      <!-- Box pokazujący twarde dane (tylko jeśli jest jakaś oszczędność do zdobycia) -->
+      <!-- Box pokazujący dane (ZAMKNIĘTY IF) -->
       {% if effect.moved_kwh > 0 %}
       <div style="margin-top: 16px; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 12px 16px; border-radius: 8px; color: #065f46; font-size: 0.95rem;">
-        💡 Przeniesiesz <strong>~{{ effect.moved_kwh|floatformat:0 }} kWh/rok</strong> ze słabych godzin bezpośrednio w słoneczne.<br/>
-        Ominiesz konieczność kupowania <strong>{{ effect.grid_saved_kwh|floatformat:0 }} kWh</strong> z sieci, 
+        Przeniesione zostanie <strong>~{{ effect.moved_kwh|floatformat:0 }} kWh/rok</strong> ze słabych godzin bezpośrednio w słoneczne.<br/>
+        Ominięta zostanie konieczność kupowania <strong>{{ effect.grid_saved_kwh|floatformat:0 }} kWh</strong> z sieci, 
         co obniży rachunki o <strong style="font-size: 1.1rem;">ok. {{ effect.money_saved|floatformat:0 }} € w skali roku</strong>!
       </div>
       {% endif %}
       
-    </div>
+    </div> <!-- Koniec diva "explanation" -->
     {% endfor %}
     
     <!-- Tip dla "Domu pełnego pokoleń" -->
@@ -164,3 +165,6 @@
     </div>
   </div>
 </section>
+
+{% endif %}
+{% endblock %}

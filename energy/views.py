@@ -173,36 +173,36 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
 def get_behavioral_advice(device_name, moved_kwh):
     if moved_kwh <= 0:
         return {
-            "headline": "Świetna robota – gracie w zielone! 🌱",
+            "headline": "Jest dobrze!",
             "action": "Urządzenie już teraz pracuje w godzinach najwyższej produkcji słonecznej.",
-            "comfort": "Nic nie zmieniaj – Wasze obecne nawyki są wzorowe."
+            "comfort": "Nic nie zmieniaj - Wasze obecne nawyki są wzorowe."
         }
         
     device_lower = str(device_name).lower()
     
     if "zmywarka" in device_lower or "duze" in device_lower:
         return {
-            "headline": "Magia opóźnionego startu ⏲️",
-            "action": "Zamiast czekać do wieczora, ładuj zmywarkę po obiedzie i używaj funkcji opóźnionego startu celując w okolice 13:00.",
-            "comfort": "Zmywarka pracuje bezgłośnie, gdy jesteście poza domem. Wieczorem macie puste zlewy – zero stresu!"
+            "headline": "Opóźniony start",
+            "action": "Zamiast czekać do wieczora, można załadować zmywarkę po obiedzie i używać funkcji opóźnionego startu celując w okolice 13:00.",
+            "comfort": "Zmywarka pracuje bezgłośnie, gdy jesteście poza domem. Wieczorem macie puste zlewy - zero stresu!"
         }
     elif "pralka" in device_lower:
         return {
-            "headline": "Pranie za darmo od Słońca ☀️",
+            "headline": "Darmowe pranie",
             "action": "Skoro dziadkowie lub osoby na Home Office są rano w domu, nastawiajcie pranie w okolicach 10:00 - 12:00.",
             "comfort": "Pralka skończy cykl w dzień, co ułatwi szybkie suszenie ubrań na świeżym powietrzu."
         }
     elif "suszarka" in device_lower:
         return {
-            "headline": "Wykorzystaj ciepło dnia 🌤️",
-            "action": "Unikaj uruchamiania suszarki w nocy. Najlepsze okno to wczesne popołudnie.",
+            "headline": "Wykorzystaj ciepło dnia",
+            "action": "Należy unikać uruchamiania suszarki w nocy. Najlepsze okno to wczesne popołudnie.",
             "comfort": "Suszarka generuje ciepło. Uruchomienie jej w dzień, gdy miej osób jest w domu, zmniejszy wieczorny zaduch."
         }
     else:
         return {
-            "headline": "Drobna zmiana, duży efekt 💡",
+            "headline": "Drobna zmiana, duży efekt",
             "action": "Spróbujcie przenieść pracę tego urządzenia na godziny wczesnopopołudniowe.",
-            "comfort": "Każde zasilenie urządzenia w dzień to mniejszy rachunek i więcej pieniędzy na rodzinne przyjemności."
+            "comfort": "Każde zasilenie urządzenia w dzień to mniejszy rachunek i więcej oszczędności."
         }
 
 def pv_simulator(request: HttpRequest) -> HttpResponse:
@@ -239,18 +239,26 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
     selected = next((result for result in comparison if result.kwp == kwp), None)
     if selected is None:
         selected = pv.simulate(records, weather, events, kwp, storage)
-        
+
     selected = pv.simulate(records, weather, events, kwp, storage)
 
-    # 1. Tu pobierasz oryginalne efekty (tak jak miałeś)
-    effects = pv.device_effects(records, weather, events, kwp, storage)
+    # 1. Pobieramy oryginalne efekty (zamrożone)
+    oryginalne_efekty = pv.device_effects(records, weather, events, kwp, storage)
 
-    # 2. Wzbogacamy efekty w pętli przed wysłaniem ich do HTML!
-    for effect in effects:
-        # W Pythonie zmienna effect jest najpewniej słownikiem
-        # Używamy Twoich kluczy: 'device' i 'moved_kwh'
-        porada = get_behavioral_advice(effect['device'], effect['moved_kwh'])
-        effect['advice'] = porada 
+    # 2. Przepisujemy je do nowej, "odmrożonej" listy
+    effects = []
+    for effect in oryginalne_efekty:
+        # Pobieramy poradę (tu używamy kropek, bo czytamy z zamrożonego obiektu)
+        porada = get_behavioral_advice(effect.device, effect.moved_kwh)
+        
+        # Tworzymy nowy, elastyczny słownik ze starymi danymi + naszą poradą!
+        effects.append({
+            "device": effect.device,
+            "moved_kwh": effect.moved_kwh,
+            "grid_saved_kwh": effect.grid_saved_kwh,
+            "money_saved": effect.money_saved,
+            "advice": porada
+        })
     week = pv.representative_week(records, weather, events, kwp, month, storage)
     max_production = sum(
         (pv.pv_production(hour.radiation, pv.MAX_KWP) for hour in weather), Decimal(0)
