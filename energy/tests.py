@@ -9,7 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from django.conf import settings
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from energy import forecasting, household, pv, tariffs, weather
@@ -348,3 +348,239 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(len(records), 14 * 24)
         self.assertEqual(len(series), 14 * 24)
         self.assertEqual(events[0].device, "Zmywarka")
+
+
+class ApiTests(TestCase):
+    def setUp(self):
+        self.data_dir = make_test_dir()
+        self.addCleanup(clean_test_dir, self.data_dir)
+        settings_context = override_settings(
+            DEMO_DATA_DIR=self.data_dir,
+        )
+        settings_context.enable()
+        self.addCleanup(settings_context.disable)
+        prepare_fixture_dir(self.data_dir)
+
+    def test_smart_schedule_today_endpoint(self):
+        res = self.client.get(reverse("api_smart_schedule_today"))
+        self.assertEqual(res.status_code, 200)
+        data = res.json()["data"]
+        self.assertIn("current_hour", data)
+        self.assertIn("best_windows", data)
+        self.assertIn("tips_by_generation", data)
+        self.assertIn("dla_dziadkow", data["tips_by_generation"])
+        self.assertIn("dla_mlodziezy", data["tips_by_generation"])
+        self.assertEqual(len(data["timeline"]), 24)
+
+    def test_devices_guidance_endpoint(self):
+        res = self.client.get(reverse("api_devices_guidance"))
+        self.assertEqual(res.status_code, 200)
+        devices = res.json()["data"]["devices"]
+        self.assertTrue(len(devices) >= 4)
+        names = [d["device"] for d in devices]
+        self.assertIn("Zmywarka", names)
+        self.assertIn("Pralka", names)
+        self.assertIn("Suszarka bębnowa", names)
+
+    def test_devices_shift_simulation_get_and_post(self):
+        # Odczyt przez GET z parametrami URL
+        res_get = self.client.get(
+            reverse("api_shift_simulation"),
+            {"device": "Pralka", "original_hour": "19", "target_hour": "12", "energy_kwh": "0.8"},
+        )
+        self.assertEqual(res_get.status_code, 200)
+        payload_get = res_get.json()["data"]
+        self.assertEqual(payload_get["device"], "Pralka")
+        self.assertEqual(payload_get["original_price_eur"], 0.40)
+        self.assertEqual(payload_get["target_price_eur"], 0.28)
+        self.assertGreater(payload_get["savings_per_cycle_eur"], 0)
+        self.assertTrue(payload_get["in_pv_window"])
+        self.assertIn("recommendation", payload_get)
+
+        # Odczyt przez POST z ciałem JSON
+        res_post = self.client.post(
+            reverse("api_shift_simulation"),
+            data=json.dumps({"device": "Zmywarka", "original_hour": 19, "target_hour": 1}),
+            content_type="application/json",
+        )
+        self.assertEqual(res_post.status_code, 200)
+        payload_post = res_post.json()["data"]
+        self.assertTrue(payload_post["in_night_valley"])
+        self.assertGreater(payload_post["savings_per_cycle_eur"], 0)
+
+    def test_dashboard_summary_endpoint(self):
+        res = self.client.get(reverse("api_dashboard_summary"))
+        self.assertEqual(res.status_code, 200)
+        data = res.json()["data"]
+        self.assertIn("last_reading", data)
+        self.assertIn("tariff", data)
+        self.assertIn("history_last_24h_kwh", data)
+        self.assertIn("forecast_next_24h_kwh", data)
+        self.assertIn("pv_preview", data)
+        self.assertEqual(data["tariff"]["currency"], "EUR")
+
+    def test_consumption_history_endpoint_and_pagination(self):
+        res = self.client.get(
+            reverse("api_consumption_history"),
+            {"start": "2026-09-15", "end": "2026-09-16", "page": "1", "page_size": "10"},
+        )
+        self.assertEqual(res.status_code, 200)
+        payload = res.json()["data"]
+        self.assertEqual(len(payload["items"]), 10)
+        self.assertEqual(payload["pagination"]["page"], 1)
+        self.assertEqual(payload["pagination"]["page_size"], 10)
+        self.assertEqual(payload["pagination"]["total_items"], 48)
+        self.assertEqual(payload["pagination"]["total_pages"], 5)
+        self.assertTrue(payload["pagination"]["has_next"])
+        self.assertFalse(payload["pagination"]["has_previous"])
+        self.assertIn("categories_totals", payload["summary"])
+
+    def test_consumption_history_validation_errors(self):
+        # Błędny zakres dat (end < start) -> 400
+        res_date = self.client.get(
+            reverse("api_consumption_history"),
+            {"start": "2026-09-20", "end": "2026-09-10"},
+        )
+        self.assertEqual(res_date.status_code, 400)
+        self.assertEqual(res_date.json()["error"]["code"], "INVALID_DATE_RANGE")
+
+        # Błędny page -> 400
+        res_page = self.client.get(reverse("api_consumption_history"), {"page": "0"})
+        self.assertEqual(res_page.status_code, 400)
+        self.assertEqual(res_page.json()["error"]["code"], "INVALID_PAGINATION")
+
+    def test_consumption_forecast_endpoint(self):
+        for horizon in (24, 72, 168):
+            res = self.client.get(reverse("api_consumption_forecast"), {"horizon": str(horizon)})
+            self.assertEqual(res.status_code, 200)
+            payload = res.json()["data"]
+            self.assertEqual(payload["horizon_hours"], horizon)
+            self.assertEqual(len(payload["items"]), horizon)
+            self.assertTrue(len(payload["peaks"]) > 0)
+            self.assertIn("tariff_price_eur", payload["items"][0])
+
+    def test_consumption_forecast_invalid_horizon(self):
+        res = self.client.get(reverse("api_consumption_forecast"), {"horizon": "50"})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()["error"]["code"], "INVALID_HORIZON")
+
+    def test_tariffs_endpoint(self):
+        res = self.client.get(reverse("api_tariffs_info"))
+        self.assertEqual(res.status_code, 200)
+        payload = res.json()["data"]
+        self.assertEqual(payload["currency"], "EUR")
+        self.assertEqual(len(payload["periods"]), 4)
+        self.assertIn("recommendations", payload)
+        self.assertEqual(payload["recommendations"]["cheapest_window"]["price_per_kwh"], 0.18)
+
+    def test_pv_simulate_get_and_post(self):
+        # GET
+        res_get = self.client.get(reverse("api_pv_simulate"), {"kwp": "5", "month": "6"})
+        self.assertEqual(res_get.status_code, 200)
+        data_get = res_get.json()["data"]
+        self.assertEqual(data_get["kwp"], 5.0)
+        self.assertIn("variant_a", data_get)
+        self.assertIn("variant_b", data_get)
+        self.assertIn("optimization_gain", data_get)
+        self.assertEqual(len(data_get["device_recommendations"]), 3)
+
+        # POST z profilem tygodnia dla dostępnego miesiąca (czerwiec)
+        res_post = self.client.post(
+            reverse("api_pv_simulate"),
+            data=json.dumps({"kwp": "6", "month": 6, "include_week_profile": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(res_post.status_code, 200)
+        data_post = res_post.json()["data"]
+        self.assertEqual(data_post["kwp"], 6.0)
+        self.assertIn("week_profile", data_post)
+        self.assertEqual(len(data_post["week_profile"]["timestamps"]), 7 * 24)
+
+        # POST z profilem tygodnia dla miesiąca bez pełnego tygodnia w teście
+        res_no_week = self.client.post(
+            reverse("api_pv_simulate"),
+            data=json.dumps({"kwp": "6", "month": 1, "include_week_profile": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(res_no_week.status_code, 200)
+        self.assertIsNone(res_no_week.json()["data"]["week_profile"])
+        self.assertIn("week_profile_warning", res_no_week.json()["data"])
+
+    def test_pv_simulate_validation_errors(self):
+        res_neg = self.client.get(reverse("api_pv_simulate"), {"kwp": "-5"})
+        self.assertEqual(res_neg.status_code, 400)
+        self.assertEqual(res_neg.json()["error"]["code"], "INVALID_PV_PARAMS")
+
+    def test_pv_variants_endpoint(self):
+        res = self.client.get(reverse("api_pv_variants"))
+        self.assertEqual(res.status_code, 200)
+        variants = res.json()["data"]["variants"]
+        self.assertEqual(len(variants), len(pv.COMPARE_VARIANTS_KWP))
+
+    def test_devices_flexible_events_endpoint(self):
+        res = self.client.get(reverse("api_flexible_events"), {"device": "Zmywarka"})
+        self.assertEqual(res.status_code, 200)
+        payload = res.json()["data"]
+        self.assertTrue(all(item["device"] == "Zmywarka" for item in payload["items"]))
+
+    def test_devices_shift_simulation_endpoint(self):
+        # Przesunięcie ze szczytu 19:00 na 12:00 (okno PV)
+        res = self.client.post(
+            reverse("api_shift_simulation"),
+            data=json.dumps(
+                {
+                    "device": "Pralka",
+                    "original_hour": 19,
+                    "target_hour": 12,
+                    "energy_kwh": 0.8,
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200)
+        payload = res.json()["data"]
+        self.assertEqual(payload["device"], "Pralka")
+        self.assertEqual(payload["original_price_eur"], 0.40)
+        self.assertEqual(payload["target_price_eur"], 0.28)
+        self.assertGreater(payload["savings_per_cycle_eur"], 0)
+        self.assertTrue(payload["in_pv_window"])
+        self.assertIn("recommendation", payload)
+
+    def test_devices_shift_simulation_validation_errors(self):
+        # Nieobsługiwane urządzenie
+        res_dev = self.client.post(
+            reverse("api_shift_simulation"),
+            data=json.dumps({"device": "Klimatyzator", "original_hour": 19, "target_hour": 12}),
+            content_type="application/json",
+        )
+        self.assertEqual(res_dev.status_code, 400)
+        self.assertEqual(res_dev.json()["error"]["code"], "INVALID_DEVICE")
+
+        # Błędna godzina
+        res_hour = self.client.post(
+            reverse("api_shift_simulation"),
+            data=json.dumps({"device": "Pralka", "original_hour": 25, "target_hour": 12}),
+            content_type="application/json",
+        )
+        self.assertEqual(res_hour.status_code, 400)
+        self.assertEqual(res_hour.json()["error"]["code"], "INVALID_HOURS")
+
+    def test_system_assumptions_and_metrics_endpoints(self):
+        res_assumptions = self.client.get(reverse("api_system_assumptions"))
+        self.assertEqual(res_assumptions.status_code, 200)
+        self.assertIn("household", res_assumptions.json()["data"])
+        self.assertIn("device_profiles", res_assumptions.json()["data"])
+
+        res_metrics = self.client.get(reverse("api_system_metrics"))
+        self.assertEqual(res_metrics.status_code, 200)
+        self.assertIn("mae_model", res_metrics.json()["data"])
+
+    def test_api_503_when_data_missing(self):
+        (self.data_dir / household.HISTORY_FILENAME).unlink()
+        res = self.client.get(reverse("api_dashboard_summary"))
+        self.assertEqual(res.status_code, 503)
+        self.assertEqual(res.json()["error"]["code"], "DATA_NOT_FOUND")
+
+    def test_unsupported_methods_return_405(self):
+        res = self.client.delete(reverse("api_consumption_history"))
+        self.assertEqual(res.status_code, 405)

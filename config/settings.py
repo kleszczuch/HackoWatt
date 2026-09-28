@@ -54,3 +54,5 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 DEMO_DATA_DIR = Path(os.environ.get("DEMO_DATA_DIR", BASE_DIR / "data"))
+API_SECRET_KEY = os.environ.get("HACKOWATT_API_KEY", "hackowatt-demo-mobile-key-2026")
+API_REQUIRE_AUTH = os.environ.get("API_REQUIRE_AUTH", "0") == "1"

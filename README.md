@@ -38,6 +38,37 @@ Powtórne wykonanie odświeża pogodę i wszystkie dane.
   historii, taryfa, założenia PV i metodologia szacunku rocznego.
 - `/export.csv` — eksport historii i prognozy dla wybranego zakresu.
 
+## REST API dla aplikacji mobilnej (`/api/v1/`)
+
+Aplikacja udostępnia otwarty, bezstanowy zestaw endpointów JSON REST API pod przedrostkiem
+`/api/v1/`, służący wyłącznie do odczytu danych (bez konieczności logowania, haseł
+i tokenów). Interfejs został zaprojektowany z myślą o osobach starszych (dziadkach
+obecnych w domu przed południem) oraz młodszych (dzieciach i młodzieży wracających
+ze szkoły), ułatwiając natychmiastowe sprawdzenie, w jakich godzinach najrozsądniej
+uruchomić urządzenia elektryczne.
+
+### Format odpowiedzi
+
+- **Sukces:** `{"status": "success", "data": { ... }}`
+- **Błąd:** `{"status": "error", "error": {"code": "...", "message": "...", "details": ...}}`
+
+### Dostępne endpointy
+
+| Metoda | Ścieżka | Opis | Główne parametry |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/smart-schedule/today/` | **Główny harmonogram dnia:** 24 h z kolorami (zielony/żółty/czerwony) i poradami dla seniorów i młodzieży | brak |
+| `GET` | `/api/v1/devices/guidance/` | **Przewodnik po urządzeniach:** kiedy uruchamiać zmywarkę, pralkę, suszarkę, piekarnik i konsolę | brak |
+| `GET` | `/api/v1/dashboard/summary/` | Bieżący pulpit (odczyt, prosta ocena taryfy, 24 h, najbliższy szczyt) | brak |
+| `GET` | `/api/v1/devices/shift-simulation/` | Kalkulator przesunięcia pracy urządzenia (dostępny przez prosty GET) | `device`, `original_hour`, `target_hour`, `energy_kwh` |
+| `GET` | `/api/v1/tariffs/` | Strefy taryfowe (€/kWh), bieżąca stawka i optymalne okna | brak |
+| `GET` | `/api/v1/consumption/history/` | Historia zużycia z paginacją i filtrem dat | `start`, `end`, `page`, `page_size` |
+| `GET` | `/api/v1/consumption/forecast/` | Prognoza zapotrzebowania i wyjaśnienia szczytów | `horizon` (24, 72, 168) |
+| `GET` | `/api/v1/pv/simulate/` | Symulator PV (wariant A vs B, oszczędności, zwrot) | `kwp`, `month`, `include_week_profile` |
+| `GET` | `/api/v1/pv/variants/` | Zestawienie typowych mocy instalacji PV (2–10 kWp) | brak |
+| `GET` | `/api/v1/devices/flexible-events/` | Lista zarejestrowanych cykli elastycznych urządzeń | `device`, `page`, `page_size` |
+| `GET` | `/api/v1/system/assumptions/` | Parametry urządzeń, domu i instalacji | brak |
+| `GET` | `/api/v1/system/metrics/` | Metryki dokładności modelu AI (MAE, MAPE) | brak |
+
 ## Dane w `data/`
 
 `historia_zuzycie.csv` (840 h), `prognoza_zuzycie.csv` (168 h),
