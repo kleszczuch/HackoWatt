@@ -1,3 +1,4 @@
 [submodule "mobile_app"]
 	path = mobile_app
 	url = https://github.com/allt3rr/HackoWattMobileApp
+	branch = main
