@@ -1,4 +1,5 @@
-"""Wykresy Plotly: historia z temperaturą, prognoza, backtest i symulator PV."""
+"""Wykresy Plotly: historia z temperaturą, prognoza, backtest i symulator PV.
+Plik odpowiada za generowanie wykresów i wizualizacji danych energetycznych."""
 
 from datetime import timedelta
 from decimal import Decimal
@@ -48,6 +49,7 @@ CATEGORY_DASHES = ("solid", "solid", "dash", "solid", "dot", "dashdot")
 
 
 def _base_layout(figure: go.Figure, height: int) -> go.Figure:
+    """Ustawia wspólny styl i właściwości osi dla wszystkich wykresów Plotly."""
     # 1. Automatycznie znajdujemy początek i koniec osi czasu w danych tego wykresu:
     all_x = []
     for trace in figure.data:

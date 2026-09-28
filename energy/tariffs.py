@@ -1,8 +1,4 @@
-"""Taryfa godzinowa i stałe kosztowe z załącznika „Common Challenge Assumptions”.
-
-Walutą jest EUR (załącznik konkursowy), co stanowi świadome odstępstwo
-od reguły PLN z `.ai/project-rules.md` na potrzeby scenariusza.
-"""
+"""Taryfa godzinowa i stałe."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -24,6 +20,7 @@ PV_PERFORMANCE_RATIO = Decimal("0.8")
 
 
 def price_for_hour(hour: int) -> Decimal:
+    """Zwraca cenę energii dla konkretnej godziny w oparciu o taryfę godzinową."""
     if not 0 <= hour <= 23:
         raise ValueError(f"Godzina poza zakresem 0–23: {hour}")
     for start, end, price in TARIFF_PERIODS:
@@ -33,7 +30,7 @@ def price_for_hour(hour: int) -> Decimal:
 
 
 def energy_cost(timestamps: list[datetime], amounts_kwh: list[Decimal]) -> Decimal:
-    """Koszt zakupu energii według taryfy godzinowej, bez pośredniego float."""
+    """Oblicza koszt energii na podstawie godzinowej taryfy i zużycia w kWh."""
     if len(timestamps) != len(amounts_kwh):
         raise ValueError("Liczba znaczników czasu i wartości kWh musi być równa.")
     pairs = zip(timestamps, amounts_kwh, strict=True)

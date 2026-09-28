@@ -36,14 +36,17 @@ class DemoDataError(ValueError):
 
 
 def _data_dir() -> Path:
+    """Zwraca katalog z danymi demo z ustawień projektu."""
     return settings.DEMO_DATA_DIR
 
 
 def _missing() -> FileNotFoundError:
+    """Tworzy wspólny błąd, gdy brak pliku z danymi demonstracyjnymi."""
     return FileNotFoundError("Demo data is temporarily unavailable.")
 
 
 def _read_consumption(path: Path) -> list[ConsumptionHour]:
+    """Czyta historię lub prognozę zużycia z CSV i waliduje dane godzinowe."""
     if not path.is_file():
         raise _missing()
     required = {"Data_Czas", *CATEGORIES, TOTAL_COLUMN}
@@ -71,6 +74,7 @@ def _read_consumption(path: Path) -> list[ConsumptionHour]:
 
 
 def _read_weather(path: Path) -> list[WeatherHour]:
+    """Wczytuje dane pogodowe z pliku CSV i sprawdza ich poprawność."""
     if not path.is_file():
         raise _missing()
     try:
@@ -80,6 +84,7 @@ def _read_weather(path: Path) -> list[WeatherHour]:
 
 
 def _read_events(path: Path) -> list[FlexEvent]:
+    """Czyta zdarzenia elastyczne z CSV i zwraca listę obiektów wydarzeń."""
     if not path.is_file():
         raise _missing()
     try:
@@ -89,26 +94,32 @@ def _read_events(path: Path) -> list[FlexEvent]:
 
 
 def load_history() -> list[ConsumptionHour]:
+    """Ładuje historię zużycia energii z przygotowanego pliku demo."""
     return _read_consumption(_data_dir() / HISTORY_FILENAME)
 
 
 def load_forecast() -> list[ConsumptionHour]:
+    """Ładuje dane prognozy zużycia do symulacji lub widoku forecast."""
     return _read_consumption(_data_dir() / FORECAST_FILENAME)
 
 
 def load_weather_history() -> list[WeatherHour]:
+    """Pobiera historyczne dane pogodowe dla analizy zużycia i temperatury."""
     return _read_weather(_data_dir() / HISTORY_WEATHER_FILENAME)
 
 
 def load_weather_forecast() -> list[WeatherHour]:
+    """Pobiera prognozę pogody dla wyświetlania temperatury w przyszłości."""
     return _read_weather(_data_dir() / FORECAST_WEATHER_FILENAME)
 
 
 def load_history_events() -> list[FlexEvent]:
+    """Ładuje historię zdarzeń elastycznych, np. przesunięć obciążenia."""
     return _read_events(_data_dir() / FLEX_EVENTS_FILENAME)
 
 
 def load_annual() -> tuple[list[ConsumptionHour], list[WeatherHour], list[FlexEvent]]:
+    """Wczytuje roczne dane zużycia, pogody i zdarzeń w jednym pakiecie."""
     return (
         _read_consumption(_data_dir() / ANNUAL_CONSUMPTION_FILENAME),
         _read_weather(_data_dir() / YEAR_WEATHER_FILENAME),
@@ -117,6 +128,7 @@ def load_annual() -> tuple[list[ConsumptionHour], list[WeatherHour], list[FlexEv
 
 
 def load_backtest() -> list[BacktestRow]:
+    """Wczytuje wyniki backtestu z CSV i zwraca rekordy do porównania modeli."""
     path = _data_dir() / "backtest.csv"
     if not path.is_file():
         raise _missing()
@@ -143,6 +155,7 @@ def load_backtest() -> list[BacktestRow]:
 
 
 def load_metrics() -> dict:
+    """Czyta plik JSON z metrykami systemu i zwraca słownik wyników."""
     path = _data_dir() / METRICS_FILENAME
     if not path.is_file():
         raise _missing()
@@ -153,9 +166,11 @@ def load_metrics() -> dict:
 
 
 def default_dates(history: list[ConsumptionHour]) -> tuple[date, date]:
+    """Oblicza domyślny zakres dat na 7 ostatnich dni na podstawie historii."""
     end = history[-1].timestamp.date()
     return end - timedelta(days=6), end
 
 
 def filter_records(records: list, start: date, end: date) -> list:
+    """Filtruje rekordy do wybranego przedziału dat włącznie z początkiem i końcem."""
     return [record for record in records if start <= record.timestamp.date() <= end]

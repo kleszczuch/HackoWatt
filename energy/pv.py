@@ -34,6 +34,7 @@ BATTERY_ROUND_TRIP_EFFICIENCY = Decimal("0.90")
 
 @dataclass(frozen=True)
 class StorageConfig:
+    """Parametry magazynu energii: pojemność, moc i koszt zakupu."""
     capacity_kwh: Decimal = Decimal(0)
     power_kw: Decimal = Decimal(0)
     cost_eur: Decimal = Decimal(0)
@@ -41,6 +42,7 @@ class StorageConfig:
 
 @dataclass(frozen=True)
 class VariantResult:
+    """Wynik jednego wariantu PV: pokrycie, eksport, import i oszczędności."""
     self_kwh: Decimal
     exported_kwh: Decimal
     grid_kwh: Decimal
@@ -52,6 +54,7 @@ class VariantResult:
 
 @dataclass(frozen=True)
 class SimulationResult:
+    """Kompletne podsumowanie symulacji dla konkretnej mocy instalacji PV."""
     kwp: Decimal
     production_kwh: Decimal
     consumption_kwh: Decimal
@@ -74,6 +77,7 @@ class SimulationResult:
 
 @dataclass(frozen=True)
 class DeviceEffect:
+    """Efekt przesunięcia jednego urządzenia w wariancie B względem wariantu A."""
     device: str
     moved_kwh: Decimal
     grid_saved_kwh: Decimal
@@ -82,6 +86,7 @@ class DeviceEffect:
 
 @dataclass(frozen=True)
 class WeekProfile:
+    """Profil tygodniowy z obciążeniem, produkcją PV i kupnem z sieci."""
     timestamps: list[datetime]
     load: list[Decimal]
     pv: list[Decimal]
@@ -92,6 +97,7 @@ class WeekProfile:
 
 @dataclass(frozen=True)
 class DayProfile:
+    """Dzienny podział zużycia, produkcji i importu z sieci."""
     day: date
     consumption_kwh: Decimal
     production_kwh: Decimal
@@ -101,6 +107,7 @@ class DayProfile:
 
 @dataclass(frozen=True)
 class CapacityChoice:
+    """Wybrana moc PV wraz z odczytem pokrycia i zwrotu inwestycji."""
     kwp: Decimal | None
     coverage: Decimal | None
     payback_years: Decimal | None
@@ -108,11 +115,13 @@ class CapacityChoice:
 
 
 def pv_production(radiation: float, kwp: Decimal) -> Decimal:
-    """kWh z godziny: irradiancja [W/m²] × 1 h = Wh/m² → kWh/kWp × sprawność."""
+    """kWh z godziny: irradiancja [W/m²] × 1 h = Wh/m² → kWh/kWp × sprawność.
+    Oblicza produkcję PV w danej godzinie na podstawie promieniowania i mocy instalacji."""
     return Decimal(str(radiation)) / 1000 * kwp * PV_PERFORMANCE_RATIO
 
 
 def _radiation_by_hour(weather: list[WeatherHour]) -> dict[tuple, float]:
+    """Buduje mapę promieniowania w godzinach i dniach do przesunięć elastycznych."""
     return {(r.timestamp.date(), r.timestamp.hour): r.radiation for r in weather}
 
 
@@ -122,6 +131,7 @@ def _shift_records(
     radiation: dict[tuple, float],
     devices: tuple[str, ...] | None = None,
 ) -> list[ConsumptionHour]:
+    """Przesuwa elastyczne urządzenia do godzin z największym promieniowaniem słonecznym."""
     index = {(r.timestamp.date(), r.timestamp.hour): i for i, r in enumerate(records)}
     values = [list(record.categories) for record in records]
     for event in events:
@@ -152,7 +162,7 @@ def _shift_records(
 def _hour_balance(
     load: Decimal, production: Decimal, charge: Decimal, storage: StorageConfig
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal]:
-    """Zużycie z PV/magazynu, eksport, zakup, ładowanie, oddanie, nowy stan."""
+    """Rozwiązuje bilans godzinowy PV, zużycia, eksportu, importu i magazynowania."""
     direct = min(load, production)
     surplus = production - direct
     deficit = load - direct
@@ -170,7 +180,7 @@ def _hour_balance(
 def _settled_charge(
     hours: list[tuple[Decimal, Decimal]], storage: StorageConfig, full_year: bool
 ) -> Decimal:
-    """Stan na początku powtarzanego roku, zasilony wyłącznie nadwyżkami PV."""
+    """Ustala stan początkowy baterii na podstawie nadwyżek z poprzednich godzin."""
     if not full_year or storage.capacity_kwh <= 0:
         return Decimal(0)
     initial = Decimal(0)
@@ -190,6 +200,7 @@ def _variant(
     kwp: Decimal,
     storage: StorageConfig = StorageConfig(),
 ) -> tuple[VariantResult, Decimal]:
+    """Oblicza wynik jednego wariantu PV: pokrycie, oszczędności i zwrot inwestycji."""
     cost_without_pv = energy_cost([r.timestamp for r in records], [r.total for r in records])
     radiation = {r.timestamp: r.radiation for r in weather}
     self_kwh = exported = grid = Decimal(0)
@@ -231,6 +242,7 @@ def simulate(
     kwp: Decimal,
     storage: StorageConfig = StorageConfig(),
 ) -> SimulationResult:
+    """Porównuje wariant A i B dla jednej mocy PV i zwraca kompletne podsumowanie."""
     variant_a, production = _variant(records, weather, kwp, storage)
     shifted = _shift_records(records, events, _radiation_by_hour(weather))
     variant_b, _ = _variant(shifted, weather, kwp, storage)
@@ -245,6 +257,7 @@ def compare_variants(
     variants_kwp: tuple[int, ...] = COMPARE_VARIANTS_KWP,
     storage: StorageConfig = StorageConfig(),
 ) -> list[SimulationResult]:
+    """Uruchamia symulację dla wielu mocy instalacji i zwraca listę wyników."""
     return [simulate(records, weather, events, Decimal(kwp), storage) for kwp in variants_kwp]
 
 
@@ -326,7 +339,8 @@ def device_effects(
     kwp: Decimal,
     storage: StorageConfig = StorageConfig(),
 ) -> list[DeviceEffect]:
-    """Efekt przesunięcia pojedynczego typu urządzenia względem wariantu A."""
+    """Efekt przesunięcia pojedynczego typu urządzenia względem wariantu A. 
+    Mierzy, jak bardzo przesunięcie jednego typu urządzenia poprawia bilans PV."""
     variant_a, _ = _variant(records, weather, kwp, storage)
     radiation = _radiation_by_hour(weather)
     effects = []
@@ -354,7 +368,7 @@ def representative_week(
     month: int,
     storage: StorageConfig = StorageConfig(),
 ) -> WeekProfile:
-    """Pierwszy pełny tydzień (poniedziałek–niedziela) wybranego miesiąca."""
+    """Zwraca reprezentatywny tydzień danego miesiąca do wizualizacji profilu ładowania."""
     first_monday = next(
         record.timestamp.date()
         for record in records

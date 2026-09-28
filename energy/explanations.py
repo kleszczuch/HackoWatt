@@ -28,6 +28,7 @@ _CATEGORY_PHRASES_EN = (
 
 @dataclass(frozen=True)
 class PeakExplanation:
+    """Krótka odpowiedź opisująca szczytowe zużycie w czytelnym języku."""
     timestamp: datetime
     total: Decimal
     sentence: str
@@ -60,6 +61,7 @@ def explain_peaks(
     top: int = 3,
     lang: str = "pl",
 ) -> list[PeakExplanation]:
+    """Tworzy czytelne wyjaśnienia dla najważniejszych szczytów zużycia w prognozie."""
     temperatures = {record.timestamp: record.temperature for record in weather}
     peaks = sorted(forecast, key=lambda record: record.total, reverse=True)[:top]
     peaks.sort(key=lambda record: record.timestamp)

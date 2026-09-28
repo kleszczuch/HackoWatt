@@ -1,4 +1,9 @@
-"""Widoki: pulpit scenariusza, symulator PV, założenia i eksport CSV."""
+"""Widoki: pulpit scenariusza, symulator PV, założenia i eksport CSV.
+
+Plik obsługuje widoki aplikacji Django.
+
+Głównym zadaniem modułu jest renderowanie stron interfejsu użytkownika
+oraz przygotowywanie danych dla dashboardu, historii godzinowej i symulatora PV."""
 
 import csv
 from decimal import Decimal
@@ -114,6 +119,7 @@ def _chart_html(figure, include_plotlyjs: bool = False, lang: str = "en") -> str
 
 
 def _date_range(request: HttpRequest, history, lang: str = "pl"):
+    """Buduje formularz zakresu dat z danych historycznych lub z parametrów GET."""
     if request.GET.get("start") or request.GET.get("end"):
         form = DateRangeForm(request.GET, lang=lang)
     else:
@@ -123,6 +129,7 @@ def _date_range(request: HttpRequest, history, lang: str = "pl"):
 
 
 def _horizon(request: HttpRequest, lang: str = "pl") -> int:
+    """Pobiera horyzont prognozy z formularza lub zwraca wartość domyślną."""
     form = HorizonForm({"horyzont": request.GET.get("horyzont", "24")}, lang=lang)
     if form.is_valid():
         return int(form.cleaned_data["horyzont"])
@@ -130,6 +137,7 @@ def _horizon(request: HttpRequest, lang: str = "pl") -> int:
 
 
 def _simulation_days(request: HttpRequest) -> int:
+    """Validaduje liczbę dni symulacji i zwraca jedną z dozwolonych wartości."""
     try:
         days = int(request.GET.get("dni", "7"))
     except TypeError, ValueError:

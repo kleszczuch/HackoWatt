@@ -1,4 +1,5 @@
-"""Formularze: zakres dat, horyzont prognozy i parametry symulatora PV."""
+"""Formularze: zakres dat, horyzont prognozy i parametry symulatora PV.
+Plik definiuje formularze Django używane w aplikacji do obsługi wejścia użytkownika i walidacji danych."""
 
 from decimal import Decimal
 
@@ -58,6 +59,7 @@ class DateRangeForm(forms.Form):
             self.fields["end"].label = "Do"
 
     def clean(self):
+        """Sprawdza, czy data końcowa nie jest wcześniejsza od początkowej."""
         cleaned = super().clean()
         start = cleaned.get("start")
         end = cleaned.get("end")
@@ -72,6 +74,7 @@ class DateRangeForm(forms.Form):
 
 
 class HorizonForm(forms.Form):
+    """Formularz do wyboru długości horyzontu prognozy."""
     horyzont = forms.ChoiceField(
         label="Horyzont prognozy",
         choices=HORIZON_CHOICES_PL,
@@ -90,6 +93,7 @@ class HorizonForm(forms.Form):
 
 
 class PvForm(forms.Form):
+    """Formularz parametrów symulatora PV i magazynu energii."""
     kwp = forms.DecimalField(
         label="Moc instalacji [kWp]",
         min_value=1,
@@ -139,6 +143,7 @@ class PvForm(forms.Form):
             self.fields["magazyn_koszt_eur"].label = "Cena magazynu [EUR]"
 
     def clean(self):
+        """Waliduje ceny i pojemność magazynu, aby zapobiec sprzecznym parametrom."""
         cleaned = super().clean()
         capacity = cleaned.get("magazyn_kwh")
         cost = cleaned.get("magazyn_koszt_eur")

@@ -2,9 +2,7 @@
 
 Modeluje konkretne zdarzenia domowników (posiłki, pranie, praca zdalna,
 goście, wyjazdy) zamiast losowego szumu. Ogrzewanie pompą ciepła reaguje
-na rzeczywistą temperaturę godzinową. Harmonogram trzech pokoleń jest
-udokumentowany na stronie założeń aplikacji.
-"""
+na rzeczywistą temperaturę godzinową."""
 
 import csv
 from dataclasses import dataclass
@@ -48,7 +46,7 @@ DEVICE_PROFILES = {
     "Suszarka": {"energy": (1.5, 2.5), "duration": (1, 2)},
 }
 
-# Przybliżona jasna pora dnia w Kopenhadze (granica godziny).
+# Przybliżona jasna pora dnia w Kopenhadze (granica godziny) Pierwsza liczba to miesiąc, a druga to godzina wschodu/zachodu.
 _DAWN = {1: 8, 2: 7.5, 3: 6.5, 4: 6, 5: 5, 6: 4, 7: 4.5, 8: 5.5, 9: 6.5, 10: 7, 11: 7.5, 12: 8.5}
 _DUSK = {
     1: 16,
@@ -68,17 +66,20 @@ _DUSK = {
 
 @dataclass(frozen=True)
 class ConsumptionHour:
+    """Jedna godzina zużycia z rozbiciem na kategorie i listą zdarzeń."""
     timestamp: datetime
     categories: tuple[Decimal, ...]
     events: str
 
     @property
     def total(self) -> Decimal:
+        """Suma wszystkich kategorii zużycia dla tej godziny."""
         return sum(self.categories, Decimal(0))
 
 
 @dataclass(frozen=True)
 class FlexEvent:
+    """Jedno elastyczne zdarzenie obciążenia, np. pralka, zmywarka, suszarka."""
     device: str
     day: date
     start_hour: int
@@ -87,10 +88,12 @@ class FlexEvent:
 
 
 def _q3(value: float) -> Decimal:
+    """Zaokrągla wartość do 3 miejsc po przecinku w stabilnym formacie Decimala."""
     return Decimal(str(value)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
 
 
 def _draw_day_plan(rng: np.random.RandomState, day: date) -> dict:
+    """Losuje scenariusz dnia domowego: pracę zdalną, gości, wyjazd i codzienne aktywności."""
     weekend = day.weekday() >= 5
     plan = {
         "weekend": weekend,
@@ -117,6 +120,7 @@ def _draw_day_plan(rng: np.random.RandomState, day: date) -> dict:
 
 
 def _occupancy(plan: dict, hour: int) -> str:
+    """Określa, kto przebywa w domu i w jakim stanie aktywności w danej godzinie."""
     if plan["trip"]:
         return "nobody"
     if hour < 6 or hour >= 23:
@@ -135,6 +139,7 @@ def _occupancy(plan: dict, hour: int) -> str:
 
 
 def _heating_kw(rng: np.random.RandomState, plan: dict, hour: int, temperature: float) -> float:
+    """Symuluje zużycie pompy ciepła na ogrzewanie w zależności od temperatury i planu dnia."""
     setpoint = 17.0 if plan["trip"] else (19.5 if hour >= 22 or hour < 6 else 21.0)
     if temperature >= setpoint - 2:
         return 0.0
@@ -147,6 +152,7 @@ def _heating_kw(rng: np.random.RandomState, plan: dict, hour: int, temperature: 
 def _simulate_hour(
     rng: np.random.RandomState, plan: dict, hour: int, month: int, temperature: float, cloud: float
 ) -> tuple[dict, list[str]]:
+    """Generuje zużycie dla jednej godziny na podstawie temperatury, chmur i aktywności domowników."""
     values = dict.fromkeys(CATEGORIES, 0.0)
     labels: list[str] = []
     occupancy = _occupancy(plan, hour)
@@ -198,6 +204,7 @@ def _simulate_hour(
 
 
 def _plan_flex_events(rng: np.random.RandomState, plan: dict, day: date) -> list[FlexEvent]:
+    """Tworzy elastyczne zdarzenia obciążenia dla zmywarki, pralki i suszarki."""
     events: list[FlexEvent] = []
     if plan["dishwasher"] and not plan["trip"]:
         profile = DEVICE_PROFILES["Zmywarka"]
@@ -235,7 +242,7 @@ def _plan_flex_events(rng: np.random.RandomState, plan: dict, day: date) -> list
 def simulate_household(
     weather: list[WeatherHour], seed: int = SEED
 ) -> tuple[list[ConsumptionHour], list[FlexEvent]]:
-    """Wygeneruj godzinowe zużycie z podziałem na kategorie dla podanej pogody."""
+    """Generuje godzinowe zużycie i zdarzenia elastyczne dla całego okresu pogody."""
     rng = np.random.RandomState(seed)
     by_day: dict[date, list[WeatherHour]] = {}
     for record in weather:
@@ -270,6 +277,7 @@ def simulate_household(
 
 
 def write_consumption_csv(records: list[ConsumptionHour], path: Path | str) -> None:
+    """Zapisuje godzinowe zużycie do CSV z kategoriami, sumą i opisem zdarzeń."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8", newline="") as output:
@@ -289,6 +297,7 @@ def write_consumption_csv(records: list[ConsumptionHour], path: Path | str) -> N
 
 
 def write_events_csv(events: list[FlexEvent], path: Path | str) -> None:
+    """Zapisuje zdarzenia elastyczne do CSV w formacie używanym przez aplikację."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8", newline="") as output:
@@ -307,6 +316,7 @@ def write_events_csv(events: list[FlexEvent], path: Path | str) -> None:
 
 
 def read_events_csv(path: Path | str) -> list[FlexEvent]:
+    """Czyta zdarzenia elastyczne z CSV i zwraca je jako obiekty FlexEvent."""
     events: list[FlexEvent] = []
     with Path(path).open(encoding="utf-8-sig", newline="") as source:
         reader = csv.DictReader(source)

@@ -24,18 +24,21 @@ ANNUAL_START = datetime(2027, 6, 7, 0)  # poniedziałek
 
 
 def make_test_dir() -> Path:
+    """Tworzy osobny katalog testowy w katalogu danych demo."""
     path = settings.BASE_DIR / "data" / f"test-{uuid4().hex}"
     path.mkdir(parents=True)
     return path
 
 
 def clean_test_dir(path: Path) -> None:
+    """Usuwa katalog testowy po zakończeniu testu."""
     for child in path.iterdir():
         child.unlink()
     path.rmdir()
 
 
 def write_weather(path: Path, start: datetime, hours: int, temp: float = 5.0) -> None:
+    """Zapisuje prosty plik z danymi pogodowymi dla testu."""
     with path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(weather.WEATHER_COLUMNS)
@@ -45,6 +48,7 @@ def write_weather(path: Path, start: datetime, hours: int, temp: float = 5.0) ->
 
 
 def write_consumption(path: Path, start: datetime, hours: int, base: str = "1.000") -> None:
+    """Zapisuje uproszczony plik zużycia energii dla scenariusza testowego."""
     with path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(household.CONSUMPTION_COLUMNS)
@@ -55,6 +59,7 @@ def write_consumption(path: Path, start: datetime, hours: int, base: str = "1.00
 
 
 def write_events(path: Path) -> None:
+    """Zapisuje prosty zestaw zdarzeń elastycznych do testowego CSV."""
     with path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(household.EVENT_COLUMNS)
@@ -63,6 +68,7 @@ def write_events(path: Path) -> None:
 
 
 def write_backtest(path: Path) -> None:
+    """Tworzy minimalny plik backtestu do sprawdzenia obliczeń modeli."""
     with path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.writer(output)
         writer.writerow(forecasting.BACKTEST_COLUMNS)
@@ -72,6 +78,7 @@ def write_backtest(path: Path) -> None:
 
 
 def write_metrics(path: Path) -> None:
+    """Zapisuje metryki modelu do prostego pliku JSON testowego."""
     path.write_text(
         json.dumps(
             {
@@ -90,6 +97,7 @@ def write_metrics(path: Path) -> None:
 
 
 def prepare_fixture_dir(data_dir: Path) -> None:
+    """Przygotowuje komplet plików demo potrzebnych do testów widoków i API."""
     write_weather(data_dir / weather.HISTORY_WEATHER_FILENAME, HISTORY_START, 10 * 24)
     write_weather(data_dir / weather.FORECAST_WEATHER_FILENAME, FORECAST_START, 7 * 24)
     write_weather(data_dir / weather.YEAR_WEATHER_FILENAME, ANNUAL_START, 14 * 24)
@@ -103,6 +111,8 @@ def prepare_fixture_dir(data_dir: Path) -> None:
 
 
 class WeatherTests(SimpleTestCase):
+    """Testy parsera danych pogodowych i podziału historii na fragmenty."""
+
     def test_parse_hourly_reads_open_meteo_payload(self):
         payload = {
             "hourly": {
@@ -149,6 +159,8 @@ class WeatherTests(SimpleTestCase):
 
 
 class HouseholdTests(SimpleTestCase):
+    """Testy generatora zużycia energii i zachowania scenariusza domowego."""
+
     def _weather(self, days: int, temp: float) -> list[weather.WeatherHour]:
         return [
             weather.WeatherHour(HISTORY_START + timedelta(hours=offset), temp, 50.0, 0.0)
@@ -193,6 +205,8 @@ class HouseholdTests(SimpleTestCase):
 
 
 class TariffTests(SimpleTestCase):
+    """Testy taryfy godzinowej i obliczeń kosztów energii."""
+
     def test_period_boundaries(self):
         expected = {
             0: "0.18",
@@ -214,6 +228,8 @@ class TariffTests(SimpleTestCase):
 
 
 class ForecastingTests(SimpleTestCase):
+    """Testy pracy modeli prognostycznych i backtestu."""
+
     def test_backtest_and_forecast_outputs(self):
         series = [
             weather.WeatherHour(
@@ -236,6 +252,8 @@ class ForecastingTests(SimpleTestCase):
 
 
 class PvTests(SimpleTestCase):
+    """Testy symulacji fotowoltaiki, magazynu i doboru mocy PV."""
+
     def _toy_data(self):
         start = datetime(2027, 6, 7, 0)
         records = [
@@ -450,8 +468,9 @@ class PvTests(SimpleTestCase):
 
 
 class ViewTests(SimpleTestCase):
+    """Testy widoków i renderowania dashboardu, historii i symulatora PV."""
+   
     databases = {"default"}
-
     def setUp(self):
         self.data_dir = make_test_dir()
         self.addCleanup(clean_test_dir, self.data_dir)
@@ -774,6 +793,8 @@ class ViewTests(SimpleTestCase):
 
 
 class ApiTests(TestCase):
+    """Testy endpointów REST API dla smart schedule, prognoz i PV."""
+
     def setUp(self):
         self.data_dir = make_test_dir()
         self.addCleanup(clean_test_dir, self.data_dir)

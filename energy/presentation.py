@@ -24,6 +24,9 @@ EVENT_NAMES_EN = {
 DEVICE_NAMES = DEVICE_NAMES_EN
 EVENT_NAMES = EVENT_NAMES_EN
 
+DEVICE_NAMES = DEVICE_NAMES_EN
+EVENT_NAMES = EVENT_NAMES_EN
+
 
 def device_name(name: str, lang: str = "en") -> str:
     if lang == "en":

@@ -37,6 +37,8 @@ class WeatherFetchError(RuntimeError):
 
 @dataclass(frozen=True)
 class WeatherHour:
+    """Reprezentuje jedną godzinę danych pogodowych dla konkretnego momentu czasu."""
+
     timestamp: datetime
     temperature: float
     cloud_cover: float
@@ -44,10 +46,12 @@ class WeatherHour:
 
 
 def local_now() -> datetime:
+    """Zwraca bieżący czas w strefie Kopenhagi, zaokrąglony do pełnej godziny."""
     return datetime.now(ZoneInfo(TIMEZONE)).replace(tzinfo=None, minute=0, second=0, microsecond=0)
 
 
 def _get_json(url: str, params: dict) -> dict:
+    """Pobiera i dekoduje odpowiedź JSON z API Open-Meteo, zgłaszając błąd w razie problemu."""
     full_url = f"{url}?{urlencode(params)}"
     try:
         with urlopen(full_url, timeout=30) as response:
@@ -57,6 +61,7 @@ def _get_json(url: str, params: dict) -> dict:
 
 
 def parse_hourly(payload: dict) -> list[WeatherHour]:
+    """Konwertuje surowy payload API na listę obiektów WeatherHour z walidacją danych."""
     try:
         hourly = payload["hourly"]
         times = hourly["time"]
@@ -91,7 +96,7 @@ def split_history_forecast(
     history_days: int = HISTORY_DAYS,
     forecast_days: int = FORECAST_DAYS,
 ) -> tuple[list[WeatherHour], list[WeatherHour]]:
-    """Podziel szereg na historię kończącą się przed `now` i prognozę od `now`."""
+    """Dzieli serię pogodową na część historyczną i prognostyczną względem bieżącej godziny."""
     current_hour = now.replace(minute=0, second=0, microsecond=0)
     history = [r for r in records if r.timestamp < current_hour][-history_days * 24 :]
     forecast = [r for r in records if r.timestamp >= current_hour][: forecast_days * 24]
@@ -105,7 +110,7 @@ def split_history_forecast(
 def fetch_weather_series(
     past_days: int = HISTORY_DAYS + 1, forecast_days: int = FORECAST_DAYS + 1
 ) -> list[WeatherHour]:
-    """Jedno zapytanie: ciągły szereg godzinowy od przeszłości po prognozę.
+    """Pobiera pełną serię godzinową z historią i prognozą z jednego zapytania do API.
 
     Dni skrajne są częściowe (bieżąca godzina), więc pobieramy po jednym
     dniu zapasu z każdej strony i tniemy w `split_history_forecast`.
@@ -125,7 +130,7 @@ def fetch_weather_series(
 
 
 def fetch_year_weather(reference: datetime | None = None) -> list[WeatherHour]:
-    """Archiwum za ostatnie pełne 12 miesięcy (archiwum ma kilkudniowe opóźnienie)."""
+    """Pobiera archiwalne dane pogodowe za ostatnie 365 dni z uwzględnieniem opóźnienia API."""
     today = (reference or local_now()).date()
     end = today - timedelta(days=ARCHIVE_DELAY_DAYS)
     start = end - timedelta(days=YEAR_DAYS - 1)
@@ -144,6 +149,7 @@ def fetch_year_weather(reference: datetime | None = None) -> list[WeatherHour]:
 
 
 def write_weather_csv(records: list[WeatherHour], path: Path | str) -> None:
+    """Zapisuje listę rekordów pogodowych do pliku CSV w formacie używanym przez aplikację."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8", newline="") as output:
@@ -161,6 +167,7 @@ def write_weather_csv(records: list[WeatherHour], path: Path | str) -> None:
 
 
 def read_weather_csv(path: Path | str) -> list[WeatherHour]:
+    """Wczytuje dane pogodowe z CSV i zwraca je jako listę obiektów WeatherHour."""
     records = []
     with Path(path).open(encoding="utf-8-sig", newline="") as source:
         reader = csv.DictReader(source)

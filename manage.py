@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Narzędzie administracyjne Django."""
+"""Narzędzie administracyjne Django. Serce Aplikacji"""
 
 import os
 import sys
