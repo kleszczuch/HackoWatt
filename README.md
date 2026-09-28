@@ -25,15 +25,25 @@ Powtórne wykonanie odświeża pogodę i wszystkie dane.
 
 ## Strony
 
-- `/` — pulpit: wykres historii zużycia i temperatury (35 dni), wybór zakresu
-  dat i horyzontu prognozy (24 h / 3 / 7 dni), sumy kWh, godziny szczytu
-  z prostymi wyjaśnieniami oraz panel „model kontra baseline tydzień temu”
-  (MAE i MAPE na ostatnich 7 dniach historii).
+- `/` — zwarty pulpit: wybór ostatnich 1 / 3 / 5 / 7 / 14 / 31 dni
+  symulowanej historii i prognozy 24 h / 3 / 7 dni, sumy kWh, trendy
+  zużycia i temperatury, godziny szczytu oraz błąd modelu wobec baseline'u.
+- `/godziny/` — szczegółowy wykres i tabela godzinowa z kategoriami,
+  filtrem dat, stronicowaniem i eksportem dokładnych wartości do CSV.
 - `/symulator-pv/` — wybór mocy kWp, tabela porównawcza wariantów, roczna
   produkcja z realnego promieniowania, pokrycie zapotrzebowania, mniej energii
   z sieci, oszczędności i czas zwrotu: A (obecne nawyki) i B (po przesunięciu
   zmywarki, pralki i suszarki w godziny 9–15), wspólny wykres tygodniowy
-  oraz rekomendacje z efektem w kWh i €.
+  oraz rekomendacje z efektem w kWh i €. Przyciski automatycznie dobierają moc
+  do możliwie pełnego pokrycia w zakresie 1–150 kWp lub najkrótszego zwrotu
+  wariantu B w zakresie 1–15 kWp, co 0,1 kWp. Opcjonalny magazyn ma wpisywaną pojemność [kWh],
+  moc [kW] i cenę zakupu [EUR]. Godzinowy bilans uwzględnia 90% sprawności
+  obiegu, a zwrot dolicza koszt magazynu. Widok pokazuje średnie dzienne
+  zużycie budynku i bilans każdego dnia wybranego tygodnia. Gdy 100% pokrycia
+  nie jest osiągalne przy zadanym magazynie, aplikacja pokazuje pozostały zakup
+  z sieci. W pełnym roku stan magazynu na granicy lat ustala się po powtórzeniu
+  roku modelowego; duże moce i magazyny są wariantami teoretycznymi, których
+  wykonalność montażową i cenę trzeba sprawdzić osobno.
 - `/zalozenia/` — harmonogram mieszkańców, parametry urządzeń, sposób tworzenia
   historii, taryfa, założenia PV i metodologia szacunku rocznego.
 - `/export.csv` — eksport historii i prognozy dla wybranego zakresu.
@@ -52,7 +62,7 @@ uv run python manage.py test
 uv run python manage.py check
 uv run ruff check .
 uv run ruff format --check .
-openspec validate scenariusz-4-dom-pokolen --strict
+openspec validate magazyn-energii-pv --strict
 ```
 
 ## Zakres i uczciwość wyliczeń
@@ -62,10 +72,12 @@ wyjazdy) warunkowaną temperaturą z Open-Meteo — nie odczytem licznika. Roczn
 zużycie szacuje ten sam generator uruchomiony na 12 miesiącach realnej pogody;
 sezonowość ogrzewania wynika z temperatury, a produkcji PV z promieniowania.
 Koszty w EUR według załącznika „Common Challenge Assumptions” (taryfa
-0,18/0,28/0,40 €/kWh, PV 1300 €/kWp, eksport 0,08 €/kWh, OPEX 1%) są
-szacunkami, nie rozliczeniem.
+0,18/0,28/0,40 €/kWh, PV 1300 €/kWp, eksport 0,08 €/kWh, OPEX 1% kosztu PV)
+są szacunkami, nie rozliczeniem. Cena magazynu pochodzi z wpisanej oferty;
+symulacja nie uwzględnia jego degradacji, wymiany ani utrzymania. Magazyn
+przesuwa energię między godzinami, lecz sam jej nie produkuje.
 
-Aktywna [zmiana OpenSpec](openspec/changes/scenariusz-4-dom-pokolen/proposal.md)
-opisuje rozwiązanie scenariusza. [Wcześniejszy plan](openspec/changes/domowa-optymalizacja-energii/proposal.md)
+Aktywna [zmiana OpenSpec](openspec/changes/magazyn-energii-pv/proposal.md)
+opisuje magazyn energii. [Wcześniejszy plan](openspec/changes/domowa-optymalizacja-energii/proposal.md)
 dotyczący importu realnych odczytów i taryf pozostaje osobnym, niewdrożonym
 zakresem.

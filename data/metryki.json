@@ -1,10 +1,10 @@
 {
-  "okres_od": "2026-09-21 12:00:00",
-  "okres_do": "2026-09-28 11:00:00",
+  "okres_od": "2026-09-21 13:00:00",
+  "okres_do": "2026-09-28 12:00:00",
   "godzin": 168,
-  "mae_model": 0.2535,
-  "mape_model": 33.89,
-  "mae_baseline": 0.358,
-  "mape_baseline": 41.91,
-  "wygenerowano": "2026-09-28 12:00:00"
+  "mae_model": 0.2488,
+  "mape_model": 33.54,
+  "mae_baseline": 0.344,
+  "mape_baseline": 41.86,
+  "wygenerowano": "2026-09-28 13:00:00"
 }

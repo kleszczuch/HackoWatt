@@ -13,7 +13,9 @@ from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 
 from energy import forecasting, household, pv, tariffs, weather
-from energy.data import load_annual, load_history
+from energy.charts import build_overview_chart
+from energy.data import load_annual, load_history, load_weather_history
+from energy.views import PLOTLY_CONFIG
 
 HISTORY_START = datetime(2026, 9, 15, 0)
 FORECAST_START = datetime(2026, 10, 20, 11)
@@ -262,6 +264,111 @@ class PvTests(SimpleTestCase):
         # Tydzień danych kontra roczny OPEX: zwrot słusznie nie wychodzi.
         self.assertIsNone(result.variant_a.payback_years)
 
+    def test_storage_moves_day_surplus_to_evening_with_losses(self):
+        noon = datetime(2027, 6, 7, 12)
+        evening = datetime(2027, 6, 7, 20)
+        records = [
+            household.ConsumptionHour(noon, (Decimal("1"), *(Decimal(0) for _ in range(5))), ""),
+            household.ConsumptionHour(evening, (Decimal("3"), *(Decimal(0) for _ in range(5))), ""),
+        ]
+        weather_rows = [weather.WeatherHour(noon, 20.0, 0.0, 1000.0)]
+        without = pv.simulate(records, weather_rows, [], Decimal("5"))
+        storage = pv.StorageConfig(Decimal("3"), Decimal("3"), Decimal("2000"))
+        with_storage = pv.simulate(records, weather_rows, [], Decimal("5"), storage)
+        self.assertEqual(without.variant_b.grid_kwh, Decimal("3"))
+        self.assertEqual(with_storage.variant_b.battery_charged_kwh, Decimal("3"))
+        self.assertEqual(with_storage.variant_b.battery_delivered_kwh, Decimal("2.70"))
+        self.assertEqual(with_storage.variant_b.grid_kwh, Decimal("0.30"))
+        self.assertEqual(with_storage.variant_b.self_kwh, Decimal("3.70"))
+        self.assertEqual(with_storage.investment_eur, Decimal("8500"))
+        limited_power = pv.simulate(
+            records,
+            weather_rows,
+            [],
+            Decimal("5"),
+            pv.StorageConfig(Decimal("3"), Decimal("1"), Decimal("2000")),
+        )
+        self.assertEqual(limited_power.variant_b.battery_delivered_kwh, Decimal("0.90"))
+        self.assertEqual(limited_power.variant_b.grid_kwh, Decimal("2.10"))
+
+        enough_sun = [
+            records[0],
+            household.ConsumptionHour(evening, (Decimal("2"), *(Decimal(0) for _ in range(5))), ""),
+        ]
+        choice = pv.choose_capacity(enough_sun, weather_rows, [], "coverage", storage)
+        self.assertTrue(choice.target_met)
+        self.assertEqual(
+            pv.simulate(enough_sun, weather_rows, [], choice.kwp, storage).variant_b.grid_kwh,
+            Decimal(0),
+        )
+
+    def test_full_year_uses_only_pv_energy_carried_across_year_boundary(self):
+        start = datetime(2027, 1, 1)
+        records = [
+            household.ConsumptionHour(
+                start + timedelta(hours=offset),
+                (Decimal(1) if offset % 24 == 0 else Decimal(0), *(Decimal(0) for _ in range(5))),
+                "",
+            )
+            for offset in range(8760)
+        ]
+        series = [
+            weather.WeatherHour(
+                row.timestamp, 18.0, 0.0, 1000.0 if row.timestamp.hour == 12 else 0.0
+            )
+            for row in records
+        ]
+        storage = pv.StorageConfig(Decimal(2), Decimal(2), Decimal(1000))
+        result = pv.simulate(records, series, [], Decimal("1.4"), storage)
+        self.assertEqual(result.variant_b.grid_kwh, Decimal(0))
+        self.assertEqual(result.variant_b.battery_delivered_kwh, Decimal(365))
+        self.assertEqual(result.variant_b.self_kwh, result.consumption_kwh)
+        choice = pv.choose_capacity(records, series, [], "coverage", storage)
+        self.assertEqual(choice.kwp, Decimal("1.4"))
+        self.assertTrue(choice.target_met)
+
+    def test_storage_purchase_price_changes_payback_but_not_coverage(self):
+        start = datetime(2027, 1, 1)
+        records = [
+            household.ConsumptionHour(
+                start + timedelta(days=day, hours=hour),
+                (Decimal("2"), *(Decimal(0) for _ in range(5))),
+                "",
+            )
+            for day in range(365)
+            for hour in (12, 20)
+        ]
+        weather_rows = [
+            weather.WeatherHour(
+                row.timestamp, 18.0, 0.0, 1000.0 if row.timestamp.hour == 12 else 0.0
+            )
+            for row in records
+        ]
+        inexpensive = pv.StorageConfig(Decimal("2"), Decimal("2"), Decimal("1000"))
+        expensive = pv.StorageConfig(Decimal("2"), Decimal("2"), Decimal("3000"))
+        a = pv.simulate(records, weather_rows, [], Decimal("5"), inexpensive)
+        b = pv.simulate(records, weather_rows, [], Decimal("5"), expensive)
+        self.assertEqual(a.coverage_b, b.coverage_b)
+        self.assertEqual(a.variant_b.savings, b.variant_b.savings)
+        self.assertLess(a.variant_b.payback_years, b.variant_b.payback_years)
+        choice = pv.choose_capacity(records, weather_rows, [], "payback", inexpensive)
+        chosen = pv.simulate(records, weather_rows, [], choice.kwp, inexpensive)
+        self.assertEqual(choice.coverage, chosen.coverage_b)
+        self.assertEqual(choice.payback_years, chosen.variant_b.payback_years)
+
+    def test_zero_capacity_keeps_previous_pv_balance(self):
+        records, series, events = self._toy_data()
+        original = pv.simulate(records, series, events, Decimal("5"))
+        zero = pv.simulate(
+            records,
+            series,
+            events,
+            Decimal("5"),
+            pv.StorageConfig(Decimal(0), Decimal(5), Decimal(0)),
+        )
+        self.assertEqual(original.variant_a, zero.variant_a)
+        self.assertEqual(original.variant_b, zero.variant_b)
+
     def test_payback_with_year_of_sunny_data(self):
         start = datetime(2027, 1, 1, 0)
         records = [
@@ -292,6 +399,53 @@ class PvTests(SimpleTestCase):
         week = pv.representative_week(records, series, events, Decimal("5"), month=6)
         self.assertEqual(len(week.timestamps), 7 * 24)
         self.assertEqual(week.timestamps[0].weekday(), 0)
+        daily = pv.daily_week_summary(week)
+        self.assertEqual(len(daily), 7)
+        self.assertEqual(
+            sum((row.consumption_kwh for row in daily), Decimal(0)), sum(week.load, Decimal(0))
+        )
+
+    def test_capacity_choice_handles_reachable_and_unreachable_coverage(self):
+        start = datetime(2027, 1, 1)
+        sunny = [
+            household.ConsumptionHour(
+                start + timedelta(days=day, hours=12),
+                (Decimal("2"), *(Decimal(0) for _ in range(5))),
+                "",
+            )
+            for day in range(365)
+        ]
+        weather_sunny = [weather.WeatherHour(row.timestamp, 18.0, 0.0, 1000.0) for row in sunny]
+        reached = pv.choose_capacity(sunny, weather_sunny, [], "coverage")
+        self.assertEqual(reached.kwp, Decimal("2.5"))
+        self.assertTrue(reached.target_met)
+        self.assertEqual(reached.coverage, Decimal(100))
+
+        night = [
+            household.ConsumptionHour(
+                start + timedelta(days=day),
+                (Decimal("2"), *(Decimal(0) for _ in range(5))),
+                "",
+            )
+            for day in range(365)
+        ]
+        limited = pv.choose_capacity(sunny + night, weather_sunny, [], "coverage")
+        self.assertEqual(limited.kwp, Decimal("2.5"))
+        self.assertFalse(limited.target_met)
+        self.assertEqual(limited.coverage, Decimal(50))
+
+        quickest = pv.choose_capacity(sunny + night, weather_sunny, [], "payback")
+        self.assertEqual(quickest.kwp, Decimal("1.0"))
+        self.assertIsNotNone(quickest.payback_years)
+        selected = pv.simulate(sunny + night, weather_sunny, [], quickest.kwp)
+        self.assertEqual(quickest.coverage, selected.coverage_b)
+        self.assertEqual(quickest.payback_years, selected.variant_b.payback_years)
+
+    def test_capacity_choice_reports_no_positive_payback(self):
+        records, series, events = self._toy_data()
+        result = pv.choose_capacity(records, series, events, "payback")
+        self.assertIsNone(result.kwp)
+        self.assertIsNone(result.payback_years)
 
 
 class ViewTests(SimpleTestCase):
@@ -310,12 +464,53 @@ class ViewTests(SimpleTestCase):
         self.assertContains(response, "Model kontra baseline")
         self.assertContains(response, "Szczyt:")
         self.assertContains(response, "0,123")  # MAE modelu z metryki (lokalizacja PL)
+        self.assertContains(response, "Przegląd godzinowy")
+        self.assertContains(response, "Ile da dach z panelami?")
+        self.assertNotContains(response, "Historia godzinowa")
+        self.assertEqual(response.context["selected_count"], 7 * 24)
+        self.assertEqual(response.context["selected_total"], Decimal(7 * 24))
 
-    def test_dashboard_filters_range_and_exports_csv(self):
+    def test_charts_keep_hover_but_disable_zoom(self):
+        chart = build_overview_chart(load_history()[-24:], load_weather_history()[-24:])
+        self.assertEqual(chart.layout.hovermode, "x unified")
+        self.assertIs(chart.layout.dragmode, False)
+        for axis in (chart.layout.xaxis, chart.layout.yaxis, chart.layout.yaxis2):
+            self.assertIs(axis.fixedrange, True)
+        self.assertIs(PLOTLY_CONFIG["scrollZoom"], False)
+        self.assertIs(PLOTLY_CONFIG["doubleClick"], False)
+        self.assertIs(PLOTLY_CONFIG["displayModeBar"], False)
+
+    def test_dashboard_simulation_periods_and_short_snapshot(self):
+        for days in (1, 3, 5, 7, 14, 31):
+            response = self.client.get(reverse("dashboard"), {"dni": days, "horyzont": "72"})
+            self.assertEqual(response.context["selected_count"], min(days * 24, 10 * 24))
+            self.assertEqual(response.context["selected_total"], Decimal(min(days * 24, 240)))
+            self.assertEqual(response.context["horizon_hours"], 72)
+            self.assertContains(response, f"?dni={days}&amp;horyzont=72")
+
+        response = self.client.get(reverse("dashboard"), {"dni": "invalid"})
+        self.assertEqual(response.context["simulation_days"], 7)
+
+    def test_dashboard_31_days_with_full_history(self):
+        write_weather(self.data_dir / weather.HISTORY_WEATHER_FILENAME, HISTORY_START, 35 * 24)
+        write_consumption(self.data_dir / household.HISTORY_FILENAME, HISTORY_START, 35 * 24)
+        response = self.client.get(reverse("dashboard"), {"dni": "31"})
+        self.assertEqual(response.context["selected_count"], 31 * 24)
+        self.assertEqual(response.context["selected_total"], Decimal(31 * 24))
+
+    def test_hourly_history_filters_range_paginates_and_exports_csv(self):
         response = self.client.get(
-            reverse("dashboard"), {"start": "2026-09-20", "end": "2026-09-21"}
+            reverse("hourly_history"), {"start": "2026-09-20", "end": "2026-09-21"}
         )
         self.assertEqual(response.context["selected_count"], 48)
+        self.assertContains(response, "1.000")
+        self.assertContains(response, "Pobierz CSV")
+        page_two = self.client.get(
+            reverse("hourly_history"),
+            {"start": "2026-09-20", "end": "2026-09-22", "page": 2},
+        )
+        self.assertEqual(page_two.context["page"].number, 2)
+        self.assertContains(page_two, "start=2026-09-20&amp;end=2026-09-22")
         export = self.client.get(
             reverse("export_csv"), {"start": "2026-09-20", "end": "2026-09-21"}
         )
@@ -323,12 +518,84 @@ class ViewTests(SimpleTestCase):
         rows = list(csv.reader(io.StringIO(export.content.decode("utf-8-sig"))))
         self.assertEqual(len(rows), 49)
 
+    def test_hourly_history_uses_exact_rolling_period_from_dashboard(self):
+        response = self.client.get(reverse("hourly_history"), {"dni": "3", "page": 2})
+        self.assertEqual(response.context["selected_count"], 72)
+        self.assertEqual(response.context["page"].number, 2)
+        self.assertContains(response, "?dni=3&amp;page=1")
+        export = self.client.get(reverse("export_csv"), {"dni": "3"})
+        rows = list(csv.reader(io.StringIO(export.content.decode("utf-8-sig"))))
+        self.assertEqual(len(rows), 73)
+        self.assertEqual(
+            rows[1][0], (HISTORY_START + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        )
+
     def test_pv_simulator_shows_variants_and_recommendations(self):
         response = self.client.get(reverse("pv_simulator"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Warianty instalacji")
         self.assertContains(response, "Zakup z sieci")
         self.assertContains(response, "Zmywarka")
+        self.assertContains(response, "Dobierz do 100% pokrycia")
+        self.assertContains(response, "Najkrótszy zwrot (B)")
+
+    def test_pv_auto_choices_show_result_and_preserve_manual_mode(self):
+        coverage = self.client.get(reverse("pv_simulator"), {"cel": "coverage", "miesiac": "6"})
+        self.assertEqual(coverage.status_code, 200)
+        self.assertContains(coverage, "100% pokrycia nie jest osiągalne")
+        self.assertEqual(coverage.context["kwp"], Decimal("1.0"))
+        self.assertEqual(coverage.context["form"]["miesiac"].value(), "6")
+
+        payback = self.client.get(reverse("pv_simulator"), {"cel": "payback", "miesiac": "6"})
+        self.assertEqual(payback.status_code, 200)
+        self.assertContains(payback, "Brak dodatniego zwrotu")
+        self.assertEqual(payback.context["kwp"], Decimal("5"))
+
+        manual = self.client.get(reverse("pv_simulator"), {"kwp": "4", "miesiac": "6"})
+        self.assertEqual(manual.context["kwp"], Decimal("4"))
+        self.assertNotContains(manual, "Wynik automatycznego doboru")
+
+    def test_pv_storage_form_and_daily_results(self):
+        params = {
+            "kwp": "5",
+            "miesiac": "6",
+            "magazyn_kwh": "10",
+            "magazyn_moc_kw": "5",
+            "magazyn_koszt_eur": "7000",
+        }
+        response = self.client.get(reverse("pv_simulator"), params)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["selected"].investment_eur, Decimal("13500"))
+        self.assertEqual(len(response.context["week_days"]), 7)
+        self.assertContains(response, "Średnie dzienne zużycie budynku")
+        self.assertContains(response, "Zużycie budynku w wybranym tygodniu")
+        self.assertContains(response, "Cena zakupu")
+
+        no_price = self.client.get(reverse("pv_simulator"), {**params, "magazyn_koszt_eur": "0"})
+        self.assertContains(no_price, "Podaj dodatnią cenę zakupu magazynu")
+        self.assertNotIn("selected", no_price.context)
+
+        no_battery = self.client.get(reverse("pv_simulator"), {**params, "magazyn_kwh": "0"})
+        self.assertContains(no_battery, "Przy pojemności 0 kWh cena musi wynosić 0")
+
+        automatic = self.client.get(reverse("pv_simulator"), {**params, "cel": "coverage"})
+        self.assertEqual(automatic.status_code, 200)
+        self.assertEqual(automatic.context["storage"].capacity_kwh, Decimal("10"))
+        self.assertContains(automatic, "Nawet przy 150")
+
+        large = self.client.get(
+            reverse("pv_simulator"),
+            {
+                **params,
+                "kwp": "100",
+                "magazyn_kwh": "3000",
+                "magazyn_moc_kw": "100",
+                "magazyn_koszt_eur": "1000000",
+            },
+        )
+        self.assertEqual(large.status_code, 200)
+        self.assertEqual(large.context["kwp"], Decimal("100"))
+        self.assertContains(large, "scenariuszem teoretycznym")
 
     def test_assumptions_page_documents_everything(self):
         response = self.client.get(reverse("assumptions"))

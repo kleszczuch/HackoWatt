@@ -28,10 +28,13 @@ def _base_layout(figure: go.Figure, height: int) -> go.Figure:
         margin={"l": 45, "r": 20, "t": 20, "b": 45},
         height=height,
         hovermode="x unified",
+        dragmode=False,
         legend={"orientation": "h", "y": 1.14, "x": 0},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
     )
+    figure.update_xaxes(fixedrange=True)
+    figure.update_yaxes(fixedrange=True)
     return figure
 
 
@@ -88,6 +91,40 @@ def build_history_chart(records: list[ConsumptionHour], weather: list[WeatherHou
     return _consumption_with_temperature(records, weather, 400)
 
 
+def build_overview_chart(
+    records: list[ConsumptionHour], weather: list[WeatherHour], *, forecast: bool = False
+) -> go.Figure:
+    """Zwarty trend całkowitego zużycia i temperatury na pulpit."""
+    figure = make_subplots(specs=[[{"secondary_y": True}]])
+    figure.add_trace(
+        go.Scatter(
+            x=[record.timestamp for record in records],
+            y=[float(record.total) for record in records],
+            name="Zużycie · prognoza" if forecast else "Zużycie · symulacja",
+            mode="lines",
+            line={"color": "#19866d" if not forecast else "#db8a3f", "width": 2},
+            fill="tozeroy",
+            fillcolor="rgba(25,134,109,0.12)" if not forecast else "rgba(219,138,63,0.12)",
+            hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
+        ),
+        secondary_y=False,
+    )
+    figure.add_trace(
+        go.Scatter(
+            x=[record.timestamp for record in weather],
+            y=[record.temperature for record in weather],
+            name="Temperatura",
+            mode="lines",
+            line={"color": TEMPERATURE_COLOR, "width": 1.5, "dash": "dot"},
+            hovertemplate="%{x|%d.%m %H:%M}: %{y:.1f} °C<extra>Temperatura</extra>",
+        ),
+        secondary_y=True,
+    )
+    figure.update_yaxes(title_text="kWh", rangemode="tozero", secondary_y=False)
+    figure.update_yaxes(title_text="°C", secondary_y=True)
+    return _base_layout(figure, 250)
+
+
 def build_forecast_chart(records: list[ConsumptionHour], weather: list[WeatherHour]) -> go.Figure:
     figure = _consumption_with_temperature(records, weather, 340)
     figure.update_traces(patch={"line": {"dash": "dash"}}, selector={"stackgroup": "zuzycie"})
@@ -132,6 +169,17 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal) -> go.Figure:
                 name=label,
                 fill=fill,
                 line={"color": color, "width": 2, "dash": dash},
+                hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
+            )
+        )
+    if any(value > 0 for value in week.battery_b):
+        figure.add_trace(
+            go.Scatter(
+                x=week.timestamps,
+                y=[float(value) for value in week.battery_b],
+                mode="lines",
+                name="Z magazynu do domu · B",
+                line={"color": "#7551a8", "width": 2, "dash": "dot"},
                 hovertemplate="%{x|%d.%m %H:%M}: %{y:.3f} kWh<extra>%{fullData.name}</extra>",
             )
         )

@@ -78,8 +78,11 @@
         <tr><td class="timestamp">Cena energii 00–06 / 06–17 / 17–22 / 22–24</td><td class="number">0,18 / 0,28 / 0,40 / 0,28 €/kWh</td></tr>
         <tr><td class="timestamp">Koszt instalacji PV</td><td class="number">1300 €/kWp</td></tr>
         <tr><td class="timestamp">Cena eksportu do sieci</td><td class="number">0,08 €/kWh</td></tr>
-        <tr><td class="timestamp">Roczny koszt operacyjny PV</td><td class="number">1% kosztu inwestycji</td></tr>
+        <tr><td class="timestamp">Roczny koszt operacyjny PV</td><td class="number">1% kosztu samej instalacji PV</td></tr>
         <tr><td class="timestamp">Sprawność systemu PV (założenie własne)</td><td class="number">0,8 — orientacja, nachylenie i straty w jednym współczynniku</td></tr>
+        <tr><td class="timestamp">Magazyn energii</td><td class="number">Pojemność do 5000 kWh i moc do 150 kW podane przez użytkownika; ładowanie wyłącznie z nadwyżki PV</td></tr>
+        <tr><td class="timestamp">Sprawność pełnego obiegu magazynu</td><td class="number">90% — założenie uproszczone, zbliżone do <a href="https://energylibrary.tesla.com/docs/Public/EnergyStorage/Powerwall/3/Datasheet/en-ie/Powerwall-3-Datasheet-IE.pdf">89% w karcie Powerwall 3</a>; rzeczywista wartość zależy od urządzenia</td></tr>
+        <tr><td class="timestamp">Koszt magazynu</td><td class="number">Cena zakupu wpisywana z oferty użytkownika, doliczana do nakładu inwestycyjnego; konkurs nie podaje ceny magazynu</td></tr>
       </tbody>
     </table>
   </div>
@@ -91,6 +94,10 @@
     <div class="explanation"><strong>Ten sam model, dłuższa pogoda:</strong> roczne zużycie generuje identyczny symulator zdarzeń co historia, ale na 12 miesiącach realnej pogody archiwalnej — nakładający się okres zgadza się z historią z definicji.</div>
     <div class="explanation"><strong>Sezonowość ogrzewania:</strong> wynika wprost z temperatury godzinowej (zimą pompa ciepła pracuje znacznie dłużej, latem wcale). <strong>Sezonowość oświetlenia:</strong> z miesięcznych godzin zmierzchu dla Kopenhagi. <strong>Sezonowość PV:</strong> z realnego promieniowania godzinowego.</div>
     <div class="explanation"><strong>Granice metody:</strong> nie znamy urlopów, chorób ani realnych odczytów; roczna suma jest szacunkiem scenariuszowym, nie prognozą rozliczeniową. Produkcja PV pomija zacienienie i dokładny azymut dachu (współczynnik 0,8).</div>
+    <div class="explanation"><strong>Bilans magazynu i zużycie dzienne:</strong> w każdej godzinie symulacja pokrywa zużycie budynku najpierw z bieżącej produkcji PV, potem z magazynu, a resztę z sieci. Nadwyżka ładuje magazyn do zadanej pojemności i mocy, reszta trafia na eksport. Średnie zużycie dobowe i dzienne sumy tygodnia pochodzą z tych samych godzinowych danych rocznych.</div>
+    <div class="explanation"><strong>Granica roku:</strong> dla pełnego roku stan magazynu na początku obliczamy przez powtarzanie tego samego roku pogody i zużycia do ustalenia stanu na granicy lat. Dzięki temu pierwszy nocny pobór nie jest sztucznie przypisany do pustej baterii, jeśli naładowałaby się z PV w poprzednim roku. Krótsze okresy zaczynają z pustym magazynem.</div>
+    <div class="explanation"><strong>Skala instalacji:</strong> ręcznie można badać 1–150 kWp; dobór do 100% używa tego zakresu, a dobór najkrótszego zwrotu porównuje 1–15 kWp co 0,1 kWp. Duże instalacje i magazyny sezonowe są analizą techniczną. Kalkulator nie sprawdza powierzchni dachu ani dostępności montażu i używa liniowego kosztu 1300 €/kWp także dla większych mocy.</div>
+    <div class="explanation"><strong>Granice zwrotu z magazynem:</strong> do inwestycji doliczamy podaną cenę magazynu, a roczne 1% kosztu operacyjnego dotyczy tylko PV. Nie modelujemy degradacji, wymiany, kosztów utrzymania baterii ani ładowania z sieci. Magazyn nie wytwarza energii; 100% pokrycia może być nieosiągalne przy zbyt małej produkcji PV, pojemności lub mocy.</div>
     {% if metrics %}
     <div class="explanation"><strong>Sprawdzalność prognozy:</strong> na ostatnich 7 dniach historii model ma MAE {{ metrics.mae_model|floatformat:3 }} kWh (MAPE na sumach dobowych {{ metrics.mape_model|floatformat:1 }}%), a baseline „ta sama godzina tydzień temu” {{ metrics.mae_baseline|floatformat:3 }} kWh (MAPE {{ metrics.mape_baseline|floatformat:1 }}%) — okres oceny: {{ metrics.okres_od|date:"d.m H:i" }} – {{ metrics.okres_do|date:"d.m H:i" }}. MAPE liczymy na dobach, bo godzinowy jest psuty przez prawie zerowe zużycie w dni wyjazdu.</div>
     {% endif %}

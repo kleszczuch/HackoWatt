@@ -16,7 +16,7 @@
 
 <section class="notice" aria-label="Charakter obliczeń">
   <span class="notice-icon">i</span>
-  <p><strong>To są szacunki.</strong> Roczne zużycie pochodzi z tego samego generatora co 35-dniowa historia, uruchomionego na 12 miesiącach realnej pogody. Koszt instalacji 1300 €/kWp, eksport 0,08 €/kWh, koszt operacyjny 1% rocznie — szczegóły na stronie „Założenia”.</p>
+  <p><strong>To są szacunki.</strong> Roczne zużycie pochodzi z tego samego generatora co 35-dniowa historia, uruchomionego na 12 miesiącach realnej pogody. Koszt PV 1300 €/kWp, eksport 0,08 €/kWh, koszt operacyjny PV 1% rocznie. Cenę magazynu wpisujesz z własnej oferty — szczegóły na stronie „Założenia”.</p>
 </section>
 
 <section class="panel filter-panel" aria-labelledby="pv-form-heading">
@@ -24,23 +24,62 @@
     <div><p class="eyebrow">WYBIERZ WARIANT</p><h2 id="pv-form-heading">Moc instalacji i miesiąc wykresu</h2></div>
   </div>
   <form class="filter-form" method="get" action="{% url 'pv_simulator' %}">
-    <div class="field"><label for="{{ form.kwp.id_for_label }}">Moc [kWp]</label>{{ form.kwp }}</div>
+    <div class="field"><label for="{{ form.kwp.id_for_label }}">Moc [kWp] · 1–150</label>{{ form.kwp }}</div>
     <div class="field"><label for="{{ form.miesiac.id_for_label }}">Miesiąc wykresu</label>{{ form.miesiac }}</div>
+    <fieldset class="pv-storage-fields">
+      <legend>Magazyn energii · opcjonalnie</legend>
+      <div class="field"><label for="{{ form.magazyn_kwh.id_for_label }}">Pojemność [kWh] · do 5000</label>{{ form.magazyn_kwh }}</div>
+      <div class="field"><label for="{{ form.magazyn_moc_kw.id_for_label }}">Moc [kW] · do 150</label>{{ form.magazyn_moc_kw }}</div>
+      <div class="field"><label for="{{ form.magazyn_koszt_eur.id_for_label }}">Cena zakupu [€]</label>{{ form.magazyn_koszt_eur }}</div>
+      <p>Wpisz 0 kWh i 0 € bez magazynu. Sprawność obiegu: 90%; magazyn ładuje się tylko z nadwyżki PV. Dobór do 100% zmienia moc PV przy podanych parametrach magazynu. Duże instalacje są scenariuszem teoretycznym — sprawdź dostępną powierzchnię i rzeczywistą ofertę cenową.</p>
+    </fieldset>
     <button class="button primary" type="submit">Przelicz <span aria-hidden="true">→</span></button>
+    <button class="button secondary" type="submit" name="cel" value="coverage">Dobierz do 100% pokrycia</button>
+    <button class="button secondary" type="submit" name="cel" value="payback">Najkrótszy zwrot (B)</button>
   </form>
-  {% if form.errors %}<div class="form-errors" role="alert">{{ form.kwp.errors }}{{ form.miesiac.errors }}</div>{% endif %}
+  {% if form.errors %}<div class="form-errors" role="alert">{{ form.kwp.errors }}{{ form.miesiac.errors }}{{ form.magazyn_kwh.errors }}{{ form.magazyn_moc_kw.errors }}{{ form.magazyn_koszt_eur.errors }}</div>{% endif %}
 </section>
 
 {% if form.is_valid %}
+{% if auto_goal %}
+<section class="panel pv-auto-result" role="status" aria-label="Wynik automatycznego doboru">
+  {% if auto_goal == "coverage" %}
+    {% if capacity_choice.target_met %}
+      <strong>100% pokrycia w wariancie B przy {{ kwp }} kWp.</strong>
+      <span>To najmniejsza moc osiągająca cel w zakresie 1–150 kWp co 0,1 kWp przy wskazanym magazynie. 100% dotyczy tego roku modelowego, nie gwarancji na każdy rok.</span>
+    {% else %}
+      <strong>100% pokrycia nie jest osiągalne przy wskazanym magazynie.</strong>
+      <span>Najwyższe pokrycie w wariancie B to {{ selected.coverage_b|floatformat:1 }}% przy {{ kwp }} kWp; pozostały zakup z sieci: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/rok. {% if annual_energy_shortfall %}Nawet przy {{ max_kwp }} kWp roczna produkcja PV ({{ max_production_kwh|floatformat:0 }} kWh) jest mniejsza od zużycia budynku ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Produkcja roczna wystarcza, lecz wskazana pojemność lub moc magazynu nie pokrywa godzin i sezonów o słabym słońcu. Zwiększ magazyn albo jego moc i przelicz ponownie.{% else %}Produkcja roczna wystarcza, lecz bez magazynu dom nadal pobiera prąd poza godzinami produkcji. Dodaj pojemność, moc i cenę magazynu, a następnie przelicz ponownie.{% endif %}</span>
+    {% endif %}
+  {% elif capacity_choice.kwp %}
+    <strong>Najkrótszy zwrot wariantu B: {{ selected.variant_b.payback_years|floatformat:1 }} lat przy {{ kwp }} kWp.</strong>
+    <span>Porównano moce 1–15 kWp co 0,1 kWp; przy takim samym zwrocie wybrano mniejszą instalację.</span>
+  {% else %}
+    <strong>Brak dodatniego zwrotu w zakresie 1–15 kWp.</strong>
+    <span>Przy tych danych żadna badana moc nie daje dodatnich rocznych oszczędności netto w wariancie B.</span>
+  {% endif %}
+</section>
+{% endif %}
 <section class="metrics" aria-label="Wyniki dla wybranej mocy">
   <article class="metric"><span>Roczna produkcja PV</span><strong>{{ selected.production_kwh|floatformat:0 }} <small>kWh</small></strong><p>Instalacja {{ kwp }} kWp · zużycie domu {{ consumption_kwh|floatformat:0 }} kWh/rok</p></article>
   <article class="metric"><span>Pokrycie zapotrzebowania</span><strong>{{ selected.coverage_a|floatformat:1 }}<small>%</small></strong><p>Po przesunięciu nawyków: {{ selected.coverage_b|floatformat:1 }}%</p></article>
   <article class="metric"><span>Mniej energii z sieci</span><strong>{{ selected.variant_a.self_kwh|floatformat:0 }} <small>kWh/rok</small></strong><p>Wariant B: {{ selected.variant_b.self_kwh|floatformat:0 }} kWh/rok</p></article>
-  <article class="metric"><span>Czas zwrotu A → B</span><strong>{% if selected.variant_a.payback_years %}{{ selected.variant_a.payback_years|floatformat:1 }}{% else %}—{% endif %} → {% if selected.variant_b.payback_years %}{{ selected.variant_b.payback_years|floatformat:1 }}{% else %}—{% endif %} <small>lat</small></strong><p>Oszczędności: {{ selected.variant_a.savings|floatformat:0 }} € → {{ selected.variant_b.savings|floatformat:0 }} €/rok</p></article>
+  <article class="metric"><span>Czas zwrotu A → B</span><strong>{% if selected.variant_a.payback_years %}{{ selected.variant_a.payback_years|floatformat:1 }}{% else %}—{% endif %} → {% if selected.variant_b.payback_years %}{{ selected.variant_b.payback_years|floatformat:1 }}{% else %}—{% endif %} <small>lat</small></strong><p>Inwestycja {{ selected.investment_eur|floatformat:0 }} € · oszczędności B {{ selected.variant_b.savings|floatformat:0 }} €/rok</p></article>
+</section>
+
+<section class="panel pv-daily-summary" aria-label="Dzienne zużycie budynku i magazyn">
+  <div><span>Średnie dzienne zużycie budynku</span><strong>{{ daily_average_kwh|floatformat:1 }} kWh</strong><small>z {{ consumption_kwh|floatformat:0 }} kWh w roku modelowym</small></div>
+  {% if battery_enabled %}
+  <div><span>Magazyn · pojemność i moc</span><strong>{{ storage.capacity_kwh }} kWh · {{ storage.power_kw }} kW</strong><small>zakup {{ storage.cost_eur|floatformat:0 }} € w inwestycji</small></div>
+  <div><span>Energia oddana z magazynu</span><strong>{{ selected.variant_b.battery_delivered_kwh|floatformat:0 }} kWh/rok</strong><small>wariant B · po stratach 10%</small></div>
+  {% else %}
+  <div><span>Magazyn energii</span><strong>Bez magazynu</strong><small>Wpisz pojemność i cenę zakupu, aby porównać.</small></div>
+  {% endif %}
+  <div><span>Pozostały zakup z sieci · B</span><strong>{{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/rok</strong><small>100% pokrycia wymaga 0 kWh zakupu</small></div>
 </section>
 
 <section class="panel table-panel" aria-labelledby="variants-heading">
-  <div class="section-heading"><div><p class="eyebrow">PORÓWNANIE MOCY</p><h2 id="variants-heading">Warianty instalacji</h2></div><span class="muted">A: obecne nawyki · B: po przesunięciu urządzeń</span></div>
+  <div class="section-heading"><div><p class="eyebrow">PORÓWNANIE MOCY</p><h2 id="variants-heading">Warianty instalacji</h2></div><span class="muted">A: obecne nawyki · B: po przesunięciu urządzeń{% if battery_enabled %} · magazyn {{ storage.capacity_kwh }} kWh{% endif %}</span></div>
   <div class="table-scroll">
     <table>
       <thead><tr><th>Moc</th><th>Produkcja</th><th>Pokrycie A</th><th>Pokrycie B</th><th>Mniej z sieci A</th><th>Mniej z sieci B</th><th>Oszczędności A</th><th>Oszczędności B</th><th>Zwrot A</th><th>Zwrot B</th></tr></thead>
@@ -65,8 +104,16 @@
 </section>
 
 <section class="panel chart-panel" aria-labelledby="week-heading">
-  <div class="section-heading"><div><p class="eyebrow">JEDEN WYKRES · TYDZIEŃ</p><h2 id="week-heading">Zużycie, produkcja PV i zakup z sieci przed oraz po zmianie</h2></div><span class="muted">Instalacja {{ kwp }} kWp · pierwszy pełny tydzień miesiąca</span></div>
+  <div class="section-heading"><div><p class="eyebrow">JEDEN WYKRES · TYDZIEŃ</p><h2 id="week-heading">Zużycie, produkcja PV i zakup z sieci przed oraz po zmianie</h2></div><span class="muted">Instalacja {{ kwp }} kWp{% if battery_enabled %} + magazyn {{ storage.capacity_kwh }} kWh{% endif %} · pierwszy pełny tydzień miesiąca</span></div>
   <div class="plot">{{ pv_chart|safe }}</div>
+</section>
+
+<section class="panel table-panel" aria-labelledby="daily-heading">
+  <div class="section-heading"><div><p class="eyebrow">BILANS DZIENNY</p><h2 id="daily-heading">Zużycie budynku w wybranym tygodniu</h2></div><span class="muted">Suma godzin każdego dnia · kWh</span></div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Dzień</th><th>Zużycie budynku</th><th>Produkcja PV</th><th>Zakup A</th><th>Zakup B</th></tr></thead>
+    <tbody>{% for day in week_days %}<tr><td class="timestamp">{{ day.day|date:"d.m.Y" }}</td><td class="number">{{ day.consumption_kwh|floatformat:1 }}</td><td class="number">{{ day.production_kwh|floatformat:1 }}</td><td class="number">{{ day.grid_a_kwh|floatformat:1 }}</td><td class="number total">{{ day.grid_b_kwh|floatformat:1 }}</td></tr>{% endfor %}</tbody>
+  </table></div>
 </section>
 
 <section class="panel chart-panel" aria-labelledby="reco-heading">

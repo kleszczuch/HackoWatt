@@ -1,93 +1,67 @@
 {% extends "energy/base.html" %}
 {% block title %}HackoWatt · Pulpit zużycia{% endblock %}
 {% block content %}
-<section class="intro">
-  <div>
-    <p class="eyebrow">SCENARIUSZ 4 · KOPENHAGA</p>
-    <h1>Dom pełen pokoleń<br><span>zużycie i prognoza energii</span></h1>
-    <p class="lead">35 dni godzinowej historii z życia trzech pokoleń, prognoza na 24 godziny, 3 lub 7 dni oraz ocena błędu wobec prostego baseline'u.</p>
-  </div>
-  <div class="intro-aside">
-    <span class="pulse"></span>
-    <strong>Symulacja + prognoza</strong>
-    <small>Historia z generatora zdarzeń, pogoda z Open-Meteo</small>
-  </div>
-</section>
-
-<section class="notice" aria-label="Pochodzenie danych">
-  <span class="notice-icon">i</span>
-  <p><strong>To są dane demonstracyjne.</strong> Historia pochodzi z symulacji zdarzeń domowników na realnej pogodzie, a wartości po niej są prognozą modelu XGBoost. Nie są to odczyty licznika ani podstawa rozliczeń.</p>
-</section>
-
-<section class="panel filter-panel" aria-labelledby="filter-heading">
-  <div class="section-heading compact">
-    <div><p class="eyebrow">WYBIERZ DANE</p><h2 id="filter-heading">Zakres historii i horyzont prognozy</h2></div>
-    <span class="muted">Wykresy, sumy kWh i tabela</span>
-  </div>
-  <form class="filter-form" method="get" action="{% url 'dashboard' %}">
-    <div class="field"><label for="{{ form.start.id_for_label }}">Historia od</label>{{ form.start }}</div>
-    <div class="field"><label for="{{ form.end.id_for_label }}">Historia do</label>{{ form.end }}</div>
-    <div class="field"><label for="{{ horizon_form.horyzont.id_for_label }}">Prognoza</label>{{ horizon_form.horyzont }}</div>
-    <button class="button primary" type="submit">Pokaż dane <span aria-hidden="true">→</span></button>
-    {% if form.is_valid %}<a class="button secondary" href="{% url 'export_csv' %}?start={{ start }}&amp;end={{ end }}">Pobierz CSV</a>{% endif %}
-  </form>
-  {% if form.errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}{{ form.start.errors }}{{ form.end.errors }}</div>{% endif %}
-</section>
-
-{% if form.is_valid %}
-<section class="metrics" aria-label="Podsumowanie">
-  <article class="metric"><span>Historia w wybranym okresie</span><strong>{{ selected_total|floatformat:1 }} <small>kWh</small></strong><p>{{ selected_count }} godzin symulacji</p></article>
-  <article class="metric"><span>Prognoza na {{ horizon_hours }} h</span><strong>{{ forecast_total|floatformat:1 }} <small>kWh</small></strong><p>Suma oczekiwanego zużycia</p></article>
-  <article class="metric"><span>Błąd modelu (MAE)</span><strong>{{ metrics.mae_model|floatformat:3 }} <small>kWh</small></strong><p>Baseline tydzień temu: {{ metrics.mae_baseline|floatformat:3 }} kWh</p></article>
-  <article class="metric"><span>Błąd modelu (MAPE, doby)</span><strong>{{ metrics.mape_model|floatformat:1 }}<small>%</small></strong><p>Baseline tydzień temu: {{ metrics.mape_baseline|floatformat:1 }}%</p></article>
-</section>
-
-<section class="panel chart-panel" aria-labelledby="history-heading">
-  <div class="section-heading"><div><p class="eyebrow">HISTORIA · SYMULACJA</p><h2 id="history-heading">Zużycie i temperatura</h2></div><span class="muted">Wartości godzinowe · kategorie w kWh · ◆ zdarzenia</span></div>
-  <div class="plot">{{ history_chart|safe }}</div>
-</section>
-
-<section class="panel chart-panel" aria-labelledby="forecast-heading">
-  <div class="section-heading"><div><p class="eyebrow">PROGNOZA · {{ horizon_hours }} H</p><h2 id="forecast-heading">Oczekiwane zużycie i temperatura</h2></div><span class="muted">Razem {{ forecast_total|floatformat:1 }} kWh w horyzoncie</span></div>
-  <div class="plot">{{ forecast_chart|safe }}</div>
-  <div class="explanation-list" aria-label="Godziny szczytu">
-    {% for peak in peaks %}
-    <div class="explanation"><strong>Szczyt:</strong> {{ peak.sentence }}</div>
-    {% endfor %}
-  </div>
-</section>
-
-<section class="panel chart-panel" aria-labelledby="backtest-heading">
-  <div class="section-heading"><div><p class="eyebrow">SPRAWDZALNOŚĆ PROGNOZY</p><h2 id="backtest-heading">Model kontra baseline na końcu historii</h2></div><span class="muted">Ostatnie 7 dni historii · prognoza „na ślepo”</span></div>
-  <div class="plot">{{ backtest_chart|safe }}</div>
-</section>
-
-<section class="panel table-panel" aria-labelledby="table-heading">
-  <div class="section-heading"><div><p class="eyebrow">DOKŁADNE WARTOŚCI</p><h2 id="table-heading">Historia godzinowa</h2></div><span class="muted">{{ selected_count }} rekordów · wszystkie wartości w kWh</span></div>
-  <div class="table-scroll">
-    <table>
-      <thead><tr><th>Data i godzina</th>{% for label in category_labels %}<th>{{ label }}</th>{% endfor %}<th>Razem</th><th>Zdarzenia</th></tr></thead>
-      <tbody>
-        {% for record in page %}
-        <tr>
-          <td class="timestamp">{{ record.timestamp|date:"d.m.Y H:i" }}</td>
-          {% for value in record.categories %}<td class="number">{{ value }}</td>{% endfor %}
-          <td class="number total">{{ record.total }}</td>
-          <td>{{ record.events }}</td>
-        </tr>
-        {% empty %}<tr><td colspan="9" class="table-empty">Brak godzin dla tego zakresu.</td></tr>{% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% if page.paginator.num_pages > 1 %}
-  <nav class="pagination" aria-label="Strony tabeli">
-    <span>Strona {{ page.number }} z {{ page.paginator.num_pages }}</span>
+<div class="dashboard">
+  <header class="dashboard-heading">
     <div>
-      {% if page.has_previous %}<a class="button secondary" href="?start={{ start }}&amp;end={{ end }}&amp;horyzont={{ horizon_hours }}&amp;page={{ page.previous_page_number }}">← Poprzednia</a>{% endif %}
-      {% if page.has_next %}<a class="button secondary" href="?start={{ start }}&amp;end={{ end }}&amp;horyzont={{ horizon_hours }}&amp;page={{ page.next_page_number }}">Następna →</a>{% endif %}
+      <p class="eyebrow">SCENARIUSZ 4 · KOPENHAGA</p>
+      <h1>Energia w domu <span>pełnym pokoleń</span></h1>
+      <p>Symulacja zużycia na realnej pogodzie i prognoza XGBoost · dane demonstracyjne, nie odczyty licznika</p>
     </div>
-  </nav>
-  {% endif %}
-</section>
-{% endif %}
+    <div class="dashboard-actions">
+      <a class="button secondary" href="{% url 'hourly_history' %}?dni={{ simulation_days }}">Przegląd godzinowy →</a>
+      <a class="button primary" href="{% url 'pv_simulator' %}">Ile da dach z panelami? →</a>
+    </div>
+  </header>
+
+  <div class="dashboard-controls" aria-label="Zakresy danych">
+    <div class="range-control">
+      <span>Symulacja · ostatnie</span>
+      <nav class="range-options" aria-label="Okres symulacji">
+        {% for days in simulation_options %}<a href="?dni={{ days }}&amp;horyzont={{ horizon_hours }}" {% if days == simulation_days %}class="selected" aria-current="page"{% endif %}>{{ days }} d</a>{% endfor %}
+      </nav>
+    </div>
+    <div class="range-control">
+      <span>Prognoza</span>
+      <nav class="range-options" aria-label="Horyzont prognozy">
+        {% for hours, label in forecast_options %}<a href="?dni={{ simulation_days }}&amp;horyzont={{ hours }}" {% if hours == horizon_hours %}class="selected" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+      </nav>
+    </div>
+  </div>
+
+  <section class="dashboard-kpis" aria-label="Najważniejsze dane">
+    <article class="dashboard-kpi"><span>Symulacja · {{ selected_count }} h</span><strong>{{ selected_total|floatformat:1 }} <small>kWh</small></strong><p>{{ start }} – {{ end }}</p></article>
+    <article class="dashboard-kpi forecast-kpi"><span>Prognoza · {{ horizon_hours }} h</span><strong>{{ forecast_total|floatformat:1 }} <small>kWh</small></strong><p>Oczekiwane zużycie</p></article>
+    <article class="dashboard-kpi"><span>Błąd modelu · MAE</span><strong>{{ metrics.mae_model|floatformat:3 }} <small>kWh</small></strong><p>Baseline: {{ metrics.mae_baseline|floatformat:3 }} kWh · MAPE {{ metrics.mape_model|floatformat:1 }}%</p></article>
+  </section>
+
+  <div class="dashboard-charts">
+    <section class="panel overview-panel" aria-labelledby="history-heading">
+      <div class="overview-heading"><div><p class="eyebrow">HISTORIA · SYMULACJA</p><h2 id="history-heading">Zużycie i temperatura</h2></div><a href="{% url 'hourly_history' %}?dni={{ simulation_days }}">Godziny →</a></div>
+      <div class="plot">{{ history_chart|safe }}</div>
+    </section>
+    <section class="panel overview-panel" aria-labelledby="forecast-heading">
+      <div class="overview-heading"><div><p class="eyebrow">PROGNOZA · {{ horizon_hours }} H</p><h2 id="forecast-heading">Zużycie i temperatura</h2></div></div>
+      <div class="plot">{{ forecast_chart|safe }}</div>
+    </section>
+  </div>
+
+  <section class="peaks-strip" aria-label="Godziny szczytu prognozy">
+    <div class="peaks-title"><span class="eyebrow">PROGNOZA</span><strong>Godziny szczytu</strong></div>
+    {% for peak in peaks %}<div class="peak-item"><span class="peak-number">0{{ forloop.counter }}</span><span><strong>Szczyt:</strong> {{ peak.sentence }}</span></div>{% endfor %}
+  </section>
+
+  <details class="panel backtest-details" id="backtest-details">
+    <summary>Model kontra baseline na końcu historii <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · zobacz wykres</span></summary>
+    <p>Ostatnie 7 dni historii · prognoza „na ślepo”. MAPE modelu {{ metrics.mape_model|floatformat:1 }}%, baseline'u {{ metrics.mape_baseline|floatformat:1 }}%.</p>
+    <div class="plot">{{ backtest_chart|safe }}</div>
+  </details>
+  <script>
+    document.getElementById('backtest-details').addEventListener('toggle', function () {
+      if (this.open && window.Plotly) {
+        requestAnimationFrame(() => Plotly.Plots.resize(this.querySelector('.plotly-graph-div')));
+      }
+    });
+  </script>
+</div>
 {% endblock %}

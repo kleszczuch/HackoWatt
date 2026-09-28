@@ -15,6 +15,7 @@
       </a>
       <nav class="topnav" aria-label="Nawigacja główna">
         <a href="{% url 'dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>Pulpit</a>
+        <a href="{% url 'hourly_history' %}" {% if request.resolver_match.url_name == 'hourly_history' %}class="active"{% endif %}>Godziny</a>
         <a href="{% url 'pv_simulator' %}" {% if request.resolver_match.url_name == 'pv_simulator' %}class="active"{% endif %}>Symulator PV</a>
         <a href="{% url 'assumptions' %}" {% if request.resolver_match.url_name == 'assumptions' %}class="active"{% endif %}>Założenia</a>
       </nav>
