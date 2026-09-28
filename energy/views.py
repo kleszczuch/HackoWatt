@@ -36,8 +36,12 @@ PV_DEFAULTS = {
 }
 
 
-def _chart_html(figure, include_plotlyjs: bool = False) -> str:
-    return figure.to_html(full_html=False, include_plotlyjs=include_plotlyjs, config=PLOTLY_CONFIG)
+def _chart_html(figure, include_plotlyjs=False):
+    return figure.to_html(
+        full_html=False, 
+        include_plotlyjs=include_plotlyjs,
+        config={"scrollZoom": True}  
+    )
 
 
 def _date_range(request: HttpRequest, history):
