@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from energy import tariffs
 from energy.pv import DEFAULT_STORAGE
@@ -27,6 +27,7 @@ class Command(BaseCommand):
         base_data_dir = settings.DEMO_DATA_DIR
         cache_dir = base_data_dir / recommendations.CACHE_DIRNAME
         scenario_ids = [options["scenario"]] if options["scenario"] else list(SCENARIOS)
+        missing_scenarios = []
         for scen_id in scenario_ids:
             scen = SCENARIOS[scen_id]
             data_dir = base_data_dir / scen["folder"]
@@ -41,6 +42,7 @@ class Command(BaseCommand):
                 cache_dir=cache_dir,
             )
             if plan["status"] != "ready":
+                missing_scenarios.append(scen["name"])
                 self.stdout.write(
                     self.style.WARNING(
                         f"{scen['name']}: brak danych na jutro (status: {plan['status']}) — "
@@ -76,5 +78,9 @@ class Command(BaseCommand):
                     f"{kept} pozostawionych, {no_cycle} bez cyklu, dzień {plan['date']}, "
                     f"bufor: {cache_file}{source_note}"
                 )
+            )
+        if missing_scenarios:
+            raise CommandError(
+                "Nie przygotowano rekomendacji dla: " + ", ".join(missing_scenarios)
             )
         self.stdout.write(self.style.SUCCESS("Rekomendacje są gotowe."))

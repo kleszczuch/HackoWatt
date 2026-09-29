@@ -1,21 +1,13 @@
-"""Polecenie Django: uv sync, fetch_tariff_prices, prepare_data oraz runserver 0.0.0.0:8000."""
+"""Pełny lokalny rozruch: zależności, dane, rekomendacje i serwer Django."""
 
 import shutil
-import ssl
 import subprocess
 import sys
 from pathlib import Path
 
-try:
-    _create_unverified_https_context = ssl._create_unverified_context
-except AttributeError:
-    pass
-else:
-    ssl._create_default_https_context = _create_unverified_https_context
-
 from django.conf import settings
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
@@ -24,14 +16,14 @@ class Command(BaseCommand):
         "synchronizuje zależności (uv sync), pobiera ceny RCE (fetch_tariff_prices), "
         "generuje dane i symulacje scenariuszy (prepare_data), liczy rekomendacje "
         "pracy urządzeń (prepare_recommendations) "
-        "oraz uruchamia serwer deweloperski na 0.0.0.0:8000."
+        "oraz uruchamia lokalny serwer deweloperski."
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--addrport",
             default="localhost:8000",
-            help="Adres i port dla serwera deweloperskiego (domyślnie: 0.0.0.0:8000).",
+            help="Adres i port dla serwera deweloperskiego (domyślnie: localhost:8000).",
         )
         parser.add_argument(
             "--no-sync",
@@ -83,13 +75,9 @@ class Command(BaseCommand):
                 subprocess.run([uv_path, "sync"], cwd=base_dir, check=True)
                 self.stdout.write(self.style.SUCCESS("[OK] Zależności uv zsynchronizowane."))
             except FileNotFoundError:
-                self.stderr.write(
-                    self.style.WARNING("! Nie znaleziono 'uv' w PATH, pomijam synchronizację.")
-                )
+                raise CommandError("Nie znaleziono 'uv' w PATH.") from None
             except subprocess.CalledProcessError as exc:
-                self.stderr.write(
-                    self.style.WARNING(f"! Błąd podczas uv sync: {exc}. Kontynuuję...")
-                )
+                raise CommandError(f"Synchronizacja uv nie powiodła się: {exc}.") from exc
         else:
             self.stdout.write("\n[1/5] Pomijam synchronizację uv (--no-sync).")
 
@@ -100,7 +88,9 @@ class Command(BaseCommand):
             )
             try:
                 call_command("fetch_tariff_prices", stdout=self.stdout, stderr=self.stderr)
-                self.stdout.write(self.style.SUCCESS("[OK] Ceny taryfowe zaktualizowane."))
+                self.stdout.write(
+                    self.style.SUCCESS("[OK] Sprawdzono ceny RCE; brakujące godziny użyją taryfy stałej.")
+                )
             except Exception as exc:
                 self.stderr.write(
                     self.style.WARNING(f"! Ostrzeżenie przy fetch_tariff_prices: {exc}")
@@ -108,6 +98,8 @@ class Command(BaseCommand):
         else:
             self.stdout.write("\n[2/5] Pomijam pobieranie cen taryfowych (--no-tariffs).")
 
+        # Dane i rekomendacje są wymagane: serwer z niekompletnym planem nie
+        # powinien być ogłaszany jako gotowe demo. Ceny RCE mają jawny fallback.
         # Krok 3: prepare_data
         if not options["no_data"]:
             self.stdout.write(
@@ -117,7 +109,7 @@ class Command(BaseCommand):
                 call_command("prepare_data", stdout=self.stdout, stderr=self.stderr)
                 self.stdout.write(self.style.SUCCESS("[OK] Dane i symulacje scenariuszy gotowe."))
             except Exception as exc:
-                self.stderr.write(self.style.WARNING(f"! Ostrzeżenie przy prepare_data: {exc}"))
+                raise CommandError(f"Przygotowanie danych nie powiodło się: {exc}") from exc
         else:
             self.stdout.write("\n[3/5] Pomijam przygotowanie danych (--no-data).")
 
@@ -132,13 +124,11 @@ class Command(BaseCommand):
                 call_command("prepare_recommendations", stdout=self.stdout, stderr=self.stderr)
                 self.stdout.write(self.style.SUCCESS("[OK] Rekomendacje urządzeń gotowe."))
             except Exception as exc:
-                self.stderr.write(
-                    self.style.WARNING(f"! Ostrzeżenie przy prepare_recommendations: {exc}")
-                )
+                raise CommandError(f"Przygotowanie rekomendacji nie powiodło się: {exc}") from exc
         else:
             self.stdout.write("\n[4/5] Pomijam rekomendacje urządzeń (--no-recommendations).")
 
-        # Krok 5: runserver 0.0.0.0:8000
+        # Krok 5: lokalny runserver
         if not options["no_server"]:
             self.stdout.write(
                 self.style.NOTICE(f"\n[5/5] Start serwera Django na {addrport} (runserver)...")

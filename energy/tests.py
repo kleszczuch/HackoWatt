@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
@@ -2705,7 +2706,8 @@ class PrepareRecommendationsCommandTests(SimpleTestCase):
 
         output = io.StringIO()
         with patch("models.recommendations.ollama_client.generate", return_value=None):
-            call_command("prepare_recommendations", "--scenario", "2", stdout=output)
+            with self.assertRaises(CommandError):
+                call_command("prepare_recommendations", "--scenario", "2", stdout=output)
         self.assertIn("brak danych", output.getvalue())
         self.assertFalse((data_dir / "recommendations").exists())
 

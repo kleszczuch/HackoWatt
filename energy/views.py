@@ -44,6 +44,8 @@ from energy.scenarios import (
     SCENARIOS,
     capture_scenario_context,
     capture_scenario_data_dir,
+    get_active_scenario,
+    get_scenario_data_dir,
     localized_scenario,
     set_server_active_scenario,
 )
