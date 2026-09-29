@@ -119,6 +119,11 @@ def _to_float(val: Decimal | float | int | None, round_digits: int = 3) -> float
     return round(float(val), round_digits)
 
 
+def _tariff(request: HttpRequest) -> tuple[tariffs.TariffConfig, dict | None]:
+    """Zwraca konfigurację taryfy użytkownika i pobrane ceny dynamiczne."""
+    return tariffs.tariff_for_request(request, settings.DEMO_DATA_DIR)
+
+
 def _parse_params(request: HttpRequest) -> tuple[dict, str | None]:
     """Pobiera parametry z query string (GET) lub z ciała JSON / formularza (POST)."""
     if request.method == "GET":
@@ -153,8 +158,12 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
     wskazuje status na bieżącą godzinę oraz dedykowane wskazówki dla domowników.
     Wymaga autoryzacji api_secret.
     """
-    now_hour = datetime.now().hour
-    prices = [tariffs.price_for_hour(h) for h in range(24)]
+    now = datetime.now().replace(minute=0, second=0, microsecond=0)
+    now_hour = now.hour
+    tariff_config, dynamic_prices = _tariff(request)
+    day_start = now.replace(hour=0)
+    priced = [tariff_config.price_at(day_start.replace(hour=h), dynamic_prices) for h in range(24)]
+    prices = [price for price, _ in priced]
     low = min(prices)
     high = max(prices)
 
@@ -173,6 +182,7 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
             "status_code": band(price)[0],
             "badge": band(price)[1],
             "price_per_kwh": _to_float(price),
+            "is_fallback": priced[hour][1],
             "is_current": hour == now_hour,
         }
         for hour, price in enumerate(prices)
@@ -190,6 +200,7 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
                 "status_code": current_code,
                 "status_title": current_title,
                 "price_per_kwh": _to_float(prices[now_hour]),
+                "is_fallback": priced[now_hour][1],
                 "currency": tariffs.CURRENCY,
             },
             "lowest_tariff_hours": [hour for hour, price in enumerate(prices) if price == low],
@@ -305,8 +316,10 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
         }
 
     # Bieżąca taryfa i prosta ocena
-    current_hour_idx = datetime.now().hour
-    current_price = tariffs.price_for_hour(current_hour_idx)
+    tariff_config, dynamic_prices = _tariff(request)
+    now_moment = datetime.now().replace(minute=0, second=0, microsecond=0)
+    current_hour_idx = now_moment.hour
+    current_price, _ = tariff_config.price_at(now_moment, dynamic_prices)
     if current_price >= Decimal("0.40"):
         period_label = _tr(request, "Szczyt popołudniowy (drogo)", "Afternoon peak (expensive)")
         period_color = "red"
@@ -548,9 +561,11 @@ def consumption_forecast(request: HttpRequest) -> JsonResponse:
         for p in peaks
     ]
 
+    tariff_config, dynamic_prices = _tariff(request)
     items = []
     for r in forecast_slice:
         w = weather_by_time.get(r.timestamp)
+        tariff_price, tariff_fallback = tariff_config.price_at(r.timestamp, dynamic_prices)
         items.append(
             {
                 "timestamp": r.timestamp.isoformat(),
@@ -563,7 +578,8 @@ def consumption_forecast(request: HttpRequest) -> JsonResponse:
                     "cloud_cover_percent": w.cloud_cover if w else None,
                     "radiation_w_m2": w.radiation if w else None,
                 },
-                "tariff_price_eur": _to_float(tariffs.price_for_hour(r.timestamp.hour)),
+                "tariff_price_eur": _to_float(tariff_price),
+                "tariff_is_fallback": tariff_fallback,
             }
         )
 
@@ -592,8 +608,10 @@ def consumption_forecast(request: HttpRequest) -> JsonResponse:
 @require_api_secret
 def tariffs_info(request: HttpRequest) -> JsonResponse:
     """Zwraca harmonogram taryfowy, strefy cenowe i aktualne stawki."""
+    tariff_config, dynamic_prices = _tariff(request)
     periods = []
     for start_h, end_h, price in tariffs.TARIFF_PERIODS:
+        price = tariff_config.price_for_hour(start_h)
         label = _tr(request, "Standardowa dzienna", "Standard day rate")
         if price >= Decimal("0.40"):
             label = _tr(
@@ -613,8 +631,9 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
             }
         )
 
-    now_hour = datetime.now().hour
-    current_price = tariffs.price_for_hour(now_hour)
+    now_moment = datetime.now().replace(minute=0, second=0, microsecond=0)
+    now_hour = now_moment.hour
+    current_price, current_fallback = tariff_config.price_at(now_moment, dynamic_prices)
     scen = get_active_scenario(request)
     return api_success(
         {
@@ -626,22 +645,23 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
             "currency": tariffs.CURRENCY,
             "current_hour": now_hour,
             "current_price_eur": _to_float(current_price),
+            "current_price_is_fallback": current_fallback,
             "periods": periods,
             "recommendations": {
                 "cheapest_window": {
                     "start_hour": 0,
                     "end_hour": 6,
-                    "price_per_kwh": 0.18,
+                    "price_per_kwh": _to_float(tariff_config.price_for_hour(2)),
                 },
                 "pv_window": {
                     "start_hour": 9,
                     "end_hour": 15,
-                    "price_per_kwh": 0.28,
+                    "price_per_kwh": _to_float(tariff_config.price_for_hour(12)),
                 },
                 "peak_window": {
                     "start_hour": 17,
                     "end_hour": 22,
-                    "price_per_kwh": 0.40,
+                    "price_per_kwh": _to_float(tariff_config.price_for_hour(18)),
                 },
             },
         }
@@ -995,8 +1015,10 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
         min_e, max_e = profile["energy"]
         energy_kwh = Decimal(str((min_e + max_e) / 2))
 
-    orig_price = tariffs.price_for_hour(orig_h)
-    target_price = tariffs.price_for_hour(target_h)
+    tariff_config, dynamic_prices = _tariff(request)
+    today = datetime.now().replace(minute=0, second=0, microsecond=0)
+    orig_price, _ = tariff_config.price_at(today.replace(hour=orig_h), dynamic_prices)
+    target_price, _ = tariff_config.price_at(today.replace(hour=target_h), dynamic_prices)
 
     orig_cost = orig_price * energy_kwh
     target_cost = target_price * energy_kwh

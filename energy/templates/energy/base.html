@@ -11,14 +11,14 @@
 </head>
 <body class="{% block body_class %}{% endblock %} min-h-screen font-sans text-charcoal" style="--page-background: url('{% static 'energy/Background.webp' %}');">
   <div class="shell mx-auto max-w-[1460px] px-8 max-sm:px-3.5">
-    <header class="flex min-h-[76px] items-center justify-between gap-6 border-b border-line max-sm:flex-wrap max-sm:gap-2 max-sm:pb-2 max-sm:pt-[11px]">
-      <a class="inline-flex items-center gap-2.5 whitespace-nowrap text-[23px] font-[850] tracking-[-0.045em] text-charcoal no-underline max-sm:text-[19px]" href="{% url 'dashboard' %}" aria-label="{% if is_en %}eko-dziki – home{% else %}eko-dziki – strona główna{% endif %}">
+    <header class="grid min-h-[76px] grid-cols-[auto_auto_minmax(0,1fr)] items-center gap-x-6 border-b border-line max-[1100px]:grid-cols-[auto_1fr] max-[1100px]:gap-y-2 max-[1100px]:py-2.5 max-sm:grid-cols-1 max-sm:gap-2 max-sm:pb-2 max-sm:pt-[11px]">
+      <a class="inline-flex items-center gap-2.5 whitespace-nowrap text-[24px] font-[850] tracking-[-0.045em] text-charcoal no-underline max-sm:text-[20px]" href="{% url 'dashboard' %}" aria-label="{% if is_en %}eko-dziki – home{% else %}eko-dziki – strona główna{% endif %}">
         <img class="block size-12 shrink-0 object-contain max-sm:size-[39px]" src="{% static 'energy/Logo.webp' %}" alt="" width="48" height="48"><span>eko-dziki</span>
       </a>
-      <div class="relative m-0 flex items-center gap-2" role="region" aria-label="{% if is_en %}Scenario{% else %}Scenariusz{% endif %}">
-        <label class="text-[11px] font-extrabold uppercase tracking-[0.05em] text-slate" id="scenario-choice-label" for="scenario-choice">{% if is_en %}Scenario{% else %}Scenariusz{% endif %}</label>
+      <div class="relative m-0 flex items-center gap-2 max-[1100px]:justify-self-end max-sm:justify-self-start" role="region" aria-label="{% if is_en %}Scenario{% else %}Scenariusz{% endif %}">
+        <label class="text-xs font-extrabold uppercase tracking-[0.05em] text-slate" id="scenario-choice-label" for="scenario-choice">{% if is_en %}Scenario{% else %}Scenariusz{% endif %}</label>
         <div class="group relative" id="scenarioDropdown">
-          <button type="button" class="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[9px] border border-line bg-paper px-3 py-1.5 text-xs font-bold text-charcoal shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-150 hover:border-charcoal hover:bg-white" id="scenarioToggle" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="scenario-choice-label scenarioToggle">
+          <button type="button" class="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[9px] border border-line bg-paper px-3 py-1.5 text-[13px] font-bold text-charcoal shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all duration-150 hover:border-charcoal hover:bg-white" id="scenarioToggle" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="scenario-choice-label scenarioToggle">
             <span class="inline-flex shrink-0 items-center">{{ active_scenario.flag_svg|safe }}</span>
             <span class="whitespace-nowrap">{{ active_scenario.id }} · {{ active_scenario.city_short }}</span>
             <svg class="ml-0.5 text-slate transition-transform duration-150 group-[.open]:rotate-180" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -46,17 +46,13 @@
           </select>
         </div>
       </div>
-      <div class="flex flex-wrap items-center gap-4">
-        <nav class="flex items-center gap-[5px] max-sm:w-full max-sm:gap-0.5 max-sm:overflow-x-auto max-sm:[scrollbar-width:thin]" aria-label="{% if is_en %}Main navigation{% else %}Nawigacja główna{% endif %}">
+      <div class="flex items-center justify-self-end gap-4 whitespace-nowrap max-[1100px]:col-span-2 max-sm:col-span-1 max-sm:w-full max-sm:justify-self-stretch max-sm:gap-2">
+        <nav class="flex items-center gap-[5px] max-sm:min-w-0 max-sm:flex-1 max-sm:gap-0.5 max-sm:overflow-x-auto max-sm:[scrollbar-width:thin]" aria-label="{% if is_en %}Main navigation{% else %}Nawigacja główna{% endif %}">
           <a class="inline-flex min-h-9 items-center whitespace-nowrap rounded-[10px] px-[13px] py-2 text-xs font-bold text-charcoal no-underline hover:bg-paper max-sm:px-[9px] max-sm:py-[7px] max-sm:text-[11px] {% if request.resolver_match.url_name == 'dashboard' %}bg-chartreuse shadow-[inset_0_-2px_0_var(--color-charcoal)]{% endif %}" href="{% url 'dashboard' %}">{% if is_en %}Dashboard{% else %}Pulpit{% endif %}</a>
           <a class="inline-flex min-h-9 items-center whitespace-nowrap rounded-[10px] px-[13px] py-2 text-xs font-bold text-charcoal no-underline hover:bg-paper max-sm:px-[9px] max-sm:py-[7px] max-sm:text-[11px] {% if request.resolver_match.url_name == 'hourly_history' %}bg-chartreuse shadow-[inset_0_-2px_0_var(--color-charcoal)]{% endif %}" href="{% url 'hourly_history' %}">{% if is_en %}Hourly data{% else %}Godziny{% endif %}</a>
           <a class="inline-flex min-h-9 items-center whitespace-nowrap rounded-[10px] px-[13px] py-2 text-xs font-bold text-charcoal no-underline hover:bg-paper max-sm:px-[9px] max-sm:py-[7px] max-sm:text-[11px] {% if request.resolver_match.url_name == 'pv_simulator' %}bg-chartreuse shadow-[inset_0_-2px_0_var(--color-charcoal)]{% endif %}" href="{% url 'pv_simulator' %}">{% if is_en %}PV simulator{% else %}Symulator PV{% endif %}</a>
         </nav>
-        <div class="inline-flex items-center gap-[3px] rounded-[10px] border border-line bg-paper px-[5px] py-[3px] text-[11px] font-extrabold tracking-[0.05em] shadow-[0_2px_6px_rgba(84,84,84,0.04)]" role="group" aria-label="{% if is_en %}Language{% else %}Język{% endif %}">
-          <a href="{% url 'change_language' 'pl' %}?next={{ request.get_full_path|urlencode }}" class="inline-flex items-center justify-center rounded-md px-2 py-1 leading-none no-underline transition-all duration-150 hover:bg-charcoal/[0.08] hover:text-charcoal {% if not is_en %}bg-chartreuse text-charcoal shadow-[inset_0_-1px_0_var(--color-charcoal)]{% else %}text-slate{% endif %}" title="Polski" aria-label="Przełącz na język polski">PL</a>
-          <span class="select-none text-[10px] text-line" aria-hidden="true">|</span>
-          <a href="{% url 'change_language' 'en' %}?next={{ request.get_full_path|urlencode }}" class="inline-flex items-center justify-center rounded-md px-2 py-1 leading-none no-underline transition-all duration-150 hover:bg-charcoal/[0.08] hover:text-charcoal {% if is_en %}bg-chartreuse text-charcoal shadow-[inset_0_-1px_0_var(--color-charcoal)]{% else %}text-slate{% endif %}" title="English" aria-label="Switch to English">EN</a>
-        </div>
+        <a class="inline-flex shrink-0 items-center whitespace-nowrap rounded-[9px] border border-line bg-paper px-3 py-2 text-xs font-bold text-charcoal no-underline hover:bg-chartreuse" href="{% url 'settings' %}?next={{ request.get_full_path|urlencode }}" title="{% if is_en %}Settings{% else %}Ustawienia{% endif %}">⚙ {% if is_en %}Settings{% else %}Ustawienia{% endif %}</a>
       </div>
     </header>
 
@@ -71,7 +67,7 @@
       {% block content %}{% endblock %}
       {% endif %}
     </main>
-    <footer class="pb-[35px] pt-5 text-center text-[11px] text-charcoal">{% if is_en %}eko-dziki · simulated energy scenarios · weather: Open-Meteo · EUR costs are estimates{% else %}eko-dziki · symulowane scenariusze energii · pogoda: Open-Meteo · koszty w EUR są szacunkami{% endif %}</footer>
+    <footer class="pb-[35px] pt-5 text-center text-[11px] text-charcoal">{% if is_en %}eko-dziki · simulated energy scenarios · weather: Open-Meteo · costs in {{ current_currency }} are estimates{% else %}eko-dziki · symulowane scenariusze energii · pogoda: Open-Meteo · koszty w {{ current_currency }} są szacunkami{% endif %}</footer>
   </div>
   <script>
     (function() {

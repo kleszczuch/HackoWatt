@@ -1,0 +1,140 @@
+{% extends "energy/base.html" %}
+{% load energy_labels %}
+{% block title %}{% if is_en %}eko-dziki · Settings{% else %}eko-dziki · Ustawienia{% endif %}{% endblock %}
+{% block body_class %}settings-page{% endblock %}
+{% block content %}
+<section class="hourly-heading">
+  <div>
+    <p class="eyebrow">{% if is_en %}SETTINGS{% else %}USTAWIENIA{% endif %}</p>
+    <h1>{% if is_en %}Settings{% else %}Ustawienia{% endif %}</h1>
+    <p>{% if is_en %}Choose your language, currency and energy tariff.{% else %}Wybierz język, walutę i taryfę energii.{% endif %}</p>
+  </div>
+  <a class="button secondary" href="{% url 'dashboard' %}">{% if is_en %}← Dashboard{% else %}← Pulpit{% endif %}</a>
+</section>
+
+<section class="panel filter-panel preference-settings" aria-labelledby="preferences-heading">
+  <div class="section-heading compact"><div>
+    <p class="eyebrow">{% if is_en %}DISPLAY{% else %}WYŚWIETLANIE{% endif %}</p>
+    <h2 id="preferences-heading">{% if is_en %}Language and currency{% else %}Język i waluta{% endif %}</h2>
+  </div></div>
+  <form class="preferences-form" method="post" action="{% url 'settings' %}?date={{ selected_date_iso }}&amp;mode={{ form.mode.value }}">
+    {% csrf_token %}
+    <input type="hidden" name="intent" value="preferences">
+    <div class="field"><label for="preferred-language">{% if is_en %}Language{% else %}Język{% endif %}</label>
+      <select id="preferred-language" name="language"><option value="pl" {% if is_pl %}selected{% endif %}>Polski</option><option value="en" {% if is_en %}selected{% endif %}>English</option></select>
+    </div>
+    <div class="field"><label for="preferred-currency">{% if is_en %}Currency{% else %}Waluta{% endif %}</label>
+      <select id="preferred-currency" name="currency"><option value="EUR" {% if current_currency == 'EUR' %}selected{% endif %}>EUR · euro (€)</option><option value="PLN" {% if current_currency == 'PLN' %}selected{% endif %}>PLN · {% if is_en %}Polish złoty{% else %}złoty polski{% endif %} (zł)</option><option value="DKK" {% if current_currency == 'DKK' %}selected{% endif %}>DKK · {% if is_en %}Danish krone{% else %}korona duńska{% endif %} (kr)</option></select>
+    </div>
+    <button class="button primary" type="submit">{% if is_en %}Save preferences{% else %}Zapisz preferencje{% endif %}</button>
+  </form>
+  <p class="muted exchange-note">{% if is_en %}Estimated conversion: 1 EUR = 4.30 PLN = 7.46038 DKK. Fixed model rates, not live exchange rates. Calculations use EUR.{% else %}Przeliczenie orientacyjne: 1 EUR = 4,30 PLN = 7,46038 DKK. Stałe kursy modelowe, nie bieżące kursy rynkowe. Obliczenia są w EUR.{% endif %}</p>
+</section>
+
+<section class="panel filter-panel tariff-settings" aria-labelledby="tariff-heading">
+  <div class="section-heading compact">
+    <div>
+      <p class="eyebrow">{% if is_en %}Energy tariff{% else %}Taryfa energii{% endif %}</p>
+      <h2 id="tariff-heading">{% if is_en %}Choose your tariff{% else %}Wybierz taryfę{% endif %}</h2>
+      <p class="muted">{% if is_en %}Only the prices for the selected tariff are shown below. Save to use it in calculations.{% else %}Poniżej zobaczysz ceny wybranej taryfy. Zapisz ustawienia, aby używać jej w obliczeniach.{% endif %}</p>
+    </div>
+  </div>
+
+  <form class="tariff-form" id="tariffSettingsForm" method="post" action="{% url 'settings' %}?date={{ selected_date_iso }}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.GET.next }}">
+    <div class="tariff-mode-options" role="radiogroup" aria-label="{% if is_en %}Tariff type{% else %}Rodzaj taryfy{% endif %}">
+      <label class="tariff-mode-option">
+        <input type="radio" name="mode" value="fixed" {% if form.mode.value == "fixed" %}checked{% endif %}>
+        <span><strong>{% if is_en %}Fixed tariff{% else %}Taryfa stała{% endif %}</strong><small>{% if is_en %}Your rates for four time periods{% else %}Twoje stawki w czterech porach doby{% endif %}</small></span>
+      </label>
+      <label class="tariff-mode-option">
+        <input type="radio" name="mode" value="dynamic" {% if form.mode.value == "dynamic" %}checked{% endif %}>
+        <span><strong>{% if is_en %}Dynamic tariff{% else %}Taryfa dynamiczna{% endif %}</strong><small>{% if is_en %}Hourly PSE prices plus provider margin{% else %}Ceny godzinowe PSE z marżą dostawcy{% endif %}</small></span>
+      </label>
+    </div>
+
+    <fieldset class="tariff-mode-panel tariff-fixed-panel" id="tariffFixedPanel" {% if form.mode.value != "fixed" %}hidden{% endif %}>
+      <legend>{% if is_en %}Fixed tariff rates{% else %}Kwoty taryfy stałej{% endif %}</legend>
+      <p class="muted">{% if is_en %}Enter your electricity price for each period. These rates also apply if a dynamic price is unavailable.{% else %}Wpisz cenę energii dla każdej pory doby. Te stawki obowiązują też wtedy, gdy zabraknie ceny dynamicznej.{% endif %}</p>
+      <div class="tariff-fixed-fields">
+        <div class="field"><label for="{{ form.price_0.id_for_label }}">{{ form.price_0.label }}</label>{{ form.price_0 }}</div>
+        <div class="field"><label for="{{ form.price_1.id_for_label }}">{{ form.price_1.label }}</label>{{ form.price_1 }}</div>
+        <div class="field"><label for="{{ form.price_2.id_for_label }}">{{ form.price_2.label }}</label>{{ form.price_2 }}</div>
+        <div class="field"><label for="{{ form.price_3.id_for_label }}">{{ form.price_3.label }}</label>{{ form.price_3 }}</div>
+      </div>
+    </fieldset>
+
+    <div class="tariff-mode-panel tariff-provider-panel" id="tariffProviderPanel" {% if form.mode.value != "dynamic" %}hidden{% endif %}>
+      <div class="field"><label for="{{ form.provider.id_for_label }}">{{ form.provider.label }}</label>{{ form.provider }}</div>
+      <p class="muted">{% if is_en %}The preview below includes the margin of your saved provider. Save a new provider to update the prices.{% else %}Podgląd poniżej zawiera marżę zapisanego dostawcy. Zapisz nowego dostawcę, aby zaktualizować ceny.{% endif %}</p>
+    </div>
+    <button class="button primary" type="submit">{% if is_en %}Save tariff{% else %}Zapisz taryfę{% endif %}</button>
+  </form>
+  {% if form_errors %}<div class="form-errors" role="alert">{{ form_errors }}</div>{% endif %}
+</section>
+
+<details class="panel tariff-preview collapsible-panel" id="tariffDynamicPreview" aria-labelledby="tariff-preview-heading"{% if form.mode.value != "dynamic" %} hidden{% endif %}{% if request.GET.expand == '1' %} open{% endif %}>
+  <summary class="tariff-preview-heading">
+    <div>
+      <p class="eyebrow">{% if is_en %}DYNAMIC TARIFF{% else %}TARYFA DYNAMICZNA{% endif %}</p>
+      <h2 id="tariff-preview-heading">{% if is_en %}Hourly prices · {{ selected_date_label }}{% else %}Ceny godzinowe · {{ selected_date_label }}{% endif %}</h2>
+      <p class="muted">{{ dynamic_status.text }}</p>
+    </div>
+  </summary>
+
+  <div class="tariff-date-controls">
+    <nav class="tariff-date-shortcuts" aria-label="{% if is_en %}Quick date selection{% else %}Szybki wybór daty{% endif %}">
+      <a href="?mode=dynamic&amp;date={{ today_iso }}&amp;expand=1" {% if selected_is_today %}aria-current="date"{% endif %}>{% if is_en %}Today{% else %}Dziś{% endif %}</a>
+      <a href="?mode=dynamic&amp;date={{ tomorrow_iso }}&amp;expand=1" {% if selected_is_tomorrow %}aria-current="date"{% endif %}>{% if is_en %}Tomorrow{% else %}Jutro{% endif %}</a>
+    </nav>
+    <form class="tariff-date-form" method="get" action="{% url 'settings' %}">
+      <input type="hidden" name="mode" value="dynamic">
+      <input type="hidden" name="expand" value="1">
+      <label for="tariff-date">{% if is_en %}Choose a date from the past year{% else %}Wybierz datę z ostatniego roku{% endif %}</label>
+      <input id="tariff-date" type="date" name="date" value="{{ selected_date_iso }}" min="{{ min_date_iso }}" max="{{ tomorrow_iso }}" required>
+      <button class="button secondary" type="submit">{% if is_en %}Show prices{% else %}Pokaż ceny{% endif %}</button>
+    </form>
+  </div>
+  {% if date_error %}<p class="tariff-alert" role="alert">{{ date_error }}</p>{% endif %}
+
+  <div class="tariff-day-summary" aria-label="{% if is_en %}Daily price summary{% else %}Podsumowanie cen dnia{% endif %}">
+    <div><span>{% if is_en %}Market prices available{% else %}Dostępne ceny PSE{% endif %}</span><strong>{{ market_count }}/24</strong></div>
+    <div class="tariff-block-summary cheapest"><span>{% if is_en %}Cheapest 4-hour block{% else %}Najtańszy blok 4 h{% endif %}</span><strong>{{ cheapest_block.interval_label }}</strong><small>{% if is_en %}Average{% else %}Średnio{% endif %} <b>{{ cheapest_block.average|display_currency:current_currency|floatformat:5 }} {{ currency_symbol }}/kWh</b></small></div>
+    <div class="tariff-block-summary highest"><span>{% if is_en %}Priciest 4-hour block{% else %}Najdroższy blok 4 h{% endif %}</span><strong>{{ highest_block.interval_label }}</strong><small>{% if is_en %}Average{% else %}Średnio{% endif %} <b>{{ highest_block.average|display_currency:current_currency|floatformat:5 }} {{ currency_symbol }}/kWh</b></small></div>
+  </div>
+  {% if blocks_tied %}<p class="tariff-alert">{% if is_en %}All 4-hour blocks have the same average price. The first and last tied blocks are highlighted.{% else %}Wszystkie bloki 4-godzinne mają tę samą średnią cenę. Zaznaczono pierwszy i ostatni z równych bloków.{% endif %}</p>{% endif %}
+  {% if fallback_count %}
+  <p class="tariff-alert">{% if is_en %}No PSE price for {{ fallback_count }} of 24 hours. Those hours use your fixed tariff rate and are marked on the chart.{% else %}Brak ceny PSE dla {{ fallback_count }} z 24 godzin. W tych godzinach obowiązuje stawka stała, oznaczona na wykresie.{% endif %}</p>
+  {% endif %}
+
+  <div class="plot tariff-chart" aria-label="{% if is_en %}Hourly energy prices{% else %}Godzinowe ceny energii{% endif %}">{{ tariff_chart|safe }}</div>
+  <p class="tariff-footnote">{% if is_en %}PSE RCE prices are converted from PLN/MWh to €/kWh at a fixed exchange rate, then the saved provider's margin is added. Fixed fallback rates have no provider margin. Data is downloaded outside page requests.{% else %}Ceny PSE RCE są przeliczane z PLN/MWh na €/kWh stałym kursem, a potem doliczana jest marża zapisanego dostawcy. Do zapasowych stawek stałych marża nie jest doliczana. Dane są pobierane poza żądaniami strony.{% endif %}</p>
+</details>
+
+<script>
+  (() => {
+    const radios = document.querySelectorAll('#tariffSettingsForm input[name="mode"]');
+    const fixed = document.getElementById('tariffFixedPanel');
+    const provider = document.getElementById('tariffProviderPanel');
+    const preview = document.getElementById('tariffDynamicPreview');
+    const resizePreviewChart = () => {
+      if (!preview.open || preview.hidden || !window.Plotly) return;
+      requestAnimationFrame(() => {
+        const graph = preview.querySelector('.plotly-graph-div');
+        if (graph) Plotly.Plots.resize(graph);
+      });
+    };
+    const update = () => {
+      const dynamic = document.querySelector('#tariffSettingsForm input[name="mode"]:checked')?.value === 'dynamic';
+      fixed.hidden = dynamic;
+      provider.hidden = !dynamic;
+      preview.hidden = !dynamic;
+      resizePreviewChart();
+    };
+    radios.forEach(radio => radio.addEventListener('change', update));
+    preview.addEventListener('toggle', resizePreviewChart);
+    update();
+  })();
+</script>
+{% endblock %}

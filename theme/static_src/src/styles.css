@@ -148,12 +148,115 @@
     display: none;
   }
 
-  /* Compact header and footer on the dashboard page. */
-  .dashboard-page .shell > header {
-    min-height: 62px;
-  }
-
+  /* The header has the same dimensions on every page. */
   .dashboard-page .shell > footer {
     padding: 8px 0 12px;
+  }
+}
+
+/* The settings screen was introduced on the settings branch after the Tailwind split. */
+@layer components {
+  .settings-page {
+    --charcoal: var(--color-charcoal);
+    --slate: var(--color-slate);
+    --sage: var(--color-sage);
+    --grass: var(--color-grass);
+    --chartreuse: var(--color-chartreuse);
+    --paper: var(--color-paper);
+    --line: var(--color-line);
+    --shadow: var(--shadow-card);
+  }
+  .settings-page .eyebrow { margin: 0 0 8px; color: var(--charcoal); font-size: 12px; font-weight: 850; letter-spacing: .16em; text-transform: uppercase; }
+  .settings-page .panel { border: 1px solid var(--line); border-radius: 17px; background: var(--paper); box-shadow: var(--shadow); }
+  .settings-page .panel { margin-bottom: 20px; }
+  .settings-page .filter-panel { padding: 25px 30px; }
+  .settings-page .section-heading { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 24px 30px 8px; }
+  .settings-page .section-heading.compact { padding: 0 0 19px; }
+  .settings-page .section-heading h2 { margin: 0; color: var(--charcoal); font-size: 21px; letter-spacing: -.035em; }
+  .settings-page .muted { color: var(--slate); font-size: 13px; }
+  .settings-page .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 18px; border-radius: 10px; font-size: 13px; font-weight: 800; line-height: 1.2; text-align: center; text-decoration: none; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease; }
+  .settings-page .button:hover { transform: translateY(-1px); box-shadow: 0 5px 0 rgba(84, 84, 84, .15); }
+  .settings-page .button:active { transform: translateY(0); box-shadow: none; }
+  .settings-page .primary { border: 1px solid var(--charcoal); background: var(--chartreuse); color: var(--charcoal); }
+  .settings-page .primary:hover { background: var(--grass); }
+  .settings-page .secondary { border: 1px solid var(--charcoal); background: var(--paper); color: var(--charcoal); }
+  .settings-page .secondary:hover { background: var(--chartreuse); }
+  .settings-page .form-errors { margin-top: 13px; color: var(--charcoal); font-size: 14px; font-weight: 700; }
+  .settings-page .form-errors ul { margin: 0; padding-left: 18px; }
+  .settings-page .hourly-heading { display: flex; justify-content: space-between; align-items: center; padding: 30px 2px 20px; }
+  .settings-page .hourly-heading h1 { margin: 0; color: var(--charcoal); font-size: 39px; letter-spacing: -.05em; }
+  .settings-page .hourly-heading p:last-child { margin: 7px 0 0; color: var(--charcoal); font-size: 14px; }
+  .settings-page .collapsible-panel>summary { cursor: pointer; list-style: none; }
+  .settings-page .collapsible-panel>summary::-webkit-details-marker { display: none; }
+  .settings-page .collapsible-panel>summary::after { content: "+"; display: grid; place-items: center; flex: none; width: 44px; height: 44px; margin-left: auto; border: 1px solid var(--charcoal); border-radius: 11px; background: rgba(203, 255, 77, .4); color: var(--charcoal); font-size: 27px; font-weight: 700; line-height: 1; }
+  .settings-page .collapsible-panel[open]>summary::after { content: "−"; background: var(--chartreuse); }
+  .settings-page .collapsible-panel>summary:hover::after { background: var(--chartreuse); box-shadow: 0 3px 0 rgba(84, 84, 84, .15); }
+  .settings-page .collapsible-panel:not([open])>summary.section-heading { padding-bottom: 24px; }
+  .settings-page .collapsible-panel:not([open])>summary.section-heading.compact { padding-bottom: 0; }
+  .settings-page .tariff-note { display: inline-block; margin: 0 0 14px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+  .settings-page .tariff-settings .section-heading { padding: 0 0 18px; }
+  .settings-page .tariff-settings .section-heading p { margin: 8px 0 0; font-size: 13px; line-height: 1.5; }
+  .settings-page .tariff-form { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; max-width: 100%; }
+  .settings-page .tariff-mode-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
+  .settings-page .tariff-mode-option { display: flex; align-items: flex-start; gap: 12px; min-height: 84px; padding: 17px 18px; border: 2px solid var(--line); border-radius: 13px; background: white; cursor: pointer; }
+  .settings-page .tariff-mode-option:has(input:checked) { border-color: var(--charcoal); background: rgba(203, 255, 77, .19); }
+  .settings-page .tariff-mode-option:has(input:focus-visible) { outline: 3px solid var(--chartreuse); outline-offset: 2px; }
+  .settings-page .tariff-mode-option input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--charcoal); }
+  .settings-page .tariff-mode-option strong, .settings-page .tariff-mode-option small { display: block; }
+  .settings-page .tariff-mode-option strong { font-size: 16px; }
+  .settings-page .tariff-mode-option small { margin-top: 5px; color: var(--slate); font-size: 13px; line-height: 1.4; }
+  .settings-page .tariff-mode-panel { width: 100%; margin: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: rgba(107, 170, 117, .08); }
+  .settings-page .tariff-mode-panel[hidden], .settings-page .tariff-preview[hidden] { display: none; }
+  .settings-page .tariff-mode-panel legend { padding: 0 6px; font-size: 14px; font-weight: 800; }
+  .settings-page .tariff-mode-panel p { margin: 0 0 15px; font-size: 13px; line-height: 1.5; }
+  .settings-page .tariff-fixed-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .settings-page .tariff-fixed-fields .field :is(input, .settings-page select) { width: 100%; min-width: 0; }
+  .settings-page .tariff-provider-panel .field { max-width: 430px; margin-bottom: 12px; }
+  .settings-page .tariff-provider-panel p { margin-bottom: 0; }
+  .settings-page .tariff-preview { overflow: hidden; padding: 24px 30px; }
+  .settings-page .tariff-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; list-style: none; }
+  .settings-page .tariff-preview-heading::-webkit-details-marker { display: none; }
+  .settings-page .tariff-preview:not([open]) { padding-bottom: 24px; }
+  .settings-page .tariff-preview .eyebrow { font-size: 13px; }
+  .settings-page .tariff-preview-heading h2 { margin: 4px 0 7px; font-size: 24px; }
+  .settings-page .tariff-preview-heading .muted { margin: 0; font-size: 13px; line-height: 1.5; }
+  .settings-page .tariff-date-controls { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 14px 24px; margin: 20px 0; }
+  .settings-page .tariff-date-shortcuts { display: flex; gap: 8px; }
+  .settings-page .tariff-date-shortcuts a { display: inline-flex; align-items: center; min-height: 42px; padding: 0 16px; border: 1px solid var(--slate); border-radius: 10px; background: white; font-size: 14px; font-weight: 800; text-decoration: none; }
+  .settings-page .tariff-date-shortcuts a[aria-current] { border-color: var(--charcoal); background: var(--chartreuse); }
+  .settings-page .tariff-date-form { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+  .settings-page .tariff-date-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 800; text-transform: uppercase; }
+  .settings-page .tariff-date-form input { min-height: 42px; padding: 0 10px; border: 1px solid var(--slate); border-radius: 10px; background: white; color: var(--charcoal); font-size: 15px; }
+  .settings-page .tariff-date-form .button { font-size: 14px; }
+  .settings-page .tariff-day-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 17px; }
+  .settings-page .tariff-day-summary>div { padding: 14px 16px; border: 1px solid var(--line); border-radius: 11px; background: rgba(107, 170, 117, .08); }
+  .settings-page .tariff-day-summary .tariff-block-summary.cheapest { border-top: 4px solid var(--grass); }
+  .settings-page .tariff-day-summary .tariff-block-summary.highest { border-top: 4px solid var(--charcoal); }
+  .settings-page .tariff-day-summary span, .settings-page .tariff-day-summary small { display: block; color: var(--slate); font-size: 13px; }
+  .settings-page .tariff-day-summary strong { display: block; margin-top: 6px; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .settings-page .tariff-day-summary strong small { display: inline; font-size: 13px; }
+  .settings-page .tariff-block-summary small { margin-top: 6px; }
+  .settings-page .tariff-block-summary small b { color: var(--charcoal); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .settings-page .tariff-alert { margin: 0 0 16px; padding: 11px 14px; border-left: 4px solid var(--sage); border-radius: 5px; background: rgba(203, 255, 77, .2); font-size: 14px; line-height: 1.5; }
+  .settings-page .tariff-chart { margin-bottom: 18px; padding: 4px 0; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, .76); }
+  .settings-page .tariff-chart .chart-series { font-size: 14px; }
+  .settings-page .tariff-chart .chart-legend-actions button { font-size: 13px; }
+  .settings-page .tariff-chart .chart-zoom-actions button { font-size: 22px; }
+  .settings-page .tariff-footnote { margin: 15px 0 0; color: var(--slate); font-size: 13px; line-height: 1.5; }
+  .settings-page .preferences-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }
+  .settings-page .preferences-form .field { min-width: 190px; flex: 1 1 190px; }
+  .settings-page .preferences-form select { width: 100%; }
+  .settings-page .exchange-note { margin: 14px 0 0; }
+  @media (max-width: 900px) {
+    .settings-page .tariff-fixed-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .settings-page .hourly-heading { align-items: flex-start; flex-direction: column; gap: 14px; }
+    .settings-page .hourly-heading h1 { font-size: 32px; }
+  }
+  @media (max-width: 620px) {
+    .settings-page .filter-panel { padding: 18px; }
+    .settings-page .section-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
+    .settings-page .tariff-mode-options, .settings-page .tariff-day-summary { grid-template-columns: 1fr; }
+    .settings-page .tariff-preview { padding: 18px 16px; }
+    .settings-page .tariff-date-form, .settings-page .tariff-date-form label, .settings-page .tariff-date-form input, .settings-page .tariff-date-form button { width: 100%; }
   }
 }

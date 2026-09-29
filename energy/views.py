@@ -6,16 +6,19 @@ Głównym zadaniem modułu jest renderowanie stron interfejsu użytkownika
 oraz przygotowywanie danych dla dashboardu, historii godzinowej i symulatora PV."""
 
 import csv
+import json
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from html import escape
 from uuid import uuid4
 
+from django.conf import settings as django_settings
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from energy import data, pv
+from energy import data, pv, tariffs
 from energy.charts import (
     CATEGORY_LABELS_EN,
     CATEGORY_LABELS_PL,
@@ -23,9 +26,11 @@ from energy.charts import (
     build_history_chart,
     build_overview_chart,
     build_pv_chart,
+    build_tariff_price_chart,
 )
+from energy.currency import CURRENCY_COOKIE, SYMBOLS, from_eur, selected_currency, to_eur
 from energy.explanations import explain_peaks
-from energy.forms import DateRangeForm, HorizonForm, PvForm
+from energy.forms import DateRangeForm, HorizonForm, PvForm, TariffSettingsForm
 from energy.language import selected_language
 from energy.presentation import device_name, event_names
 from energy.scenarios import (
@@ -34,7 +39,6 @@ from energy.scenarios import (
     get_scenario_data_dir,
     localized_scenario,
 )
-from energy.tariffs import CURRENCY
 
 PLOTLY_CONFIG = {
     "responsive": True,
@@ -469,8 +473,65 @@ def get_behavioral_advice(device_name: str, moved_kwh: Decimal, lang: str = "pl"
         }
 
 
+def _tariff_for_calculation(
+    config: tariffs.TariffConfig,
+    dynamic: dict | None,
+    annual_timestamps: list,
+    lang: str,
+    currency: str = "EUR",
+) -> tuple[tariffs.TariffConfig, dict | None, str]:
+    """Zwraca (taryfa, ceny dynamiczne, komunikat) z zasadą pełnego pokrycia rocznego."""
+    if config.mode != tariffs.MODE_DYNAMIC:
+        text = (
+            "Fixed tariff with the rates from Settings."
+            if lang == "en"
+            else "Taryfa stała z kwotami z ustawień."
+        )
+        return config, None, text
+    fixed = tariffs.TariffConfig(
+        mode=tariffs.MODE_FIXED,
+        fixed_prices=config.fixed_prices,
+        provider_id=config.provider_id,
+    )
+    if dynamic is None:
+        text = (
+            "Dynamic tariff selected, but no prices were downloaded — calculating with "
+            "the fixed tariff. Run fetch_tariff_prices."
+            if lang == "en"
+            else "Wybrano taryfę dynamiczną, ale brak pobranych cen — liczę taryfą stałą. "
+            "Uruchom fetch_tariff_prices."
+        )
+        return fixed, None, text
+    coverage = tariffs.dynamic_coverage(annual_timestamps, dynamic)
+    if coverage < 1:
+        percent = (coverage * 100).quantize(Decimal("0.1"))
+        text = (
+            f"Dynamic prices cover {percent}% of the model year — calculating with "
+            "the fixed tariff."
+            if lang == "en"
+            else f"Ceny dynamiczne pokrywają {percent}% roku modelowego — liczę taryfą stałą."
+        )
+        return fixed, None, text
+    provider = config.provider
+    name = provider.name_en if lang == "en" else provider.name_pl
+    margin_display = (
+        provider.margin_pln
+        if currency == "PLN"
+        else from_eur(provider.margin, currency).quantize(Decimal("0.00001"))
+    )
+    text = (
+        f"Dynamic tariff · {name} · margin {provider.margin_pln} zł/kWh "
+        f"({margin_display} {SYMBOLS[currency]}/kWh) · PSE day-ahead prices."
+        if lang == "en"
+        else f"Taryfa dynamiczna · {name} · marża {provider.margin_pln} zł/kWh "
+        f"({margin_display} {SYMBOLS[currency]}/kWh) · ceny RCE z PSE."
+    )
+    return config, dynamic, text
+
+
 def pv_simulator(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
+    currency = selected_currency(request)
     data_dir = get_scenario_data_dir(request)
     try:
         records, weather, events = data.load_annual(data_dir)
@@ -486,34 +547,51 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
     parameters = {**PV_DEFAULTS, **request.GET.dict()}
     if goal in {"coverage", "payback"}:
         parameters["kwp"] = "5"
-    form = PvForm(parameters, lang=lang)
-    context = {"form": form, "currency": CURRENCY}
+    form = PvForm(parameters, lang=lang, currency=currency)
+    context = {
+        "form": form,
+        "currency": currency,
+        "pv_cost_display": from_eur(tariffs.PV_COST_PER_KWP, currency),
+        "export_price_display": from_eur(tariffs.EXPORT_PRICE, currency),
+    }
     if not form.is_valid():
         return render(request, "energy/pv.html", context)
 
     kwp = form.cleaned_data["kwp"]
     month = int(form.cleaned_data["miesiac"])
+    tariff_config, dynamic_prices = tariffs.tariff_for_request(
+        request, django_settings.DEMO_DATA_DIR
+    )
+    tariff_used, dynamic_used, tariff_notice = _tariff_for_calculation(
+        tariff_config, dynamic_prices, [r.timestamp for r in records], lang, currency
+    )
     storage = pv.StorageConfig(
         form.cleaned_data["magazyn_kwh"],
         form.cleaned_data["magazyn_moc_kw"],
-        form.cleaned_data["magazyn_koszt_eur"],
+        to_eur(form.cleaned_data["magazyn_koszt_eur"], currency),
     )
     if goal in {"coverage", "payback"}:
-        choice = pv.choose_capacity(records, weather, events, goal, storage)
+        choice = pv.choose_capacity(
+            records, weather, events, goal, storage, tariff_used, dynamic_used
+        )
         context.update({"auto_goal": goal, "capacity_choice": choice})
         if choice.kwp is not None:
             kwp = choice.kwp
             parameters["kwp"] = str(kwp)
-            form = PvForm(parameters, lang=lang)
+            form = PvForm(parameters, lang=lang, currency=currency)
             context["form"] = form
-    comparison = pv.compare_variants(records, weather, events, storage=storage)
+    comparison = pv.compare_variants(
+        records, weather, events, storage=storage, tariff=tariff_used, dynamic=dynamic_used
+    )
     selected = next((result for result in comparison if result.kwp == kwp), None)
     if selected is None:
         selected = pv.simulate(records, weather, events, kwp, storage)
 
-    selected = pv.simulate(records, weather, events, kwp, storage)
+    selected = pv.simulate(records, weather, events, kwp, storage, tariff_used, dynamic_used)
 
-    oryginalne_efekty = pv.device_effects(records, weather, events, kwp, storage)
+    oryginalne_efekty = pv.device_effects(
+        records, weather, events, kwp, storage, tariff_used, dynamic_used
+    )
 
     effects = []
     for effect in oryginalne_efekty:
@@ -539,6 +617,7 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
             "battery_enabled": storage.capacity_kwh > 0,
             "comparison": comparison,
             "selected": selected,
+            "tariff_notice": tariff_notice,
             "effects": effects,
             "pv_chart": _chart_html(
                 build_pv_chart(week, kwp, prices=data.load_tariff_prices(), lang=lang),
@@ -554,6 +633,170 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
         }
     )
     return render(request, "energy/pv.html", context)
+
+
+def _dynamic_status(dynamic: dict | None, payload: dict | None, lang: str) -> dict:
+    """Opisuje stan pobranych cen dynamicznych dla strony ustawień."""
+    if dynamic is None or payload is None:
+        text = (
+            "No downloaded dynamic prices. Run python manage.py fetch_tariff_prices "
+            "to download PSE day-ahead prices."
+            if lang == "en"
+            else "Brak pobranych cen dynamicznych. Uruchom python manage.py "
+            "fetch_tariff_prices, aby pobrać ceny RCE z PSE."
+        )
+        return {"available": False, "text": text}
+    first, last = min(dynamic), max(dynamic)
+    fetched_at = payload.get("fetched_at", "—")
+    source = payload.get("source", "PSE")
+    text = (
+        f"{len(dynamic)} hourly prices · {first:%d.%m.%Y %H:%M} – {last:%d.%m.%Y %H:%M} · "
+        f"source: {source} · downloaded {fetched_at}"
+        if lang == "en"
+        else f"{len(dynamic)} cen godzinowych · {first:%d.%m.%Y %H:%M} – "
+        f"{last:%d.%m.%Y %H:%M} · źródło: {source} · pobrano {fetched_at}"
+    )
+    return {"available": True, "text": text}
+
+
+def _dynamic_day_prices(
+    config: tariffs.TariffConfig, dynamic: dict | None, day: datetime
+) -> list[dict]:
+    """Godzinowe ceny dynamiczne z marżą dostawcy; braki liczy po stawce stałej."""
+    rows = []
+    for hour in range(24):
+        moment = day.replace(hour=hour, minute=0, second=0, microsecond=0)
+        if dynamic is not None and moment in dynamic:
+            price = dynamic[moment] + config.provider.margin
+            rows.append(
+                {"timestamp": moment, "hour": f"{hour:02d}:00", "price": price, "fallback": False}
+            )
+        else:
+            rows.append(
+                {
+                    "timestamp": moment,
+                    "hour": f"{hour:02d}:00",
+                    "price": config.price_for_hour(hour),
+                    "fallback": True,
+                }
+            )
+    return rows
+
+
+def _selected_tariff_day(request: HttpRequest, today: date, lang: str) -> tuple[date, str]:
+    """Restrict the price preview to the past 365 days, today, or tomorrow."""
+    raw = request.GET.get("date")
+    if not raw:
+        return today, ""
+    try:
+        selected = date.fromisoformat(raw)
+    except ValueError:
+        selected = None
+    if selected is not None and today - timedelta(days=365) <= selected <= today + timedelta(
+        days=1
+    ):
+        return selected, ""
+    message = (
+        "Choose today, tomorrow, or a date from the past 365 days. Showing today's prices."
+        if lang == "en"
+        else "Wybierz dziś, jutro lub datę z ostatnich 365 dni. Pokazano ceny na dziś."
+    )
+    return today, message
+
+
+def settings_view(request: HttpRequest) -> HttpResponse:
+    """Strona ustawień taryfy: tryb, kwoty stałe i dostawca; zapis w sesji i ciastku."""
+    lang = _current_lang(request)
+    currency = selected_currency(request)
+    if request.method == "POST" and request.POST.get("intent") == "preferences":
+        new_lang = request.POST.get("language")
+        new_currency = request.POST.get("currency")
+        if new_lang in {"pl", "en"} and new_currency in {"EUR", "PLN", "DKK"}:
+            request.session["django_language"] = new_lang
+            request.session["lang"] = new_lang
+            request.session[CURRENCY_COOKIE] = new_currency
+            response = HttpResponseRedirect(request.get_full_path())
+            response.set_cookie(
+                "django_language", new_lang, max_age=365 * 24 * 3600, samesite="Lax"
+            )
+            response.set_cookie(
+                CURRENCY_COOKIE, new_currency, max_age=365 * 24 * 3600, samesite="Lax"
+            )
+            return response
+    base_data_dir = django_settings.DEMO_DATA_DIR
+    config, dynamic = tariffs.tariff_for_request(request, base_data_dir)
+    if request.method == "POST":
+        form = TariffSettingsForm(request.POST, lang=lang, currency=currency)
+        if form.is_valid():
+            new_config = tariffs.TariffConfig(
+                mode=form.cleaned_data["mode"],
+                fixed_prices=form.fixed_prices(),
+                provider_id=form.cleaned_data["provider"],
+            )
+            payload = tariffs.serialize_tariff(new_config)
+            request.session[tariffs.TARIFF_COOKIE] = payload
+            next_url = (
+                request.POST.get("next") or request.GET.get("next") or request.get_full_path()
+            )
+            if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                next_url = "/"
+            response = HttpResponseRedirect(next_url)
+            response.set_cookie(
+                tariffs.TARIFF_COOKIE,
+                json.dumps(payload),
+                max_age=365 * 24 * 3600,
+                samesite="Lax",
+            )
+            return response
+    else:
+        form = TariffSettingsForm(lang=lang, currency=currency, config=config)
+        if request.GET.get("mode") in (tariffs.MODE_FIXED, tariffs.MODE_DYNAMIC):
+            form.initial["mode"] = request.GET["mode"]
+    payload = tariffs.load_dynamic_payload(base_data_dir / "tariff_prices.json")
+    today = datetime.now().date()
+    tomorrow = today + timedelta(days=1)
+    selected_day, date_error = _selected_tariff_day(request, today, lang)
+    selected_rows = _dynamic_day_prices(
+        config, dynamic, datetime.combine(selected_day, datetime.min.time())
+    )
+    market_count = sum(not row["fallback"] for row in selected_rows)
+    cheapest_block, highest_block = tariffs.four_hour_price_blocks(
+        [row["price"] for row in selected_rows]
+    )
+    return render(
+        request,
+        "energy/settings.html",
+        {
+            "form": form,
+            "dynamic_status": _dynamic_status(dynamic, payload, lang),
+            "today_iso": today.isoformat(),
+            "tomorrow_iso": tomorrow.isoformat(),
+            "min_date_iso": (today - timedelta(days=365)).isoformat(),
+            "selected_date_iso": selected_day.isoformat(),
+            "selected_date_label": selected_day.strftime("%d.%m.%Y"),
+            "selected_is_today": selected_day == today,
+            "selected_is_tomorrow": selected_day == tomorrow,
+            "date_error": date_error,
+            "selected_prices": selected_rows,
+            "tariff_chart": _chart_html(
+                build_tariff_price_chart(
+                    selected_rows,
+                    cheapest_block,
+                    highest_block,
+                    currency=currency,
+                    lang=lang,
+                ),
+                include_plotlyjs=True,
+                lang=lang,
+            ),
+            "market_count": market_count,
+            "fallback_count": 24 - market_count,
+            "cheapest_block": cheapest_block,
+            "highest_block": highest_block,
+            "blocks_tied": cheapest_block.average == highest_block.average,
+            "form_errors": form.errors,
+        },
+    )
 
 
 def export_csv(request: HttpRequest) -> HttpResponse:

@@ -1,8 +1,17 @@
 from django import template
 
+from energy.currency import from_eur
 from energy.presentation import event_names
 
 register = template.Library()
+
+
+@register.filter
+def display_currency(value, currency: str = "EUR"):
+    """Przelicza wartość EUR wyłącznie do prezentacji w szablonie."""
+    if value is None:
+        return None
+    return from_eur(value, currency)
 
 
 @register.filter

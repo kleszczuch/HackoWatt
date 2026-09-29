@@ -7,6 +7,7 @@ from energy.views import (
     export_csv,
     hourly_history,
     pv_simulator,
+    settings_view,
     switch_scenario_view,
 )
 
@@ -14,6 +15,7 @@ urlpatterns = [
     path("", dashboard, name="dashboard"),
     path("godziny/", hourly_history, name="hourly_history"),
     path("symulator-pv/", pv_simulator, name="pv_simulator"),
+    path("ustawienia/", settings_view, name="settings"),
     path("export.csv", export_csv, name="export_csv"),
     path("lang/<str:lang_code>/", change_language, name="change_language"),
     path("api/v1/", include("energy.api_urls")),
