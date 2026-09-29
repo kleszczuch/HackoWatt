@@ -28,7 +28,7 @@
       <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="pv-form-heading">{% if is_en %}PV capacity and chart month{% else %}Moc instalacji i miesiąc wykresu{% endif %}</h2>
     </div>
   </summary>
-  <form class="flex flex-wrap items-end gap-3" method="get" action="{% url 'pv_simulator' %}">
+  <form class="flex flex-wrap items-start gap-3" method="get" action="{% url 'pv_simulator' %}">
     <div class="field"><label for="{{ form.kwp.id_for_label }}">{% if is_en %}Capacity [kWp] · 1–150{% else %}Moc [kWp] · 1–150{% endif %}</label>{{ form.kwp }}
       <div class="mt-[7px] flex flex-wrap gap-1.5" data-target="{{ form.kwp.id_for_label }}">
         <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="25">25</button>
@@ -40,7 +40,7 @@
       </div>
     </div>
     <div class="field"><label for="{{ form.miesiac.id_for_label }}">{% if is_en %}Chart month{% else %}Miesiąc wykresu{% endif %}</label>{{ form.miesiac }}</div>
-    <fieldset class="mt-0.5 flex w-full flex-wrap items-end gap-3 rounded-[11px] border border-line bg-sage/[0.08] px-4 py-3.5">
+    <fieldset class="mt-0.5 flex w-full flex-wrap items-start gap-3 rounded-[11px] border border-line bg-sage/[0.08] px-4 py-3.5">
       <legend class="px-[5px] text-xs font-extrabold text-charcoal">{% if is_en %}Battery storage · optional{% else %}Magazyn energii · opcjonalnie{% endif %}</legend>
       <div class="field"><label for="{{ form.magazyn_kwh.id_for_label }}">{% if is_en %}Capacity [kWh] · up to 5,000{% else %}Pojemność [kWh] · do 5000{% endif %}</label>{{ form.magazyn_kwh }}
         <div class="mt-[7px] flex flex-wrap gap-1.5" data-target="{{ form.magazyn_kwh.id_for_label }}">
