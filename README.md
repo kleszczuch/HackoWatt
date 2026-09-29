@@ -14,84 +14,61 @@ Aplikacja działa lokalnie jako projekt **Django** i udostępnia również REST 
 
 ![Strona główna aplikacji](energy/static/energy/glowna_strona.png)
 
-Główny pulpit pozwala analizować:
+Główny pulpit to serce naszego systemu zarządzania energią. Został zaprojektowany tak, aby łączyć zaawansowaną analitykę danych z przystępnym interfejsem użytkownika (UI/UX). Pulpit dynamicznie reaguje na wybór 1 z 5 oficjalnych scenariuszy domostw.
 
-* zużycie energii w wybranym okresie,
-* trendy zużycia i temperatury,
-* godziny największego zapotrzebowania,
-* prognozę zużycia na **24 h, 3 dni i 7 dni**,
-* sumaryczne zużycie w kWh,
-* dokładność modelu prognostycznego względem baseline'u.
-
-Dostępne zakresy historii:
-
-`1 / 3 / 5 / 7 / 14 / 31 dni`
-
+**Kluczowe funkcjonalności techniczne:**
+* **Interaktywna analityka wizualna:** Wykorzystanie biblioteki `Plotly.js` do renderowania wykresów w przeglądarce.
+* **Predykcja AI (XGBoost):** Prezentacja wyników zaimplementowanego modelu Extreme Gradient Boosting, który prognozuje zapotrzebowanie na **24 h, 3 dni i 7 dni** do przodu, uwzględniając takie zmienne jak temperaturę czy nasłonecznienie, pory dnia. Na podstawie predykcji są wyświetlane godziny szczytu.
+* **Ewaluacja modelu na żywo (Backtesting):** System w czasie rzeczywistym porównuje skuteczność modelu AI względem prymitywnego baseline'u ("to samo co tydzień temu"), prezentując twarde metryki błędu: **MAE** (Mean Absolute Error) oraz **MAPE**.
+* **Elastyczny zakres czasowy:** Szybkie filtrowanie historii agregatów za `1 / 3 / 5 / 7 / 14 / 31 dni`.
 ---
 
 ### Analiza godzinowa
 
 ![Podstrona analizy godzinowej](energy/static/energy/godziny.png)
 
-Widok `|godziny|` prezentuje szczegółowe dane godzinowe:
+Widok `/godziny/` to moduł analityczny dla osób chcących dokładniej przejrzeć swoją historię energetyczną. 
 
-* wykres zużycia,
-* tabelę danych,
-* kategorie zużycia,
-* filtrowanie po zakresie dat,
-* stronicowanie,
-* eksport danych do CSV.
+**Aspekty techniczne i funkcjonalności:**
+* **Mechanika Bottom-Up:** Wykresy warstwowe ukazują 6 symulowanych kategorii (m.in. Ogrzewanie z uwzględnieniem COP pompy ciepła, Baza, Duże AGD) bazowanych na faktycznych historycznych danych pogodowych.
+* **Rozszerzona Paginacja (Django ORM):** Wykorzystanie natywnego `Paginatora` Django do sprawnego serwowania ogromnych zbiorów danych (tysiące rekordów godzinowych) na front-end bez obciążania pamięci RAM serwera.
+* **Data Export:** Funkcjonalność zrzutu surowych, połączonych danych historycznych oraz predykcyjnych bezpośrednio do pliku **CSV**, co umożliwia weryfikację modelu i dalszą obróbkę danych w narzędziach zewnętrznych.
 
 ---
 
-### Symulator fotowoltaiki
+### Symulator OZE i Zarządzania Energią
 
 ![Podstrona symulatora fotowoltaiki](energy/static/energy/symulator.png)
 
-Widok `|symulator-pv|` pozwala sprawdzić wpływ instalacji PV na bilans energetyczny domu.
+Ten moduł bada opłacalność inwestycji w odnawialne źródła energii (OZE) na podstawie historycznego profilu użytkownika.
 
-Można analizować m.in.:
+**Kluczowe wskaźniki (KPI) przeliczane w czasie rzeczywistym:**
+* Optymalna moc instalacji w kWp,
+* Szacunkowa roczna produkcja energii z uwzględnieniem czynnika,
+* Procentowe pokrycie zapotrzebowania domu,
+* Skrócenie czasu zwrotu inwestycji,
+* Estymacja oszczędności wyliczana na bazie wielostrefowych taryf czasowych.
 
-* moc instalacji w kWp,
-* roczną produkcję energii,
-* pokrycie zapotrzebowania,
-* ilość energii pobieranej z sieci,
-* szacowane oszczędności,
-* czas zwrotu inwestycji,
-* wpływ zmiany godzin pracy urządzeń.
+Symulator wykonuje pełny **bilans 8760 godzin** (rok modelowy), zderzając produkcję ze zużyciem w dwóch wariantach, aby udowodnić wartość elastyczności popytu:
 
-Symulator porównuje dwa scenariusze:
-
-| Wariant                      | Opis                                                                         |
+| Wariant                      | Opis Mechaniki                                                               |
 | ---------------------------- | ---------------------------------------------------------------------------- |
-| **A — obecne nawyki**        | Urządzenia działają według obecnego modelu zużycia                           |
-| **B — przesunięcie zużycia** | Praca zmywarki, pralki i suszarki jest przesunięta na godziny **9:00–15:00** |
+| **A — Baseline (Nawyki)**    | Utrzymanie statusu quo; urządzenia działają wg wygenerowanej historii.       |
+| **B — Optymalizacja DSR**    | Dynamiczne przesunięcie elastycznych obciążeń (zmywarka, pralka, suszarka) na tzw. okno słoneczne (**9:00–15:00**). |
 
-System może również uwzględniać magazyn energii poprzez podanie:
+**Wsparcie dla Magazynów Energii (BESS):**
+System integruje wirtualny magazyn energii, pozwalając na wpisanie *Pojemności [kWh]*, *Mocy [kW]* oraz *Kosztu CAPEX [EUR]*. Bilans ładowania z nadwyżek PV uwzględnia realistyczną **sprawność cyklu na poziomie 90%**.
 
-* pojemności `[kWh]`,
-* mocy `[kW]`,
-* ceny zakupu `[EUR]`.
+---
 
-W bilansie magazynu uwzględniana jest sprawność obiegu na poziomie **90%**.
+### Inteligencja Behawioralna: "Plan Pracy na Jutro" (AI)
 
-Sekcja **Plan pracy urządzeń na jutro** korzysta z 35 dni historii cykli,
-jutrzejszej prognozy, taryfy, PV i magazynu. Python liczy dopuszczalne godziny
-i kwoty, a lokalny Qwen3 wybiera godzinę z listy i pisze uzasadnienie.
-Model dostaje tylko warianty, które po zaokrągleniu dają widoczną oszczędność;
-każda propozycja jest ponownie liczona po przesunięciu pozostałych cykli.
-Gdy tańszej godziny nie ma, karta zaleca pozostawienie obecnej bez kwoty.
-Szacunek roczny jest ekstrapolacją częstotliwości cykli z 35 dni historii przy
-jutrzejszych warunkach, nie prognozą przyszłorocznych cen.
-Karty pokazują również liczbę dni z cyklem. Obok nich znajdują się wszystkie
-typy zdarzeń zapisane w historii wybranego scenariusza (np. praca zdalna,
-goście, wyjazd, opieka nad psem, pompa basenu, sauna, ładowanie EV). Dla
-pompy basenu aplikacja wykrywa cykl z aktualnej historii i proponuje
-przesunięcie wyłącznie wtedy, gdy obniża ono policzony koszt całego domu.
-Gdy tańszej godziny nie ma, pokazuje zalecenie pozostawienia obecnej.
-Ładowanie EV przechodzi przez północ, więc do wiarygodnej wyceny jego pełnego
-cyklu potrzebna byłaby prognoza dłuższa niż obecne 24 godziny. Pozostałe
-zdarzenia są obserwacjami historycznymi, bez wymyślonych kwot.
+Największą innowacją systemu jest sekcja **Planu Pracy Urządzeń**, która wykorzystuje hybrydowe podejście inżynieryjne (Fizyka + LLM):
+
+1. **Silnik Decyzyjny (Python Backend):** Agreguje 35 dni historii cykli, taryfy prądowe, model PV i stan magazynu, a następnie wylicza macierz kosztów dla jutrzejszej prognozy (24h). Odrzuca warianty nieopłacalne, pozostawiając tylko godziny gwarantujące widoczną oszczędność.
+2. **Generatywna Sztuczna Inteligencja (Lokalny model Qwen3):** Otrzymuje czyste dane liczbowe i generuje spersonalizowane uzasadnienie dla użytkownika.
+3. **Ekstrapolacja Roczna:** Obliczone oszczędności dzienne są skalowane rocznie na podstawie historycznej częstotliwości uruchamiania cykli, dając użytkownikowi realny obraz korzyści finansowych.
+4. **Złożona logika zdarzeń:** Silnik wykrywa unikalne zdarzenia z wybranych scenariuszy (np. praca zdalna, opieka nad psem). W przypadku **pompy basenowej** optymalizator proponuje przesunięcie cyklu *tylko wtedy*, gdy globalnie obniża to koszt funkcjonowania całego domu.
 
 ---
 
