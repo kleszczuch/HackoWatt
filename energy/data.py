@@ -35,10 +35,21 @@ class DemoDataError(ValueError):
     """Plik demonstracyjny ma nieoczekiwany lub niepoprawny format."""
 
 
-def _data_dir() -> Path:
+def _data_dir(request=None) -> Path:
     base = settings.DEMO_DATA_DIR
     if (base / HISTORY_FILENAME).is_file():
         return base
+
+    try:
+        from energy.scenarios import capture_scenario_data_dir, get_current_request
+
+        req = request if request is not None else get_current_request()
+        candidate = capture_scenario_data_dir(req)
+        if (candidate / HISTORY_FILENAME).is_file():
+            return candidate
+    except Exception:
+        pass
+
     default_scenario = base / "scenario_4"
     if (default_scenario / HISTORY_FILENAME).is_file():
         return default_scenario

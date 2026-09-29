@@ -1,4 +1,7 @@
+import json
+from contextvars import ContextVar
 from pathlib import Path
+from typing import Any
 
 from django.conf import settings
 
@@ -206,40 +209,225 @@ def localized_scenario(scenario: dict, lang: str) -> dict:
     return result
 
 
-def get_active_scenario(request) -> dict:
-    """Pobiera aktywny scenariusz z żądania (parametr URL, nagłówek HTTP, sesja, domyślnie 4)."""
-    if request is not None:
-        get_params = getattr(request, "GET", {})
-        param = get_params.get("scenario") or get_params.get("scenario_id")
-        if param is not None:
+_CURRENT_REQUEST: ContextVar = ContextVar("current_request", default=None)
+_ACTIVE_SCENARIO_OVERRIDE: ContextVar = ContextVar("active_scenario_override", default=None)
+
+
+def set_current_request(request) -> None:
+    _CURRENT_REQUEST.set(request)
+
+
+def get_current_request():
+    return _CURRENT_REQUEST.get()
+
+
+def set_active_scenario_id(scenario_id: int | None) -> None:
+    _ACTIVE_SCENARIO_OVERRIDE.set(scenario_id)
+
+
+def get_active_scenario_id_override() -> int | None:
+    return _ACTIVE_SCENARIO_OVERRIDE.get()
+
+
+def extract_scenario_id(
+    request: Any = None,
+    scenario: int | str | dict | None = None,
+    params: dict | None = None,
+) -> int:
+    """Przechwytuje ID scenariusza ze wszystkich źródeł:
+
+    argumentu, parametrów, GET, POST, JSON body, nagłówków, sesji, ciasteczek lub ContextVar.
+    """
+    # 1. Bezpośrednio przekazany scenariusz
+    if isinstance(scenario, dict) and "id" in scenario:
+        try:
+            scen_id = int(scenario["id"])
+            if scen_id in SCENARIOS:
+                return scen_id
+        except (ValueError, TypeError):
+            pass
+    elif scenario is not None:
+        try:
+            scen_id = int(scenario)
+            if scen_id in SCENARIOS:
+                return scen_id
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Słownik params (np. sparsowany payload z API)
+    if isinstance(params, dict):
+        val = params.get("scenario") or params.get("scenario_id") or params.get("scenariusz")
+        if val is not None:
             try:
-                scen_id = int(param)
+                scen_id = int(val)
                 if scen_id in SCENARIOS:
-                    return SCENARIOS[scen_id]
+                    return scen_id
+            except (ValueError, TypeError):
+                pass
+
+    # 3. Z żądania HTTP
+    req = request if request is not None else get_current_request()
+    if req is not None:
+        # A. Query params GET
+        get_params = getattr(req, "GET", {})
+        val = (
+            get_params.get("scenario")
+            or get_params.get("scenario_id")
+            or get_params.get("scenariusz")
+        )
+        if val is not None:
+            try:
+                scen_id = int(val)
+                if scen_id in SCENARIOS:
+                    return scen_id
+            except (ValueError, TypeError):
+                pass
+
+        # B. POST params (formularze)
+        post_params = getattr(req, "POST", {})
+        val = (
+            post_params.get("scenario")
+            or post_params.get("scenario_id")
+            or post_params.get("scenariusz")
+        )
+        if val is not None:
+            try:
+                scen_id = int(val)
+                if scen_id in SCENARIOS:
+                    return scen_id
+            except (ValueError, TypeError):
+                pass
+
+        # C. JSON body (żądania POST/PUT typu application/json)
+        content_type = getattr(req, "content_type", "") or ""
+        if "json" in content_type:
+            try:
+                cached = getattr(req, "_cached_json_dict", None)
+                if cached is None:
+                    raw = getattr(req, "body", b"")
+                    if raw:
+                        parsed = json.loads(raw.decode("utf-8"))
+                        cached = parsed if isinstance(parsed, dict) else {}
+                    else:
+                        cached = {}
+                    req._cached_json_dict = cached
+                if isinstance(cached, dict):
+                    val = (
+                        cached.get("scenario")
+                        or cached.get("scenario_id")
+                        or cached.get("scenariusz")
+                    )
+                    if val is not None:
+                        scen_id = int(val)
+                        if scen_id in SCENARIOS:
+                            return scen_id
             except Exception:
                 pass
 
-        headers = getattr(request, "headers", {})
+        # D. Nagłówki HTTP (np. X-Scenario-ID, X-Scenario)
+        headers = getattr(req, "headers", {})
         header_val = headers.get("X-Scenario-ID") or headers.get("X-Scenario")
         if header_val is not None:
             try:
                 scen_id = int(header_val)
                 if scen_id in SCENARIOS:
-                    return SCENARIOS[scen_id]
-            except Exception:
+                    return scen_id
+            except (ValueError, TypeError):
                 pass
 
-        if hasattr(request, "session"):
-            scen_id = request.session.get("active_scenario", 4)
-            return SCENARIOS.get(scen_id, SCENARIOS[4])
+        # E. Sesja Django
+        if hasattr(req, "session"):
+            scen_id = req.session.get("active_scenario")
+            if scen_id in SCENARIOS:
+                return scen_id
 
-    return SCENARIOS[4]
+        # F. Ciasteczka przeglądarki
+        cookies = getattr(req, "COOKIES", {})
+        cookie_val = cookies.get("active_scenario")
+        if cookie_val is not None:
+            try:
+                scen_id = int(cookie_val)
+                if scen_id in SCENARIOS:
+                    return scen_id
+            except (ValueError, TypeError):
+                pass
+
+    # 4. ContextVar override (np. ustawiony programistycznie)
+    override = get_active_scenario_id_override()
+    if override in SCENARIOS:
+        return override
+
+    # 5. Globalny aktywny scenariusz serwera (zsynchronizowany z wyborem w UI / pliku stanu)
+    return get_server_active_scenario()
 
 
-def get_scenario_data_dir(request) -> Path:
-    """Zwraca ścieżkę do folderu data wybranego scenariusza."""
-    scen = get_active_scenario(request)
+_STATE_FILENAME = ".active_scenario"
+
+
+def _state_file_path() -> Path:
+    return settings.DEMO_DATA_DIR / _STATE_FILENAME
+
+
+def set_server_active_scenario(scenario_id: int) -> None:
+    """Ustawia aktywny scenariusz globalnie na serwerze i zapisuje w pliku stanu."""
+    if scenario_id in SCENARIOS:
+        try:
+            path = _state_file_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(str(scenario_id), encoding="utf-8")
+        except OSError:
+            pass
+
+
+def get_server_active_scenario() -> int:
+    """Zwraca aktywny scenariusz serwera (z pliku stanu lub domyślny 4)."""
+    try:
+        path = _state_file_path()
+        if path.is_file():
+            val = int(path.read_text(encoding="utf-8").strip())
+            if val in SCENARIOS:
+                return val
+    except Exception:
+        pass
+    return 4
+
+
+def capture_scenario(
+    request: Any = None,
+    scenario: int | str | dict | None = None,
+    params: dict | None = None,
+) -> dict:
+    """Przechwytuje scenariusz ze wszystkich źródeł i zwraca jego definicję."""
+    scen_id = extract_scenario_id(request, scenario, params)
+    return SCENARIOS.get(scen_id, SCENARIOS[4])
+
+
+def capture_scenario_data_dir(
+    request: Any = None,
+    scenario: int | str | dict | None = None,
+    params: dict | None = None,
+) -> Path:
+    """Przechwytuje dany scenariusz i zwraca ścieżkę do jego katalogu danych (data_dir)."""
+    scen = capture_scenario(request, scenario, params)
     path = settings.DEMO_DATA_DIR / scen["folder"]
     if scen["id"] == 4 and not path.exists():
         return settings.DEMO_DATA_DIR
     return path
+
+
+def capture_scenario_context(
+    request: Any = None,
+    scenario: int | str | dict | None = None,
+    params: dict | None = None,
+) -> tuple[dict, Path]:
+    """Zwraca krotkę (scenariusz, data_dir) przechwyconą z żądania lub parametrów."""
+    scen = capture_scenario(request, scenario, params)
+    path = settings.DEMO_DATA_DIR / scen["folder"]
+    if scen["id"] == 4 and not path.exists():
+        path = settings.DEMO_DATA_DIR
+    return scen, path
+
+
+# Aliasy zapewniające pełną kompatybilność:
+get_active_scenario = capture_scenario
+get_scenario_data_dir = capture_scenario_data_dir

@@ -22,6 +22,9 @@ class LanguageMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        from energy.scenarios import set_current_request
+
+        set_current_request(request)
         lang = selected_language(request)
         previous = translation.get_language()
         translation.activate(lang)
@@ -29,4 +32,5 @@ class LanguageMiddleware:
         try:
             return self.get_response(request)
         finally:
+            set_current_request(None)
             translation.activate(previous)

@@ -118,6 +118,8 @@ def _add_price_traces(
         "showgrid": False,
         "linecolor": SLATE,
         "automargin": True,
+        # Mniejszy odstęp tytułu dla osi cen (y2/y3), żeby nie wchodziły na wykres
+        "title_standoff": 5,
     }
     if third_axis:
         axis_options.update(anchor="free", position=1.0)
@@ -162,6 +164,9 @@ def _base_layout(figure: go.Figure, height: int, lang: str = "en") -> go.Figure:
         "fixedrange": False,
         "linecolor": SLATE,
         "gridcolor": "rgba(84,84,84,0.12)",
+        # Zmniejszamy domenę osi X, aby zawęzić obszar wykresu i zrobić miejsce po prawej stronie
+        # dla dodatkowych osi Y bez nachodzenia na wykres.
+        "domain": [0, 0.92],
     }
     if min_x is not None:
         xaxis_options.update(range=[min_x, max_x], minallowed=min_x, maxallowed=max_x)
@@ -170,7 +175,13 @@ def _base_layout(figure: go.Figure, height: int, lang: str = "en") -> go.Figure:
     figure.update_xaxes(**xaxis_options)
 
     # 4. OŚ Y: Pozostaje ZABLOKOWANA (fixedrange=True) - piki nigdy się nie utną!
-    figure.update_yaxes(fixedrange=True, linecolor=SLATE, gridcolor="rgba(84,84,84,0.12)")
+    # Zmniejszony odstęp tytułu osi Y, aby zmieścić wiele osi bez nachodzenia na wykres
+    figure.update_yaxes(
+        fixedrange=True,
+        linecolor=SLATE,
+        gridcolor="rgba(84,84,84,0.12)",
+        title_standoff=5,
+    )
 
     return figure
 
