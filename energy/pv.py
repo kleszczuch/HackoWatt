@@ -56,6 +56,9 @@ class StorageConfig:
     cost_eur: Decimal = Decimal(0)
 
 
+DEFAULT_STORAGE = StorageConfig()
+
+
 @dataclass(frozen=True)
 class VariantResult:
     """Wynik jednego wariantu PV: pokrycie, eksport, import i oszczędności."""
@@ -78,7 +81,7 @@ class SimulationResult:
     consumption_kwh: Decimal
     variant_a: VariantResult
     variant_b: VariantResult
-    storage: StorageConfig = StorageConfig()
+    storage: StorageConfig = DEFAULT_STORAGE
 
     @property
     def coverage_a(self) -> Decimal:
@@ -220,15 +223,20 @@ def _variant(
     records: list[ConsumptionHour],
     weather: list[WeatherHour],
     kwp: Decimal,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
+    cost_without_pv: Decimal | None = None,
+    radiation: dict[datetime, float] | None = None,
 ) -> tuple[VariantResult, Decimal]:
     """Oblicza wynik jednego wariantu PV: pokrycie, oszczędności i zwrot inwestycji."""
-    cost_without_pv = _energy_cost(
-        tariff, [r.timestamp for r in records], [r.total for r in records], dynamic
-    )
-    radiation = {r.timestamp: r.radiation for r in weather}
+    if cost_without_pv is None:
+        cost_without_pv = _energy_cost(
+            tariff, [r.timestamp for r in records], [r.total for r in records], dynamic
+        )
+    if radiation is None:
+        radiation = {r.timestamp: r.radiation for r in weather}
+
     self_kwh = exported = grid = Decimal(0)
     grid_timestamps: list[datetime] = []
     grid_amounts: list[Decimal] = []
@@ -237,20 +245,38 @@ def _variant(
         (record.total, pv_production(radiation.get(record.timestamp, 0.0), kwp))
         for record in records
     ]
-    charge = _settled_charge(hours, storage, len(records) >= 8760)
+
+    has_storage = storage.capacity_kwh > 0
+    charge = _settled_charge(hours, storage, len(records) >= 8760) if has_storage else Decimal(0)
     charged_total = delivered_total = Decimal(0)
-    for record, (load, pv_kwh) in zip(records, hours, strict=True):
-        production += pv_kwh
-        used, exported_hour, grid_amount, charged, delivered, charge = _hour_balance(
-            load, pv_kwh, charge, storage
-        )
-        self_kwh += used
-        exported += exported_hour
-        charged_total += charged
-        delivered_total += delivered
-        grid += grid_amount
-        grid_timestamps.append(record.timestamp)
-        grid_amounts.append(grid_amount)
+
+    if not has_storage:
+        for record, (load, pv_kwh) in zip(records, hours, strict=True):
+            production += pv_kwh
+            used = min(load, pv_kwh)
+            exported_hour = pv_kwh - used
+            grid_amount = load - used
+            self_kwh += used
+            exported += exported_hour
+            if grid_amount > 0:
+                grid += grid_amount
+                grid_timestamps.append(record.timestamp)
+                grid_amounts.append(grid_amount)
+    else:
+        for record, (load, pv_kwh) in zip(records, hours, strict=True):
+            production += pv_kwh
+            used, exported_hour, grid_amount, charged, delivered, charge = _hour_balance(
+                load, pv_kwh, charge, storage
+            )
+            self_kwh += used
+            exported += exported_hour
+            charged_total += charged
+            delivered_total += delivered
+            if grid_amount > 0:
+                grid += grid_amount
+                grid_timestamps.append(record.timestamp)
+                grid_amounts.append(grid_amount)
+
     grid_cost = _energy_cost(tariff, grid_timestamps, grid_amounts, dynamic)
     pv_capex = PV_COST_PER_KWP * kwp
     capex = pv_capex + storage.cost_eur
@@ -266,14 +292,39 @@ def simulate(
     weather: list[WeatherHour],
     events: list[FlexEvent],
     kwp: Decimal,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
 ) -> SimulationResult:
     """Porównuje wariant A i B dla jednej mocy PV i zwraca kompletne podsumowanie."""
-    variant_a, production = _variant(records, weather, kwp, storage, tariff, dynamic)
+    radiation = {r.timestamp: r.radiation for r in weather}
+    cost_without_pv_a = _energy_cost(
+        tariff, [r.timestamp for r in records], [r.total for r in records], dynamic
+    )
+    variant_a, production = _variant(
+        records,
+        weather,
+        kwp,
+        storage,
+        tariff,
+        dynamic,
+        cost_without_pv=cost_without_pv_a,
+        radiation=radiation,
+    )
     shifted = _shift_records(records, events, _radiation_by_hour(weather))
-    variant_b, _ = _variant(shifted, weather, kwp, storage, tariff, dynamic)
+    cost_without_pv_b = _energy_cost(
+        tariff, [r.timestamp for r in shifted], [r.total for r in shifted], dynamic
+    )
+    variant_b, _ = _variant(
+        shifted,
+        weather,
+        kwp,
+        storage,
+        tariff,
+        dynamic,
+        cost_without_pv=cost_without_pv_b,
+        radiation=radiation,
+    )
     consumption = sum((record.total for record in records), Decimal(0))
     return SimulationResult(kwp, production, consumption, variant_a, variant_b, storage)
 
@@ -283,15 +334,47 @@ def compare_variants(
     weather: list[WeatherHour],
     events: list[FlexEvent],
     variants_kwp: tuple[int, ...] = COMPARE_VARIANTS_KWP,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
 ) -> list[SimulationResult]:
     """Uruchamia symulację dla wielu mocy instalacji i zwraca listę wyników."""
-    return [
-        simulate(records, weather, events, Decimal(kwp), storage, tariff, dynamic)
-        for kwp in variants_kwp
-    ]
+    rad_by_hour = _radiation_by_hour(weather)
+    shifted = _shift_records(records, events, rad_by_hour)
+    radiation_map = {r.timestamp: r.radiation for r in weather}
+    consumption = sum((record.total for record in records), Decimal(0))
+    cost_without_pv_a = _energy_cost(
+        tariff, [r.timestamp for r in records], [r.total for r in records], dynamic
+    )
+    cost_without_pv_b = _energy_cost(
+        tariff, [r.timestamp for r in shifted], [r.total for r in shifted], dynamic
+    )
+
+    results: list[SimulationResult] = []
+    for kwp_int in variants_kwp:
+        kwp = Decimal(kwp_int)
+        va, prod = _variant(
+            records,
+            weather,
+            kwp,
+            storage,
+            tariff,
+            dynamic,
+            cost_without_pv=cost_without_pv_a,
+            radiation=radiation_map,
+        )
+        vb, _ = _variant(
+            shifted,
+            weather,
+            kwp,
+            storage,
+            tariff,
+            dynamic,
+            cost_without_pv=cost_without_pv_b,
+            radiation=radiation_map,
+        )
+        results.append(SimulationResult(kwp, prod, consumption, va, vb, storage))
+    return results
 
 
 def choose_capacity(
@@ -299,7 +382,7 @@ def choose_capacity(
     weather: list[WeatherHour],
     events: list[FlexEvent],
     goal: str,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
 ) -> CapacityChoice:
@@ -374,7 +457,7 @@ def device_effects(
     weather: list[WeatherHour],
     events: list[FlexEvent],
     kwp: Decimal,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
     tariff: TariffConfig | None = None,
     dynamic: dict[datetime, Decimal] | None = None,
 ) -> list[DeviceEffect]:
@@ -405,7 +488,7 @@ def representative_week(
     events: list[FlexEvent],
     kwp: Decimal,
     month: int,
-    storage: StorageConfig = StorageConfig(),
+    storage: StorageConfig = DEFAULT_STORAGE,
 ) -> WeekProfile:
     """Zwraca reprezentatywny tydzień danego miesiąca do wizualizacji profilu ładowania."""
     first_monday = next(

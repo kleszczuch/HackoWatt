@@ -46,14 +46,14 @@ def _temperature_phrase(temperature: float, lang: str = "pl") -> str:
         if temperature > 24:
             return f"hot (about {value})"
         return f"mild (about {value})"
-    else:
-        if temperature < 5:
-            return f"zimno (ok. {value})"
-        if temperature < 12:
-            return f"chłodno (ok. {value})"
-        if temperature > 24:
-            return f"gorąco (ok. {value})"
-        return f"umiarkowana temperatura (ok. {value})"
+
+    if temperature < 5:
+        return f"zimno (ok. {value})"
+    if temperature < 12:
+        return f"chłodno (ok. {value})"
+    if temperature > 24:
+        return f"gorąco (ok. {value})"
+    return f"umiarkowana temperatura (ok. {value})"
 
 
 def explain_peaks(

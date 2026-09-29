@@ -35,7 +35,7 @@ class WeatherFetchError(RuntimeError):
     """Pobieranie pogody z Open-Meteo nie powiodło się."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class WeatherHour:
     """Reprezentuje jedną godzinę danych pogodowych dla konkretnego momentu czasu."""
 
@@ -177,20 +177,32 @@ def write_weather_csv(records: list[WeatherHour], path: Path | str) -> None:
 
 def read_weather_csv(path: Path | str) -> list[WeatherHour]:
     """Wczytuje dane pogodowe z CSV i zwraca je jako listę obiektów WeatherHour."""
+    file_path = Path(path)
     records = []
-    with Path(path).open(encoding="utf-8-sig", newline="") as source:
-        reader = csv.DictReader(source)
-        if reader.fieldnames is None or not set(WEATHER_COLUMNS).issubset(reader.fieldnames):
-            raise WeatherFetchError(f"Plik {Path(path).name} nie ma wymaganych kolumn pogody.")
+    with file_path.open(encoding="utf-8-sig", newline="") as source:
+        reader = csv.reader(source)
+        try:
+            headers = next(reader)
+        except StopIteration as exc:
+            raise WeatherFetchError(f"Plik {file_path.name} jest pusty.") from exc
+        h_map = {name: i for i, name in enumerate(headers)}
+        if not set(WEATHER_COLUMNS).issubset(h_map):
+            raise WeatherFetchError(f"Plik {file_path.name} nie ma wymaganych kolumn pogody.")
+        ts_idx = h_map["Data_Czas"]
+        temp_idx = h_map["Temperatura_C"]
+        cloud_idx = h_map["Zachmurzenie_proc"]
+        rad_idx = h_map["Promieniowanie_W_m2"]
         for row in reader:
+            if not row:
+                continue
             records.append(
                 WeatherHour(
-                    datetime.strptime(row["Data_Czas"], TIMESTAMP_FORMAT),
-                    float(row["Temperatura_C"]),
-                    float(row["Zachmurzenie_proc"]),
-                    float(row["Promieniowanie_W_m2"]),
+                    datetime.fromisoformat(row[ts_idx]),
+                    float(row[temp_idx]),
+                    float(row[cloud_idx]),
+                    float(row[rad_idx]),
                 )
             )
     if not records:
-        raise WeatherFetchError(f"Plik {Path(path).name} nie zawiera godzin pogody.")
+        raise WeatherFetchError(f"Plik {file_path.name} nie zawiera godzin pogody.")
     return records

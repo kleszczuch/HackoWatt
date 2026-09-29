@@ -47,11 +47,26 @@ def api_error(
     return JsonResponse({"status": "error", "error": payload}, status=status)
 
 
+_ENV_MTIME: int = -1
+_CACHED_API_KEY: str = ""
+
+
 def get_expected_api_key() -> str:
     """Odczytuje klucz API_KEY z pliku .env za pomocą dotenv oraz ze zmiennych środowiskowych."""
+    global _ENV_MTIME, _CACHED_API_KEY
     base_dir = getattr(settings, "BASE_DIR", Path(__file__).resolve().parent.parent)
-    load_dotenv(base_dir / ".env", override=True)
-    return os.getenv("API_KEY") or getattr(settings, "API_KEY", "")
+    env_path = base_dir / ".env"
+    try:
+        current_mtime = env_path.stat().st_mtime_ns
+    except OSError:
+        current_mtime = 0
+
+    if current_mtime != _ENV_MTIME:
+        load_dotenv(env_path, override=True)
+        _CACHED_API_KEY = os.getenv("API_KEY") or getattr(settings, "API_KEY", "")
+        _ENV_MTIME = current_mtime
+
+    return _CACHED_API_KEY
 
 
 def check_api_secret(request: HttpRequest) -> bool:
@@ -274,6 +289,19 @@ def devices_guidance(request: HttpRequest) -> JsonResponse:
 # ----------------------------------------------------------------------
 
 
+_PV_DASHBOARD_PREVIEW_CACHE: dict[Path, tuple[Decimal, Decimal]] = {}
+
+
+def _get_pv_preview_coverages(data_dir: Path) -> tuple[Decimal, Decimal]:
+    if data_dir in _PV_DASHBOARD_PREVIEW_CACHE:
+        return _PV_DASHBOARD_PREVIEW_CACHE[data_dir]
+    annual_records, annual_weather, annual_events = data.load_annual(data_dir)
+    res = pv.simulate(annual_records, annual_weather, annual_events, Decimal(5))
+    coverages = (res.coverage_a, res.coverage_b)
+    _PV_DASHBOARD_PREVIEW_CACHE[data_dir] = coverages
+    return coverages
+
+
 @require_http_methods(["GET"])
 @require_api_secret
 @handle_data_errors
@@ -333,8 +361,7 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
         period_label = _tr(request, "Standardowa stawka dzienna", "Standard day rate")
         period_color = "yellow"
 
-    annual_records, annual_weather, annual_events = data.load_annual(data_dir)
-    pv_preview = pv.simulate(annual_records, annual_weather, annual_events, Decimal(5))
+    cov_a, cov_b = _get_pv_preview_coverages(data_dir)
 
     # Dominująca kategoria w ostatniej godzinie
     max_cat_idx = max(range(len(last_hour.categories)), key=lambda i: last_hour.categories[i])
@@ -380,8 +407,8 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
             "next_peak": next_peak,
             "pv_preview": {
                 "reference_kwp": 5.0,
-                "typical_annual_coverage_percent": _to_float(pv_preview.coverage_a, 2),
-                "optimized_annual_coverage_percent": _to_float(pv_preview.coverage_b, 2),
+                "typical_annual_coverage_percent": _to_float(cov_a, 2),
+                "optimized_annual_coverage_percent": _to_float(cov_b, 2),
             },
         }
     )
@@ -1122,7 +1149,7 @@ def system_assumptions(request: HttpRequest) -> JsonResponse:
                 "country_code": scen.get("country_code", "DK"),
                 "flag": scen.get("flag_emoji", "🇩🇰"),
             },
-            "location": scen["city"],
+            "location": _tr(request, scen["city"], scen.get("city_en", scen["city"])),
             "household": household_payload,
             "device_profiles": {
                 name: {

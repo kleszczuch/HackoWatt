@@ -11,9 +11,7 @@ load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "local-demo-only-not-for-public-deployment")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "testserver"]
-INTERNAL_IPS = ["127.0.0.1"]
-TAILWIND_APP_NAME = "theme"
+ALLOWED_HOSTS = ["*"] if DEBUG else ["127.0.0.1", "localhost", "testserver"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -31,7 +29,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.common.CommonMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "energy.language.LanguageMiddleware",
@@ -43,7 +40,7 @@ MIDDLEWARE = [
     "django_browser_reload.middleware.BrowserReloadMiddleware",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
 ]
