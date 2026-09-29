@@ -25,7 +25,7 @@ Główny pulpit to serce naszego systemu zarządzania energią. Został zaprojek
 
 ### Analiza godzinowa
 
-![Podstrona analizy godzinowej](energy/static/energy/godziny.png)
+![Podstrona analizy godzinowej](energy/static/energy/godzina.png)
 
 Widok `/godziny/` to moduł analityczny dla osób chcących dokładniej przejrzeć swoją historię energetyczną. 
 
