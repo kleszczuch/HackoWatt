@@ -167,7 +167,7 @@ git submodule update --init --recursive
      * **Tryb dzienny (jasny):** Przejrzyste, pastelowe tło (`#F7F6ED`), wysoki kontrast i czytelne ciemne fonty.
      * **Tryb nocny (ciemny):** Głębokie, ciemne tło (`#1A1C1E`), zredukowana emisja światła niebieskiego i kontrastowe akcenty w kolorze chartreuse (`#CBFF4D`).
 
-![Preview aplikacji](energy/static/energy/film_preview.mkv)
+![Preview aplikacji](energy/static/energy/film_preview.gif)
 ---
 
 # Uruchomienie na Windows (PowerShell)
