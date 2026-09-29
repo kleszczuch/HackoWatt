@@ -12,7 +12,7 @@ Aplikacja działa lokalnie jako projekt **Django** i udostępnia również REST 
 
 ### Dashboard
 
-![Strona główna aplikacji](energy\static\energy\glowna_strona.png)
+![Strona główna aplikacji](static\energy\glowna_strona.png)
 
 Główny pulpit pozwala analizować:
 
@@ -31,7 +31,7 @@ Dostępne zakresy historii:
 
 ### Analiza godzinowa
 
-![Podstrona analizy godzinowej](energy\static\energy\godziny.png)
+![Podstrona analizy godzinowej](static\energy\godziny.png)
 
 Widok `|godziny|` prezentuje szczegółowe dane godzinowe:
 
@@ -46,7 +46,7 @@ Widok `|godziny|` prezentuje szczegółowe dane godzinowe:
 
 ### Symulator fotowoltaiki
 
-![Podstrona symulatora fotowoltaiki](energy\static\energy\symulator.png)
+![Podstrona symulatora fotowoltaiki](static\energy\symulator.png)
 
 Widok `|symulator-pv|` pozwala sprawdzić wpływ instalacji PV na bilans energetyczny domu.
 
