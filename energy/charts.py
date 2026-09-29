@@ -11,6 +11,7 @@ from energy.forecasting import BacktestRow
 from energy.household import CATEGORIES, ConsumptionHour
 from energy.presentation import event_names
 from energy.pv import WeekProfile
+from energy.tariffs import price_for_hour
 from energy.weather import WeatherHour
 
 CATEGORY_LABELS_PL = (
@@ -46,6 +47,79 @@ CATEGORY_FILLS = (
     "rgba(107,170,117,0.38)",
 )
 CATEGORY_DASHES = ("solid", "solid", "dash", "solid", "dot", "dashdot")
+
+
+def _add_price_traces(
+    figure: go.Figure,
+    timestamps: list,
+    rce_prices: dict | None,
+    *,
+    lang: str,
+    third_axis: bool,
+) -> None:
+    """Dodaje serie ceny RCE i taryfy na dodatkowej osi Y w €/kWh.
+
+    third_axis=True stosuje się, gdy wykres ma już oś temperatury (y2);
+    wtedy cena ląduje na wolnej osi y3 po prawej stronie.
+    """
+    if lang == "en":
+        rce_name = "Price · RCE"
+        tariff_name = "Price · tariff"
+        price_hover = "Price: %{y:.4f} €/kWh<extra></extra>"
+    else:
+        rce_name = "Cena · RCE"
+        tariff_name = "Cena · taryfa"
+        price_hover = "Cena: %{y:.4f} €/kWh<extra></extra>"
+
+    rce_values = []
+    tariff_values = []
+    for ts in timestamps:
+        hour_key = ts.replace(minute=0, second=0, microsecond=0)
+        rce_price = rce_prices.get(hour_key) if rce_prices else None
+        rce_values.append(float(rce_price) if rce_price is not None else None)
+        tariff_values.append(None if rce_price is not None else float(price_for_hour(ts.hour)))
+
+    axis_ref = "y3" if third_axis else "y2"
+    if any(value is not None for value in rce_values):
+        figure.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=rce_values,
+                mode="lines",
+                name=rce_name,
+                line={"color": SAGE, "width": 1.6},
+                hovertemplate=price_hover,
+                yaxis=axis_ref,
+            )
+        )
+    if any(value is not None for value in tariff_values):
+        figure.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=tariff_values,
+                mode="lines",
+                name=tariff_name,
+                line={"color": GRASS, "width": 1.6, "dash": "dash"},
+                hovertemplate=price_hover,
+                yaxis=axis_ref,
+            )
+        )
+
+    axis_options = {
+        "overlaying": "y",
+        "side": "right",
+        "title_text": "€/kWh",
+        "fixedrange": True,
+        "showgrid": False,
+        "linecolor": SLATE,
+        "automargin": True,
+    }
+    if third_axis:
+        axis_options.update(anchor="free", position=1.0)
+        figure.update_layout(yaxis2={"anchor": "free", "position": 0.92, "automargin": True})
+        figure.update_layout(yaxis3=axis_options, margin={"r": 60})
+    else:
+        figure.update_layout(yaxis2=axis_options, margin={"r": 55})
 
 
 def _base_layout(figure: go.Figure, height: int, lang: str = "en") -> go.Figure:
@@ -100,6 +174,7 @@ def _consumption_with_temperature(
     records: list[ConsumptionHour],
     weather: list[WeatherHour],
     height: int,
+    prices: dict | None = None,
     lang: str = "en",
 ) -> go.Figure:
     category_labels = CATEGORY_LABELS_EN if lang == "en" else CATEGORY_LABELS_PL
@@ -165,21 +240,29 @@ def _consumption_with_temperature(
     )
     figure.update_yaxes(title_text="kWh", rangemode="tozero", secondary_y=False)
     figure.update_yaxes(title_text="°C", secondary_y=True)
-    return _base_layout(figure, height, lang=lang)
+    figure = _base_layout(figure, height, lang=lang)
+    if prices is not None:
+        _add_price_traces(
+            figure, [record.timestamp for record in records], prices, lang=lang, third_axis=True
+        )
+    return figure
 
 
 def build_history_chart(
     records: list[ConsumptionHour],
     weather: list[WeatherHour],
+    *,
+    prices: dict | None = None,
     lang: str = "en",
 ) -> go.Figure:
-    return _consumption_with_temperature(records, weather, 400, lang=lang)
+    return _consumption_with_temperature(records, weather, 400, prices=prices, lang=lang)
 
 
 def build_overview_chart(
     records: list[ConsumptionHour],
     weather: list[WeatherHour],
     *,
+    prices: dict | None = None,
     forecast: bool = False,
     lang: str = "en",
 ) -> go.Figure:
@@ -224,20 +307,28 @@ def build_overview_chart(
     )
     figure.update_yaxes(title_text="kWh", rangemode="tozero", secondary_y=False)
     figure.update_yaxes(title_text="°C", secondary_y=True)
-    return _base_layout(figure, 250, lang=lang)
+    figure = _base_layout(figure, 250, lang=lang)
+    if prices is not None:
+        _add_price_traces(
+            figure, [record.timestamp for record in records], prices, lang=lang, third_axis=True
+        )
+    return figure
 
 
 def build_forecast_chart(
     records: list[ConsumptionHour],
     weather: list[WeatherHour],
+    prices: dict | None = None,
     lang: str = "en",
 ) -> go.Figure:
-    figure = _consumption_with_temperature(records, weather, 340, lang=lang)
+    figure = _consumption_with_temperature(records, weather, 340, prices=prices, lang=lang)
     figure.update_traces(patch={"line": {"dash": "dash"}}, selector={"stackgroup": "zuzycie"})
     return figure
 
 
-def build_backtest_chart(rows: list[BacktestRow], lang: str = "en") -> go.Figure:
+def build_backtest_chart(
+    rows: list[BacktestRow], *, prices: dict | None = None, lang: str = "en"
+) -> go.Figure:
     figure = go.Figure()
     if lang == "en":
         trace_defs = (
@@ -263,10 +354,17 @@ def build_backtest_chart(rows: list[BacktestRow], lang: str = "en") -> go.Figure
             )
         )
     figure.update_yaxes(title_text="kWh", rangemode="tozero")
-    return _base_layout(figure, 320, lang=lang)
+    figure = _base_layout(figure, 320, lang=lang)
+    if prices is not None:
+        _add_price_traces(
+            figure, [row.timestamp for row in rows], prices, lang=lang, third_axis=False
+        )
+    return figure
 
 
-def build_pv_chart(week: WeekProfile, kwp: Decimal, lang: str = "en") -> go.Figure:
+def build_pv_chart(
+    week: WeekProfile, kwp: Decimal, *, prices: dict | None = None, lang: str = "en"
+) -> go.Figure:
     figure = go.Figure()
     if lang == "en":
         traces = (
@@ -310,4 +408,7 @@ def build_pv_chart(week: WeekProfile, kwp: Decimal, lang: str = "en") -> go.Figu
             )
         )
     figure.update_yaxes(title_text="kWh", rangemode="tozero")
-    return _base_layout(figure, 380, lang=lang)
+    figure = _base_layout(figure, 380, lang=lang)
+    if prices is not None:
+        _add_price_traces(figure, week.timestamps, prices, lang=lang, third_axis=False)
+    return figure

@@ -16,7 +16,14 @@ from django.urls import reverse
 
 from energy import forecasting, household, pv, tariffs, weather
 from energy.charts import build_history_chart, build_overview_chart
-from energy.data import load_annual, load_history, load_weather_history
+from energy.data import (
+    load_annual,
+    load_forecast,
+    load_history,
+    load_tariff_prices,
+    load_weather_forecast,
+    load_weather_history,
+)
 from energy.presentation import device_name, event_names
 from energy.views import PLOTLY_CONFIG, _chart_html
 
@@ -602,6 +609,72 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(chart.data[6].hovertemplate, "Events: %{text}<extra></extra>")
         self.assertEqual(chart.data[6].text[0], "guests")
         self.assertIn("Temperature:", chart.data[7].hovertemplate)
+
+    def test_charts_show_rce_and_tariff_price_series(self):
+        records = load_history()[-48:]
+        rce_prices = {
+            record.timestamp: Decimal("0.12") + Decimal(index) / Decimal(1000)
+            for index, record in enumerate(records[:24])
+        }
+        history_chart = build_history_chart(
+            records, load_weather_history()[-48:], prices=rce_prices, lang="pl"
+        )
+        price_traces = {trace.name: trace for trace in history_chart.data if trace.yaxis == "y3"}
+        self.assertEqual(set(price_traces), {"Cena · RCE", "Cena · taryfa"})
+        rce_trace = price_traces["Cena · RCE"]
+        self.assertEqual(rce_trace.y[0], 0.12)
+        self.assertIsNone(rce_trace.y[24])
+        tariff_trace = price_traces["Cena · taryfa"]
+        self.assertIsNone(tariff_trace.y[0])
+        self.assertEqual(
+            tariff_trace.y[24], float(tariffs.price_for_hour(records[24].timestamp.hour))
+        )
+        self.assertEqual(history_chart.layout.yaxis3.title.text, "€/kWh")
+        self.assertIn("€/kWh", rce_trace.hovertemplate)
+
+        forecast_records = load_forecast()[:24]
+        forecast_chart = build_overview_chart(
+            forecast_records, load_weather_forecast()[:24], prices={}, forecast=True
+        )
+        forecast_traces = {trace.name: trace for trace in forecast_chart.data}
+        self.assertNotIn("Price · RCE", forecast_traces)
+        self.assertEqual(
+            forecast_traces["Price · tariff"].y[0],
+            float(tariffs.price_for_hour(forecast_records[0].timestamp.hour)),
+        )
+
+    def test_load_tariff_prices_reads_hourly_prices(self):
+        test_dir = make_test_dir()
+        try:
+            (test_dir / "tariff_prices.json").write_text(
+                json.dumps(
+                    {
+                        "source": "test",
+                        "unit": "EUR/kWh",
+                        "prices": {"2026-09-28 17:00:00": "0.20916"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            prices = load_tariff_prices(test_dir)
+            self.assertEqual(prices, {datetime(2026, 9, 28, 17): Decimal("0.20916")})
+        finally:
+            clean_test_dir(test_dir)
+
+    def test_charts_fall_back_to_tariff_without_rce_file(self):
+        missing_dir = make_test_dir()
+        try:
+            self.assertEqual(load_tariff_prices(missing_dir), {})
+        finally:
+            clean_test_dir(missing_dir)
+
+        records = load_history()[-24:]
+        chart = build_history_chart(records, load_weather_history()[-24:], prices={}, lang="en")
+        price_traces = [trace for trace in chart.data if trace.yaxis == "y3"]
+        self.assertEqual([trace.name for trace in price_traces], ["Price · tariff"])
+        self.assertEqual(
+            price_traces[0].y[0], float(tariffs.price_for_hour(records[0].timestamp.hour))
+        )
 
     def test_dashboard_simulation_periods_and_short_snapshot(self):
         for days in (1, 3, 5, 7, 14, 31):

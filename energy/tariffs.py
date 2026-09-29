@@ -29,6 +29,15 @@ def price_for_hour(hour: int) -> Decimal:
     raise AssertionError("Taryfa nie pokrywa pełnej doby.")
 
 
+def price_for_timestamp(ts: datetime, rce_prices: dict[datetime, Decimal] | None = None) -> Decimal:
+    """Cena RCE dla danej godziny, a gdy jej brak — cena z taryfy godzinowej."""
+    if rce_prices:
+        price = rce_prices.get(ts.replace(minute=0, second=0, microsecond=0))
+        if price is not None:
+            return price
+    return price_for_hour(ts.hour)
+
+
 def energy_cost(timestamps: list[datetime], amounts_kwh: list[Decimal]) -> Decimal:
     """Oblicza koszt energii na podstawie godzinowej taryfy i zużycia w kWh."""
     if len(timestamps) != len(amounts_kwh):

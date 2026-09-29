@@ -255,6 +255,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         return render(request, "energy/dashboard.html", {"data_error": err})
 
     days = _simulation_days(request)
+    prices = data.load_tariff_prices()
     selected_history = history[-days * 24 :]
     selected_weather = data.filter_records(
         weather_history,
@@ -292,12 +293,14 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         "selected_count": len(selected_history),
         "selected_total": sum((record.total for record in selected_history), Decimal(0)),
         "history_chart": _chart_html(
-            build_overview_chart(selected_history, selected_weather, lang=lang),
+            build_overview_chart(selected_history, selected_weather, prices=prices, lang=lang),
             include_plotlyjs=True,
             lang=lang,
             compact=True,
         ),
-        "backtest_chart": _chart_html(build_backtest_chart(backtest_rows, lang=lang), lang=lang),
+        "backtest_chart": _chart_html(
+            build_backtest_chart(backtest_rows, prices=prices, lang=lang), lang=lang
+        ),
     }
     forecast_total = sum((record.total for record in forecast_slice), Decimal(0))
     context.update(
@@ -305,7 +308,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
             "forecast_total": forecast_total,
             "forecast_chart": _chart_html(
                 build_overview_chart(
-                    forecast_slice, weather_forecast_slice, forecast=True, lang=lang
+                    forecast_slice, weather_forecast_slice, prices=prices, forecast=True, lang=lang
                 ),
                 lang=lang,
                 compact=True,
@@ -352,6 +355,7 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
     if form.is_valid():
         start = form.cleaned_data["start"]
         end = form.cleaned_data["end"]
+        prices = data.load_tariff_prices()
         selected_history = selected if rolling_days else data.filter_records(history, start, end)
         selected_weather = data.filter_records(weather_history, start, end)
         if rolling_days:
@@ -367,7 +371,9 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
                 "selected_count": len(selected_history),
                 "selected_total": sum((record.total for record in selected_history), Decimal(0)),
                 "history_chart": _chart_html(
-                    build_history_chart(selected_history, selected_weather, lang=lang),
+                    build_history_chart(
+                        selected_history, selected_weather, prices=prices, lang=lang
+                    ),
                     include_plotlyjs=True,
                     lang=lang,
                 ),
@@ -535,7 +541,9 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
             "selected": selected,
             "effects": effects,
             "pv_chart": _chart_html(
-                build_pv_chart(week, kwp, lang=lang), include_plotlyjs=True, lang=lang
+                build_pv_chart(week, kwp, prices=data.load_tariff_prices(), lang=lang),
+                include_plotlyjs=True,
+                lang=lang,
             ),
             "consumption_kwh": selected.consumption_kwh,
             "daily_average_kwh": selected.consumption_kwh / Decimal(day_count),
