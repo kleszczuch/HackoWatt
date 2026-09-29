@@ -35,9 +35,10 @@ from energy.language import selected_language
 from energy.presentation import device_name, event_names
 from energy.scenarios import (
     SCENARIOS,
-    get_active_scenario,
-    get_scenario_data_dir,
+    capture_scenario_context,
+    capture_scenario_data_dir,
     localized_scenario,
+    set_server_active_scenario,
 )
 
 PLOTLY_CONFIG = {
@@ -58,11 +59,15 @@ PV_DEFAULTS = {
 
 def switch_scenario_view(request: HttpRequest, scenario_id: int) -> HttpResponse:
     if scenario_id in SCENARIOS:
+        set_server_active_scenario(scenario_id)
         request.session["active_scenario"] = scenario_id
     next_url = request.META.get("HTTP_REFERER", "/")
     if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
         next_url = "/"
-    return HttpResponseRedirect(next_url)
+    response = HttpResponseRedirect(next_url)
+    if scenario_id in SCENARIOS:
+        response.set_cookie("active_scenario", str(scenario_id), max_age=365 * 24 * 3600)
+    return response
 
 
 def _current_lang(request: HttpRequest) -> str:
@@ -166,8 +171,8 @@ def _simulation_days(request: HttpRequest) -> int:
 
 def dashboard(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
-    data_dir = get_scenario_data_dir(request)
-    active_scenario = localized_scenario(get_active_scenario(request), lang)
+    scen, data_dir = capture_scenario_context(request)
+    active_scenario = localized_scenario(scen, lang)
     try:
         history = data.load_history(data_dir)
         forecast = data.load_forecast(data_dir)
@@ -245,7 +250,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
 def hourly_history(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
-    data_dir = get_scenario_data_dir(request)
+    data_dir = capture_scenario_data_dir(request)
     try:
         history = data.load_history(data_dir)
         weather_history = data.load_weather_history(data_dir)
@@ -496,9 +501,7 @@ def _tariff_for_calculation(
 def pv_simulator(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
     currency = selected_currency(request)
-    data_dir = get_scenario_data_dir(request)
-
-    active_scenario = get_active_scenario(request)
+    active_scenario, data_dir = capture_scenario_context(request)
     scenario_id = active_scenario["id"]
 
     try:
@@ -769,7 +772,7 @@ def settings_view(request: HttpRequest) -> HttpResponse:
 
 def export_csv(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
-    data_dir = get_scenario_data_dir(request)
+    data_dir = capture_scenario_data_dir(request)
     try:
         history = data.load_history(data_dir)
         forecast = data.load_forecast(data_dir)

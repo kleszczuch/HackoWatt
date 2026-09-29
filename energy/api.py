@@ -25,7 +25,12 @@ from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm
 from energy.language import selected_language
 from energy.presentation import device_name, event_names
-from energy.scenarios import SCENARIOS, get_active_scenario, get_scenario_data_dir
+from energy.scenarios import (
+    SCENARIOS,
+    capture_scenario,
+    capture_scenario_context,
+    set_server_active_scenario,
+)
 
 
 def _tr(request: HttpRequest, pl: str, en: str) -> str:
@@ -202,7 +207,7 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
         }
         for hour, price in enumerate(prices)
     ]
-    scen = get_active_scenario(request)
+    scen = capture_scenario(request)
     return api_success(
         {
             "scenario": {
@@ -235,8 +240,7 @@ def smart_schedule_today(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def devices_guidance(request: HttpRequest) -> JsonResponse:
     """Rzeczywiste liczby cykli i energii w wygenerowanym roku modelowym."""
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request)
     records, _, events = data.load_annual(data_dir)
     devices = []
     for device, display_name in (
@@ -307,8 +311,7 @@ def _get_pv_preview_coverages(data_dir: Path) -> tuple[Decimal, Decimal]:
 @handle_data_errors
 def dashboard_summary(request: HttpRequest) -> JsonResponse:
     """Zwraca skonsolidowany status na ekran główny aplikacji mobilnej."""
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request)
     history = data.load_history(data_dir)
     forecast = data.load_forecast(data_dir)
     weather_history = data.load_weather_history(data_dir)
@@ -424,8 +427,7 @@ def dashboard_summary(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def consumption_history(request: HttpRequest) -> JsonResponse:
     """Pobiera historię zużycia energii z paginacją i filtrem dat."""
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request)
     history = data.load_history(data_dir)
     weather_history = data.load_weather_history(data_dir)
     weather_by_time = {w.timestamp: w for w in weather_history}
@@ -560,8 +562,7 @@ def consumption_forecast(request: HttpRequest) -> JsonResponse:
         )
 
     horizon_hours = int(horizon_form.cleaned_data["horyzont"])
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request)
     forecast = data.load_forecast(data_dir)
     weather_forecast = data.load_weather_forecast(data_dir)
 
@@ -661,7 +662,7 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
     now_moment = datetime.now().replace(minute=0, second=0, microsecond=0)
     now_hour = now_moment.hour
     current_price, current_fallback = tariff_config.price_at(now_moment, dynamic_prices)
-    scen = get_active_scenario(request)
+    scen = capture_scenario(request)
     return api_success(
         {
             "scenario": {
@@ -705,12 +706,12 @@ def tariffs_info(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def pv_simulate_api(request: HttpRequest) -> JsonResponse:
     """Symuluje instalację PV o zadanej mocy kWp z porównaniem wariantów A i B."""
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
-    records, weather_annual, events = data.load_annual(data_dir)
     params, err = _parse_params(request)
     if err:
         return api_error(err, code="INVALID_PARAMS", status=400)
+
+    scen, data_dir = capture_scenario_context(request, params=params)
+    records, weather_annual, events = data.load_annual(data_dir)
 
     kwp_val = params.get("kwp", "5")
     month_val = str(params.get("month", params.get("miesiac", "6")))
@@ -841,8 +842,7 @@ def pv_simulate_api(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def pv_variants_list(request: HttpRequest) -> JsonResponse:
     """Zwraca tabelę porównawczą typowych mocy instalacji PV (2..10 kWp)."""
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request)
     records, weather_annual, events = data.load_annual(data_dir)
     comparison = pv.compare_variants(records, weather_annual, events)
 
@@ -886,8 +886,7 @@ def pv_variants_list(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def flexible_events_list(request: HttpRequest) -> JsonResponse:
     """Zwraca listę zarejestrowanych cykli pracy urządzeń elastycznych."""
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request)
     events = data.load_history_events(data_dir)
 
     device_filter = request.GET.get("device", "").strip()
@@ -1051,8 +1050,7 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
     target_cost = target_price * energy_kwh
     savings_per_cycle = orig_cost - target_cost
 
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request, params=params)
     _, _, annual_events = data.load_annual(data_dir)
     annual_cycles = sum(event.device == device for event in annual_events)
     annual_savings = savings_per_cycle * annual_cycles
@@ -1106,8 +1104,7 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def system_assumptions(request: HttpRequest) -> JsonResponse:
     """Zwraca parametry symulacji, urządzeń i koszty taryfowe."""
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request)
     history = data.load_history(data_dir)
     forecast = data.load_forecast(data_dir)
     records, _, _ = data.load_annual(data_dir)
@@ -1183,8 +1180,7 @@ def system_assumptions(request: HttpRequest) -> JsonResponse:
 @handle_data_errors
 def system_metrics(request: HttpRequest) -> JsonResponse:
     """Zwraca metryki dokładności modelu prognostycznego wobec baseline'u."""
-    data_dir = get_scenario_data_dir(request)
-    scen = get_active_scenario(request)
+    scen, data_dir = capture_scenario_context(request)
     metrics_data = data.load_metrics(data_dir)
     return api_success(
         {
@@ -1207,7 +1203,7 @@ def system_metrics(request: HttpRequest) -> JsonResponse:
 @require_api_secret
 def scenarios_list(request: HttpRequest) -> JsonResponse:
     """Zwraca listę wszystkich 5 dostępnych scenariuszy symulacji."""
-    active = get_active_scenario(request)
+    active = capture_scenario(request)
     items = [
         {
             "id": s["id"],
@@ -1228,11 +1224,23 @@ def scenarios_list(request: HttpRequest) -> JsonResponse:
     return api_success({"active_scenario_id": active["id"], "scenarios": items})
 
 
-@require_http_methods(["GET"])
+@require_http_methods(["GET", "POST"])
 @require_api_secret
 def active_scenario_info(request: HttpRequest) -> JsonResponse:
-    """Zwraca metadane aktualnie wybranego scenariusza symulacji."""
-    active = get_active_scenario(request)
+    """Zwraca lub przełącza (POST) metadane aktualnie wybranego scenariusza symulacji."""
+    if request.method == "POST":
+        params, _ = _parse_params(request)
+        target_id = params.get("scenario_id") or params.get("scenario") or params.get("id")
+        if target_id is not None:
+            try:
+                sid = int(target_id)
+                if sid in SCENARIOS:
+                    set_server_active_scenario(sid)
+                    if hasattr(request, "session"):
+                        request.session["active_scenario"] = sid
+            except (ValueError, TypeError):
+                pass
+    active = capture_scenario(request)
     return api_success(
         {
             "id": active["id"],
