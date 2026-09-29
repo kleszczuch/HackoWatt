@@ -71,7 +71,9 @@ SCENARIOS = {
         "household": {
             "residents_count": 1,
             "profile": "Singielka w Warszawie: praca zdalna, aktywny tryb życia",
+            "profile_en": "Single woman in Warsaw: remote work, active lifestyle",
             "heating_type": "Klimatyzacja / sieć ciepłownicza",
+            "heating_type_en": "Air conditioning / district heating",
         },
     },
     2: {
@@ -94,7 +96,9 @@ SCENARIOS = {
         "household": {
             "residents_count": 4,
             "profile": "Śląski dom rodzinny: 4 osoby, praca zmianowa, stabilne obciążenie",
+            "profile_en": "Silesian family home: 4 residents, shift work, stable energy use",
             "heating_type": "Kocioł gazowy / pompa ciepła",
+            "heating_type_en": "Gas boiler / heat pump",
         },
     },
     3: {
@@ -116,8 +120,12 @@ SCENARIOS = {
         "folder": "scenario_3",
         "household": {
             "residents_count": 2,
-            "profile": "Luxury Under Control: 2 osoby, willa z basenem, sauną i ładowarką EV",
+            "profile": "Luksus pod kontrolą: 2 osoby, willa z basenem, sauną i ładowarką EV",
+            "profile_en": (
+                "Luxury Under Control: 2 residents, villa with a pool, sauna and EV charger"
+            ),
             "heating_type": "Klimatyzacja inwerterowa / pompa ciepła",
+            "heating_type_en": "Inverter air conditioning / heat pump",
         },
     },
     4: {
@@ -142,7 +150,12 @@ SCENARIOS = {
             "profile": (
                 "Trzypokoleniowy dom: dziadkowie w ciągu dnia, pracujący rodzice, dzieci po szkole"
             ),
+            "profile_en": (
+                "Three-generation home: grandparents at home during the day, "
+                "working parents, children after school"
+            ),
             "heating_type": "Pompa ciepła (reaguje na temperaturę zewnętrzną)",
+            "heating_type_en": "Heat pump (responds to outdoor temperature)",
         },
     },
     5: {
@@ -164,8 +177,10 @@ SCENARIOS = {
         "folder": "scenario_5",
         "household": {
             "residents_count": 2,
-            "profile": "Home Alone – But Not Really: 2 osoby pracujące zdalnie z psem",
+            "profile": "Nigdy sami w domu: 2 osoby pracujące zdalnie z psem",
+            "profile_en": "Home Alone – But Not Really: 2 remote workers with a dog",
             "heating_type": "Klimatyzacja / ogrzewanie elektryczne",
+            "heating_type_en": "Air conditioning / electric heating",
         },
     },
 }
@@ -179,6 +194,15 @@ def localized_scenario(scenario: dict, lang: str) -> dict:
         result["name"] = scenario["name_en"]
         result["city"] = scenario["city_en"]
         result["city_short"] = scenario["city_short_en"]
+    if "household" in scenario:
+        household = scenario["household"]
+        result["household"] = {
+            "residents_count": household["residents_count"],
+            "profile": household["profile_en"] if lang == "en" else household["profile"],
+            "heating_type": (
+                household["heating_type_en"] if lang == "en" else household["heating_type"]
+            ),
+        }
     return result
 
 

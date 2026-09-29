@@ -3,19 +3,24 @@
 import csv
 import io
 import json
+import os
 import shutil
-from datetime import datetime, timedelta
+import unittest
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from energy import forecasting, household, pse, pv, tariffs, weather
 from energy.charts import build_history_chart, build_overview_chart, build_tariff_price_chart
+from energy.currency import convert_plan_currency
 from energy.data import (
     load_annual,
     load_forecast,
@@ -26,6 +31,7 @@ from energy.data import (
 )
 from energy.presentation import device_name, event_names
 from energy.views import PLOTLY_CONFIG, _chart_html
+from models import ollama_client, recommendations
 
 HISTORY_START = datetime(2026, 9, 15, 0)
 FORECAST_START = datetime(2026, 10, 20, 11)
@@ -106,6 +112,16 @@ def write_metrics(path: Path) -> None:
         ),
         encoding="utf-8",
     )
+
+
+def write_weather_radiation(path: Path, start: datetime, radiations: list[float]) -> None:
+    """Zapisuje pogodę z zadanym promieniowaniem godzinowym dla testów PV."""
+    with path.open("w", encoding="utf-8", newline="") as output:
+        writer = csv.writer(output)
+        writer.writerow(weather.WEATHER_COLUMNS)
+        for offset, radiation in enumerate(radiations):
+            stamp = start + timedelta(hours=offset)
+            writer.writerow([stamp.strftime("%Y-%m-%d %H:%M:%S"), "5.0", "50", f"{radiation:.1f}"])
 
 
 def prepare_fixture_dir(data_dir: Path) -> None:
@@ -727,6 +743,36 @@ class ViewTests(SimpleTestCase):
             float(tariffs.price_for_hour(forecast_records[0].timestamp.hour)),
         )
 
+    def test_price_series_convert_values_axis_and_hover_to_selected_currency(self):
+        records = load_history()[-24:]
+        prices = {records[0].timestamp: Decimal("0.20")}
+        weather_rows = load_weather_history()[-24:]
+
+        for currency, symbol, rate in (
+            ("EUR", "€", Decimal("1")),
+            ("PLN", "zł", Decimal("4.30")),
+            ("DKK", "kr", Decimal("7.46038")),
+        ):
+            with self.subTest(currency=currency):
+                chart = build_history_chart(
+                    records, weather_rows, prices=prices, lang="pl", currency=currency
+                )
+                traces = {trace.name: trace for trace in chart.data if trace.yaxis == "y3"}
+                self.assertAlmostEqual(traces["Cena · RCE"].y[0], float(Decimal("0.20") * rate))
+                self.assertAlmostEqual(
+                    traces["Cena · taryfa"].y[1],
+                    float(tariffs.price_for_hour(records[1].timestamp.hour) * rate),
+                )
+                self.assertEqual(chart.layout.yaxis3.title.text, f"{symbol}/kWh")
+                self.assertIn(f"{symbol}/kWh", traces["Cena · RCE"].hovertemplate)
+                self.assertEqual(chart.layout.yaxis.title.text, "kWh")
+                self.assertEqual(chart.layout.yaxis2.title.text, "°C")
+
+                overview = build_overview_chart(
+                    records, weather_rows, prices=prices, currency=currency
+                )
+                self.assertEqual(overview.layout.yaxis3.title.text, f"{symbol}/kWh")
+
     def test_load_tariff_prices_reads_hourly_prices(self):
         test_dir = make_test_dir()
         try:
@@ -916,7 +962,8 @@ class ViewTests(SimpleTestCase):
         self.assertContains(response, "Warianty instalacji")
         self.assertContains(response, "Zakup z sieci")
         self.assertContains(response, "Zmywarka")
-        self.assertContains(response, "Efekt zmiany godziny pracy")
+        self.assertContains(response, "Plan pracy urządzeń na jutro")
+        self.assertNotContains(response, "Efekt zmiany godziny pracy")
         self.assertNotContains(response, "Wskazówka:")
         self.assertNotContains(response, "nie ma czego przesuwać")
         self.assertContains(response, "Dobierz do 100% pokrycia")
@@ -927,7 +974,8 @@ class ViewTests(SimpleTestCase):
         self.assertContains(response_en, "PV system options")
         self.assertContains(response_en, "Grid purchases")
         self.assertContains(response_en, "Dishwasher")
-        self.assertContains(response_en, "Effect of shifting appliance use")
+        self.assertContains(response_en, "Appliance schedule for tomorrow")
+        self.assertNotContains(response_en, "Effect of shifting appliance use")
         self.assertContains(response_en, "Find 100% coverage")
         self.assertContains(response_en, "Shortest payback (B)")
 
@@ -1197,6 +1245,29 @@ class ViewTests(SimpleTestCase):
             self.client.session["tariff"]["fixed"],
             ["0.2000", "0.3000", "0.4000", "0.3000"],
         )
+
+    def test_saved_currency_updates_price_series_on_every_chart_page(self):
+        for currency, symbol in (("PLN", "zł"), ("DKK", "kr")):
+            with self.subTest(currency=currency):
+                saved = self.client.post(
+                    reverse("settings"),
+                    {"intent": "preferences", "language": "pl", "currency": currency},
+                )
+                self.assertEqual(saved.status_code, 302)
+                dashboard = self.client.get(reverse("dashboard"))
+                hourly = self.client.get(reverse("hourly_history"))
+                pv_page = self.client.get(reverse("pv_simulator"))
+
+                expected_axis = json.dumps(f"{symbol}/kWh")[1:-1].replace("/", r"\u002f")
+                charts = {
+                    "dashboard history": dashboard.context["history_chart"],
+                    "dashboard forecast": dashboard.context["forecast_chart"],
+                    "dashboard backtest": dashboard.context["backtest_chart"],
+                    "hourly history": hourly.context["history_chart"],
+                    "PV": pv_page.context["pv_chart"],
+                }
+                for name, chart_html in charts.items():
+                    self.assertTrue(expected_axis in chart_html, f"{currency}: {name}")
 
     def test_dkk_battery_input_uses_dkk_but_calculates_eur(self):
         self.client.post(
@@ -1632,6 +1703,63 @@ class ApiTests(TestCase):
         self.assertEqual(s2_data["id"], 2)
         self.assertEqual(s2_data["city"], "Katowice, Polska")
 
+    def test_scenario_metadata_is_localized_in_every_api_shape(self):
+        english = self.client.get(reverse("api_scenarios_list"), {"lang": "en"}).json()["data"]
+        barcelona = next(item for item in english["scenarios"] if item["id"] == 3)
+        self.assertEqual(barcelona["name"], "Barcelona · Anna and Robert")
+        self.assertEqual(barcelona["city"], "Barcelona, Spain")
+        self.assertEqual(barcelona["title"], "Luxury Under Control (Sauna, Pool, EV)")
+        self.assertIn("2 residents", barcelona["household"]["profile"])
+        self.assertEqual(
+            barcelona["household"]["heating_type"], "Inverter air conditioning / heat pump"
+        )
+
+        active = self.client.get(
+            reverse("api_active_scenario"), {"scenario": 3, "lang": "en"}
+        ).json()["data"]
+        self.assertEqual(active["city_short"], "Barcelona")
+        self.assertEqual(active["household"], barcelona["household"])
+
+        assumptions = self.client.get(reverse("api_system_assumptions"), {"lang": "en"}).json()[
+            "data"
+        ]
+        self.assertEqual(assumptions["scenario"]["name"], "Copenhagen · Multigenerational Home")
+        self.assertEqual(
+            assumptions["household"]["heating_type"], "Heat pump (responds to outdoor temperature)"
+        )
+        self.assertEqual(assumptions["device_profiles"]["Zmywarka"]["label"], "Dishwasher")
+        metrics = self.client.get(reverse("api_system_metrics"), {"lang": "en"}).json()["data"]
+        self.assertEqual(metrics["scenario"]["city"], "Copenhagen, Denmark")
+        summary = self.client.get(reverse("api_dashboard_summary"), {"lang": "en"}).json()["data"]
+        self.assertEqual(summary["scenario"]["city"], "Copenhagen, Denmark")
+        shift = self.client.get(
+            reverse("api_shift_simulation"), {"device": "Pralka", "lang": "en"}
+        ).json()["data"]
+        self.assertEqual(shift["device"], "Pralka")
+        self.assertEqual(shift["device_label"], "Washing machine")
+
+        polish = self.client.get(reverse("api_scenarios_list"), {"lang": "pl"}).json()["data"]
+        self.assertEqual(polish["scenarios"][2]["city"], "Barcelona, Hiszpania")
+        self.assertIn("2 osoby", polish["scenarios"][2]["household"]["profile"])
+
+    def test_main_pages_have_matching_language_markers(self):
+        pages = (
+            ("dashboard", "Energy dashboard", "Pulpit zużycia"),
+            ("hourly_history", "Hourly data", "Przegląd godzinowy"),
+            ("pv_simulator", "PV simulator", "Symulator PV"),
+            ("settings", "Settings", "Ustawienia"),
+        )
+        for route, english, polish in pages:
+            with self.subTest(route=route):
+                response_en = self.client.get(reverse(route), HTTP_COOKIE="django_language=en")
+                self.assertEqual(response_en.status_code, 200)
+                self.assertContains(response_en, '<html lang="en">')
+                self.assertContains(response_en, english)
+                response_pl = self.client.get(reverse(route), HTTP_COOKIE="django_language=pl")
+                self.assertEqual(response_pl.status_code, 200)
+                self.assertContains(response_pl, '<html lang="pl">')
+                self.assertContains(response_pl, polish)
+
     def test_scenario_data_dir_loading_in_api(self):
         # Tworzymy dane dla scenariusza 1 w katalogu testowym
         scen1_dir = self.data_dir / "scenario_1"
@@ -1665,3 +1793,944 @@ class ApiTests(TestCase):
 
         res_active = client.get(reverse("api_active_scenario"))
         self.assertEqual(res_active.status_code, 401)
+
+
+RECO_DAY = datetime(2027, 6, 7, 0)  # poniedziałek — „jutro" w fixturach rekomendacji
+RECO_EVENTS = [
+    ["2027-05-24", "Zmywarka", 19, 2, "1.000"],
+    ["2027-05-31", "Zmywarka", 19, 2, "1.000"],
+    ["2027-05-24", "Pralka", 19, 2, "1.000"],
+    ["2027-05-31", "Pralka", 19, 2, "1.000"],
+    ["2027-05-24", "Suszarka", 20, 1, "2.000"],
+    ["2027-05-31", "Suszarka", 20, 1, "2.000"],
+]
+
+
+class RecommendationTests(SimpleTestCase):
+    """Testy pakietu models/: cykle, kandydaci, walidacja modelu i bufor."""
+
+    def setUp(self):
+        day_patch = patch("models.recommendations._target_date", return_value=RECO_DAY.date())
+        day_patch.start()
+        self.addCleanup(day_patch.stop)
+        self.data_dir = make_test_dir()
+        self.addCleanup(clean_test_dir, self.data_dir)
+        self.cache_dir = self.data_dir / "bufor"
+        write_consumption(self.data_dir / forecasting.FORECAST_FILENAME, RECO_DAY, 24, base="3.000")
+        write_weather(self.data_dir / weather.FORECAST_WEATHER_FILENAME, RECO_DAY, 24)
+        self._write_events(RECO_EVENTS)
+
+    def _write_events(self, rows: list[list]) -> None:
+        with (self.data_dir / household.FLEX_EVENTS_FILENAME).open(
+            "w", encoding="utf-8", newline=""
+        ) as output:
+            writer = csv.writer(output)
+            writer.writerow(household.EVENT_COLUMNS)
+            writer.writerows(rows)
+
+    def _build(self, **overrides) -> dict:
+        params = {
+            "scenario_id": "scenario_test",
+            "data_dir": self.data_dir,
+            "tariff": tariffs.TariffConfig(),
+            "dynamic": None,
+            "kwp": Decimal("5"),
+            "cache_dir": self.cache_dir,
+        }
+        return recommendations.build_plan(**(params | overrides))
+
+    @staticmethod
+    def _entry(plan: dict, slug: str) -> dict:
+        return next(item for item in plan["recommendations"] if item["device"] == slug)
+
+    def test_cycle_inference_uses_weekday_medians_and_threshold(self):
+        events = [
+            household.FlexEvent("Pralka", date(2027, 5, 24), 10, 2, Decimal("0.800")),
+            household.FlexEvent("Pralka", date(2027, 5, 31), 12, 4, Decimal("1.200")),
+            household.FlexEvent("Pralka", date(2027, 5, 25), 15, 1, Decimal("9.000")),
+        ]
+        cycle = recommendations.infer_cycle(events, "Pralka", weekday=0)
+        self.assertEqual((cycle.start_hour, cycle.duration_h), (11, 3))
+        self.assertEqual(cycle.energy_kwh, Decimal("1.000"))
+        self.assertEqual(cycle.occurrences, 2)
+        self.assertIsNone(recommendations.infer_cycle(events, "Suszarka", weekday=0))
+        self.assertIsNone(recommendations.infer_cycle(events[:1], "Pralka", weekday=0))
+
+    def test_observed_events_count_days_not_hours_and_split_labels(self):
+        def row(day: int, hour: int, labels: str) -> household.ConsumptionHour:
+            return household.ConsumptionHour(
+                datetime(2027, 6, day, hour), (Decimal(0),) * 6, labels
+            )
+
+        records = [
+            row(7, 9, "praca zdalna; pralka"),
+            row(7, 10, "praca zdalna"),
+            row(14, 9, "praca zdalna; pompa basenu"),
+            row(15, 9, "goście"),
+        ]
+
+        result = recommendations.observed_events(records, weekday=0)
+
+        self.assertEqual(
+            [entry["event"] for entry in result], ["praca zdalna", "pompa basenu", "goście"]
+        )
+        self.assertEqual(result[0]["days_in_history"], 2)
+        self.assertEqual(result[0]["days_on_matching_weekday"], 2)
+        self.assertEqual(result[0]["matching_weekdays"], 2)
+        self.assertEqual(result[0]["status"], "repeated")
+        self.assertEqual(result[2]["days_on_matching_weekday"], 0)
+        self.assertEqual(result[2]["status"], "observed_only")
+        other_scenario = recommendations.observed_events(
+            [row(7, 22, "ładowanie EV; pompa basenu")], weekday=0
+        )
+        self.assertEqual(
+            {entry["event"] for entry in other_scenario}, {"ładowanie EV", "pompa basenu"}
+        )
+
+    def test_pool_cycle_uses_current_history_and_removes_appliance_energy(self):
+        records = []
+        events = []
+        for day, duration in ((24, 3), (31, 4)):
+            for hour in range(9, 9 + duration):
+                shared = Decimal("1.5") if hour == 9 else Decimal("0.5")
+                records.append(
+                    household.ConsumptionHour(
+                        datetime(2027, 5, day, hour),
+                        (Decimal(0),) * 5 + (shared,),
+                        "pompa basenu; zmywarka" if hour == 9 else "pompa basenu",
+                    )
+                )
+            events.append(household.FlexEvent("Zmywarka", date(2027, 5, day), 9, 1, Decimal("1")))
+        self.assertIsNone(recommendations.infer_pool_cycle(records[:3], events, weekday=0))
+        cycle = recommendations.infer_pool_cycle(records, events, weekday=0)
+        self.assertEqual(cycle.occurrences, 2)
+        self.assertEqual(cycle.start_hour, 9)
+        self.assertEqual(cycle.duration_h, 4)
+        self.assertEqual(cycle.energy_kwh, Decimal("1.75"))
+
+    def test_pool_candidates_only_include_lower_cost_hours(self):
+        stamps = [RECO_DAY + timedelta(hours=hour) for hour in range(24)]
+        prices = {stamp: Decimal("0.30") for stamp in stamps}
+        prices[stamps[9]] = prices[stamps[10]] = Decimal("1.00")
+        prices[stamps[13]] = prices[stamps[14]] = Decimal("0.05")
+        plan = recommendations._pool_plan(
+            recommendations.CycleForecast("pompa basenu", 9, 2, Decimal("2"), 2),
+            stamps,
+            [Decimal("3")] * 24,
+            dict.fromkeys(stamps, 0.0),
+            Decimal(0),
+            pv.DEFAULT_STORAGE,
+            tariffs.TariffConfig(mode=tariffs.MODE_DYNAMIC),
+            prices,
+        )
+        self.assertIsNotNone(plan)
+        self.assertTrue(all(candidate.saving > 0 for candidate in plan.candidates))
+        self.assertIn(13, [candidate.hour for candidate in plan.candidates])
+        self.assertNotIn(9, [candidate.hour for candidate in plan.candidates])
+
+    def test_activity_advice_amounts_convert_without_mutating_base_plan(self):
+        plan = {
+            "currency": "EUR",
+            "recommendations": [],
+            "observed_events": [
+                {
+                    "event": "pompa basenu",
+                    "advice": {
+                        "saving_per_cycle": "1.00",
+                        "estimated_annual_saving": "10.00",
+                    },
+                }
+            ],
+            "total_daily_saving": "1.00",
+        }
+        converted = convert_plan_currency(plan, "DKK")
+        self.assertEqual(converted["observed_events"][0]["advice"]["saving_per_cycle"], "7.46")
+        self.assertEqual(
+            converted["observed_events"][0]["advice"]["estimated_annual_saving"], "74.60"
+        )
+        self.assertEqual(plan["observed_events"][0]["advice"]["saving_per_cycle"], "1.00")
+
+    def test_candidates_must_fit_fully_in_device_window(self):
+        self.assertEqual(
+            recommendations.DEVICE_WINDOWS,
+            {"Zmywarka": (7, 22), "Pralka": (8, 20), "Suszarka": (0, 21)},
+        )
+        self.assertEqual(recommendations.candidate_hours(8, 20, 2), list(range(8, 19)))
+        self.assertEqual(
+            recommendations.candidate_hours(0, 21, 1, earliest=15), list(range(15, 21))
+        )
+        self.assertEqual(recommendations.candidate_hours(8, 20, 13), [])
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_fixed_tariff_plan_and_washer_before_dryer(self, generate_mock):
+        plan = self._build()
+        self.assertEqual(plan["status"], "ready")
+        self.assertEqual(plan["source"], "calculated_fallback")
+        self.assertEqual(plan["currency"], "EUR")
+        self.assertEqual(plan["date"], "2027-06-07")
+        self.assertIn("generated_at", plan)
+        self.assertIn("inputs", plan)
+        self.assertEqual(
+            [item["device"] for item in plan["recommendations"]],
+            ["dishwasher", "washer", "dryer"],
+        )
+        washer = self._entry(plan, "washer")
+        dryer = self._entry(plan, "dryer")
+        self.assertEqual((washer["from"], washer["to"]), ("19:00", "08:00"))
+        self.assertEqual(washer["saving_per_cycle"], "0.12")
+        self.assertEqual(washer["estimated_annual_saving"], "2.50")
+        self.assertEqual(dryer["to"], "10:00")
+        washer_end = int(washer["to"].split(":")[0]) + washer["duration_h"]
+        self.assertGreaterEqual(int(dryer["to"].split(":")[0]), washer_end)
+        self.assertEqual(plan["total_daily_saving"], "0.48")
+        self.assertEqual(plan["fallback_cause"], "ollama_unavailable")
+        generate_mock.assert_called_once()
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_dynamic_tariff_picks_cheapest_hours(self, _generate):
+        dynamic = {RECO_DAY + timedelta(hours=hour): Decimal("0.50") for hour in range(24)}
+        dynamic[RECO_DAY + timedelta(hours=13)] = Decimal("0.05")
+        dynamic[RECO_DAY + timedelta(hours=14)] = Decimal("0.05")
+        tariff = tariffs.TariffConfig(mode=tariffs.MODE_DYNAMIC)
+        plan = self._build(tariff=tariff, dynamic=dynamic)
+        washer = self._entry(plan, "washer")
+        self.assertEqual(washer["to"], "13:00")
+        self.assertEqual(washer["saving_per_cycle"], "0.45")
+        self.assertEqual(self._entry(plan, "dryer")["status"], "keep")
+        self.assertEqual(self._entry(plan, "dryer")["to"], "20:00")
+        self.assertEqual(plan["tariff_fallback_hours"], 0)
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_dynamic_tariff_uses_fixed_rates_for_missing_prices_and_recomputes(self, generate):
+        history = [
+            household.ConsumptionHour(
+                datetime(2027, 5, day, 9),
+                (Decimal("1"),) + (Decimal(0),) * 5,
+                "praca zdalna",
+            )
+            for day in (24, 31)
+        ]
+        household.write_consumption_csv(history, self.data_dir / household.HISTORY_FILENAME)
+        tariff = tariffs.TariffConfig(mode=tariffs.MODE_DYNAMIC)
+        plan = self._build(tariff=tariff, dynamic=None)
+        self.assertEqual(plan["status"], "ready")
+        self.assertEqual(plan["tariff_fallback_hours"], 24)
+        self.assertEqual(plan["observed_events"][0]["event"], "praca zdalna")
+        self.assertEqual(plan["observed_events"][0]["days_on_matching_weekday"], 2)
+        fixed = self._build(tariff=tariffs.TariffConfig())
+        self.assertEqual(plan["total_daily_saving"], fixed["total_daily_saving"])
+
+        partial = {RECO_DAY + timedelta(hours=hour): Decimal("0.30") for hour in range(12)}
+        self.assertEqual(self._build(tariff=tariff, dynamic=partial)["tariff_fallback_hours"], 12)
+        complete = {RECO_DAY + timedelta(hours=hour): Decimal("0.30") for hour in range(24)}
+        updated = self._build(tariff=tariff, dynamic=complete)
+        self.assertEqual(updated["tariff_fallback_hours"], 0)
+        self.assertEqual(generate.call_count, 3)
+        household.write_consumption_csv(
+            history
+            + [
+                household.ConsumptionHour(
+                    datetime(2027, 5, 25, 9),
+                    (Decimal("1"),) + (Decimal(0),) * 5,
+                    "goście",
+                )
+            ],
+            self.data_dir / household.HISTORY_FILENAME,
+        )
+        changed = self._build(tariff=tariff, dynamic=complete)
+        self.assertEqual(generate.call_count, 3)
+        self.assertIn("goście", [event["event"] for event in changed["observed_events"]])
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_missing_forecast_or_weather_is_no_data(self, _generate):
+        (self.data_dir / forecasting.FORECAST_FILENAME).unlink()
+        plan = self._build()
+        self.assertEqual(plan["status"], "no_data")
+        self.assertEqual(plan["missing_data"], "forecast")
+        self.assertEqual(plan["recommendations"], [])
+
+        write_consumption(self.data_dir / forecasting.FORECAST_FILENAME, RECO_DAY, 24, base="3.000")
+        (self.data_dir / weather.FORECAST_WEATHER_FILENAME).unlink()
+        self.assertEqual(self._build()["status"], "no_data")
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_plan_uses_complete_calendar_day_when_forecast_starts_at_six(self, _generate):
+        start = RECO_DAY - timedelta(hours=18)
+        write_consumption(self.data_dir / forecasting.FORECAST_FILENAME, start, 42, base="3.000")
+        write_weather(self.data_dir / weather.FORECAST_WEATHER_FILENAME, start, 42)
+
+        plan = self._build()
+
+        self.assertEqual(plan["status"], "ready")
+        self.assertEqual(plan["date"], RECO_DAY.date().isoformat())
+        self.assertEqual(plan["inputs"]["forecast_hours"], 24)
+        self.assertEqual(self._entry(plan, "washer")["from"], "19:00")
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_stale_forecast_is_no_data(self, _generate):
+        old_day = RECO_DAY - timedelta(days=7)
+        write_consumption(self.data_dir / forecasting.FORECAST_FILENAME, old_day, 24)
+        write_weather(self.data_dir / weather.FORECAST_WEATHER_FILENAME, old_day, 24)
+
+        plan = self._build()
+
+        self.assertEqual(plan["status"], "no_data")
+        self.assertEqual(plan["date"], RECO_DAY.date().isoformat())
+        self.assertNotIn("total_daily_saving", plan)
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_no_cycle_below_history_threshold(self, _generate):
+        self._write_events(RECO_EVENTS[:-1])  # suszarka występuje tylko raz
+        plan = self._build()
+        dryer = self._entry(plan, "dryer")
+        self.assertEqual(dryer["status"], "no_cycle")
+        self.assertEqual(dryer["matching_weekday_days"], 1)
+        self.assertNotIn("saving_per_cycle", dryer)
+        self.assertIn("to", self._entry(plan, "washer"))
+
+    @patch("models.recommendations.ollama_client.generate")
+    def test_valid_model_response_marks_local_ai(self, generate_mock):
+        generate_mock.return_value = {
+            "choices": [
+                {"device": "dishwasher", "to": "07:00", "reason": "rano jest tanio"},
+                {"device": "washer", "to": "13:00", "reason": "najniższa cena"},
+                {"device": "dryer", "to": "16:00", "reason": "zaraz po praniu"},
+            ]
+        }
+        plan = self._build()
+        self.assertEqual(plan["source"], "local_ai")
+        self.assertNotIn("fallback_cause", plan)
+        washer = self._entry(plan, "washer")
+        self.assertEqual(washer["from"], "19:00")
+        self.assertEqual(washer["to"], "13:00")
+        self.assertEqual(washer["reason"], "najniższa cena")
+        self.assertEqual(washer["saving_per_cycle"], "0.12")  # kwoty zawsze z Pythona
+        self.assertEqual(self._entry(plan, "dryer")["to"], "16:00")
+
+    @patch("models.recommendations.ollama_client.generate")
+    def test_model_washer_choice_recomputes_dryer_amounts(self, generate_mock):
+        """Kwoty pralki i suszarki uwzględniają kolejne przesunięcia modelu."""
+        dynamic = {RECO_DAY + timedelta(hours=hour): Decimal("0.40") for hour in range(24)}
+        for hour in (16, 17, 18):
+            dynamic[RECO_DAY + timedelta(hours=hour)] = Decimal("0.10")
+        generate_mock.return_value = {
+            "choices": [
+                {"device": "dishwasher", "to": "18:00", "reason": "tanio wieczorem"},
+                {"device": "washer", "to": "16:00", "reason": "popołudniowe pranie"},
+                {"device": "dryer", "to": "18:00", "reason": "zaraz po praniu"},
+            ]
+        }
+        tariff = tariffs.TariffConfig(mode=tariffs.MODE_DYNAMIC)
+        plan = self._build(tariff=tariff, dynamic=dynamic)
+        self.assertEqual(plan["source"], "local_ai")
+        washer = self._entry(plan, "washer")
+        dryer = self._entry(plan, "dryer")
+        self.assertEqual((washer["to"], washer["saving_per_cycle"]), ("16:00", "0.30"))
+        self.assertEqual((dryer["to"], dryer["saving_per_cycle"]), ("18:00", "0.60"))
+        self.assertEqual(self._entry(plan, "dishwasher")["saving_per_cycle"], "0.15")
+        # Suma dnia to suma kwot faktycznie zaprezentowanych.
+        total = sum(
+            (Decimal(item["saving_per_cycle"]) for item in plan["recommendations"]),
+            Decimal(0),
+        )
+        self.assertEqual(plan["total_daily_saving"], str(total))
+        self.assertEqual(plan["total_daily_saving"], "1.05")
+
+    @patch("models.recommendations.ollama_client.generate")
+    def test_no_profitable_shift_keeps_hour_without_claiming_savings(self, generate):
+        self._write_events(RECO_EVENTS[:2])
+        dynamic = {RECO_DAY + timedelta(hours=hour): Decimal("1.00") for hour in range(24)}
+        dynamic[RECO_DAY + timedelta(hours=19)] = Decimal("0.01")
+        dynamic[RECO_DAY + timedelta(hours=20)] = Decimal("0.01")
+
+        plan = self._build(tariff=tariffs.TariffConfig(mode=tariffs.MODE_DYNAMIC), dynamic=dynamic)
+
+        dishwasher = self._entry(plan, "dishwasher")
+        self.assertEqual(dishwasher["status"], "keep")
+        self.assertEqual((dishwasher["from"], dishwasher["to"]), ("19:00", "19:00"))
+        self.assertNotIn("saving_per_cycle", dishwasher)
+        self.assertEqual(plan["total_daily_saving"], "0.00")
+        generate.assert_not_called()
+
+        english = self._build(
+            tariff=tariffs.TariffConfig(mode=tariffs.MODE_DYNAMIC), dynamic=dynamic, lang="en"
+        )
+        self.assertEqual(
+            self._entry(english, "dishwasher")["reason"],
+            "No allowed start hour lowers the total household cost.",
+        )
+
+    @patch("models.recommendations.ollama_client.generate")
+    def test_model_cannot_select_an_unprofitable_allowed_hour(self, generate):
+        self._write_events(RECO_EVENTS[:2])
+        dynamic = {RECO_DAY + timedelta(hours=hour): Decimal("0.50") for hour in range(24)}
+        for hour in (13, 14):
+            dynamic[RECO_DAY + timedelta(hours=hour)] = Decimal("0.01")
+        for hour in (7, 8):
+            dynamic[RECO_DAY + timedelta(hours=hour)] = Decimal("1.00")
+        generate.return_value = {
+            "choices": [{"device": "dishwasher", "to": "07:00", "reason": "cheap"}]
+        }
+
+        plan = self._build(tariff=tariffs.TariffConfig(mode=tariffs.MODE_DYNAMIC), dynamic=dynamic)
+
+        self.assertNotIn('"to": "07:00"', generate.call_args.args[0])
+        self.assertEqual(plan["source"], "calculated_fallback")
+        self.assertEqual(plan["fallback_cause"], "invalid_response")
+        self.assertEqual(self._entry(plan, "dishwasher")["to"], "13:00")
+        self.assertGreater(Decimal(plan["total_daily_saving"]), 0)
+
+    def test_shifted_loads_skip_cycle_hours_outside_day_consistently(self):
+        timestamps = [RECO_DAY + timedelta(hours=hour) for hour in range(24)]
+        loads = [Decimal("10")] * 24
+        shifted = recommendations._shifted_loads(loads, timestamps, 23, 8, 2, Decimal("2"))
+        self.assertEqual(shifted[23], Decimal("9"))
+        self.assertEqual(shifted[8], Decimal("11"))
+        self.assertEqual(shifted[9], Decimal("10"))
+        self.assertEqual(sum(shifted, Decimal(0)), Decimal(240))
+
+    @patch("models.recommendations.ollama_client.generate")
+    def test_invalid_model_response_falls_back_to_python(self, generate_mock):
+        bad_payloads = (
+            None,
+            {"choices": "tekst"},
+            {"choices": [{"device": "washer", "to": "03:00", "reason": "x"}]},
+            {
+                "choices": [
+                    {"device": "dishwasher", "to": "07:00", "reason": "r"},
+                    {"device": "washer", "to": "13:00", "reason": ""},
+                    {"device": "dryer", "to": "16:00", "reason": "r"},
+                ]
+            },
+        )
+        for payload in bad_payloads:
+            generate_mock.return_value = payload
+            plan = self._build(use_cache=False)
+            self.assertEqual(plan["source"], "calculated_fallback")
+            self.assertEqual(self._entry(plan, "washer")["to"], "08:00")
+            expected_cause = "ollama_unavailable" if payload is None else "invalid_response"
+            self.assertEqual(plan["fallback_cause"], expected_cause)
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_pv_and_storage_change_candidate_costs(self, _generate):
+        radiations = [0.0] * 24
+        radiations[12] = 800.0
+        radiations[13] = 800.0
+        write_weather_radiation(
+            self.data_dir / weather.FORECAST_WEATHER_FILENAME, RECO_DAY, radiations
+        )
+        plan = self._build()
+        washer = self._entry(plan, "washer")
+        self.assertEqual(washer["to"], "08:00")
+        self.assertEqual(self._entry(plan, "dishwasher")["to"], "12:00")
+
+        storage = pv.StorageConfig(Decimal("5"), Decimal("5"), Decimal("3000"))
+        plan_storage = self._build(storage=storage)
+        washer_storage = self._entry(plan_storage, "washer")
+        self.assertEqual(washer_storage["to"], "08:00")
+        self.assertNotEqual(plan_storage["total_daily_saving"], plan["total_daily_saving"])
+
+    @patch("models.recommendations.ollama_client.generate", return_value=None)
+    def test_cache_hit_skips_model_and_miss_creates_new_entry(self, generate_mock):
+        first = self._build()
+        second = self._build()
+        self.assertEqual(first, second)
+        self.assertEqual(generate_mock.call_count, 1)
+
+        other_kwp = self._build(kwp=Decimal("6"))
+        self.assertEqual(generate_mock.call_count, 2)
+        self.assertNotEqual(first["inputs"]["kwp"], other_kwp["inputs"]["kwp"])
+        self.assertEqual(len(list(self.cache_dir.glob("*.json"))), 2)
+
+        recomputed = self._build(use_cache=False)
+        self.assertEqual(generate_mock.call_count, 3)
+        self.assertEqual(recomputed["recommendations"], first["recommendations"])
+
+        # Język wchodzi do klucza bufora: wpis PL nie może trafić dla lang="en".
+        plan_en = self._build(lang="en")
+        self.assertEqual(generate_mock.call_count, 4)
+        self.assertIn("English sentence", generate_mock.call_args.args[0])
+        self.assertNotIn("po polsku", generate_mock.call_args.args[0])
+        self.assertEqual(len(list(self.cache_dir.glob("*.json"))), 3)
+        self.assertNotEqual(
+            self._entry(plan_en, "washer")["reason"], self._entry(first, "washer")["reason"]
+        )
+        again_en = self._build(lang="en")
+        self.assertEqual(generate_mock.call_count, 4)
+        self.assertEqual(again_en, plan_en)
+
+    def test_ollama_client_parses_model_json(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps({"response": '{"choices": []}'}).encode("utf-8")
+
+        with patch("models.ollama_client.urlopen", return_value=FakeResponse()) as urlopen_mock:
+            result = ollama_client.generate("prompt")
+        self.assertEqual(result, {"choices": []})
+        request = urlopen_mock.call_args.args[0]
+        self.assertEqual(request.full_url, "http://localhost:11434/api/generate")
+        body = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(body["model"], ollama_client.OLLAMA_MODEL)
+        self.assertEqual(body["format"], ollama_client.RESPONSE_SCHEMA)
+        self.assertEqual(body["format"]["required"], ["choices"])
+        item = body["format"]["properties"]["choices"]["items"]
+        self.assertEqual(item["required"], ["device", "to", "reason"])
+        self.assertFalse(item["additionalProperties"])
+        self.assertFalse(body["stream"])
+
+    def test_ollama_client_retries_plain_json_when_schema_rejected(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return json.dumps({"response": '{"choices": []}'}).encode("utf-8")
+
+        url = "http://localhost:11434/api/generate"
+        rejected = HTTPError(url, 400, "Bad Request", None, None)
+        with patch(
+            "models.ollama_client.urlopen", side_effect=[rejected, FakeResponse()]
+        ) as urlopen_mock:
+            result = ollama_client.generate("prompt")
+        self.assertEqual(result, {"choices": []})
+        self.assertEqual(urlopen_mock.call_count, 2)
+        calls = urlopen_mock.call_args_list
+        first_body = json.loads(calls[0].args[0].data.decode("utf-8"))
+        second_body = json.loads(calls[1].args[0].data.decode("utf-8"))
+        self.assertEqual(first_body["format"], ollama_client.RESPONSE_SCHEMA)
+        self.assertEqual(second_body["format"], "json")
+
+        with patch("models.ollama_client.urlopen", side_effect=[rejected, rejected]):
+            self.assertIsNone(ollama_client.generate("prompt"))
+
+    def test_ollama_client_returns_none_on_errors(self):
+        class BadJson:
+            def __init__(self, body: bytes):
+                self.body = body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return self.body
+
+        for side_effect in (URLError("brak połączenia"), TimeoutError):
+            with patch("models.ollama_client.urlopen", side_effect=side_effect):
+                self.assertIsNone(ollama_client.generate("prompt"))
+        for body in (b"to nie json", b"\xff\xfe uszkodzone utf-8"):
+            with patch("models.ollama_client.urlopen", return_value=BadJson(body)):
+                self.assertIsNone(ollama_client.generate("prompt"))
+
+    @unittest.skipUnless(os.environ.get("OLLAMA_E2E"), "E2E z Ollamą: ustaw OLLAMA_E2E=1")
+    def test_e2e_real_ollama(self):
+        plan = self._build(use_cache=False)
+        self.assertEqual(plan["status"], "ready")
+        self.assertIn(plan["source"], ("local_ai", "calculated_fallback"))
+
+
+# Wtorki pasujące do dnia prognozy z fixtur (FORECAST_START = 2026-10-20, wtorek).
+RECO_VIEW_EVENTS = [
+    ["2026-09-29", "Zmywarka", 19, 2, "1.000"],
+    ["2026-10-06", "Zmywarka", 19, 2, "1.000"],
+    ["2026-09-29", "Pralka", 19, 2, "1.000"],
+    ["2026-10-06", "Pralka", 19, 2, "1.000"],
+    ["2026-10-13", "Suszarka", 20, 1, "2.000"],  # tylko raz — brak przewidywanego cyklu
+]
+
+
+def write_reco_view_events(target: Path) -> None:
+    """Przygotowuje pełną wtorkową dobę i zdarzenia do testów rekomendacji."""
+    day = datetime(2026, 10, 20)
+    write_consumption(target / forecasting.FORECAST_FILENAME, day, 7 * 24)
+    write_weather(target / weather.FORECAST_WEATHER_FILENAME, day, 7 * 24)
+    with (target / household.FLEX_EVENTS_FILENAME).open(
+        "w", encoding="utf-8", newline=""
+    ) as output:
+        writer = csv.writer(output)
+        writer.writerow(household.EVENT_COLUMNS)
+        writer.writerows(RECO_VIEW_EVENTS)
+    history = load_history(target)
+    annotated = []
+    for record in history:
+        stamp = record.timestamp
+        label = ""
+        if stamp.date() in {date(2026, 9, 15), date(2026, 9, 22)} and 9 <= stamp.hour < 17:
+            label = "praca zdalna"
+        if stamp.date() == date(2026, 9, 16) and stamp.hour == 18:
+            label = "goście"
+        annotated.append(household.ConsumptionHour(stamp, record.categories, label, record.total))
+    household.write_consumption_csv(annotated, target / household.HISTORY_FILENAME)
+
+
+class RecommendationViewTests(SimpleTestCase):
+    """Testy sesyjnego endpointu /rekomendacje/ i kart na stronie symulatora PV."""
+
+    databases = {"default"}
+
+    def setUp(self):
+        day_patch = patch("models.recommendations._target_date", return_value=date(2026, 10, 20))
+        day_patch.start()
+        self.addCleanup(day_patch.stop)
+        self.data_dir = make_test_dir()
+        self.addCleanup(clean_test_dir, self.data_dir)
+        settings_context = override_settings(DEMO_DATA_DIR=self.data_dir)
+        settings_context.enable()
+        self.addCleanup(settings_context.disable)
+        prepare_fixture_dir(self.data_dir)
+        write_reco_view_events(self.data_dir)
+        generate_patch = patch("models.recommendations.ollama_client.generate", return_value=None)
+        generate_patch.start()
+        self.addCleanup(generate_patch.stop)
+
+    @staticmethod
+    def _entry(plan: dict, slug: str) -> dict:
+        return next(item for item in plan["recommendations"] if item["device"] == slug)
+
+    def test_session_endpoint_returns_plan_json(self):
+        response = self.client.get(reverse("recommendations"))
+        self.assertEqual(response.status_code, 200)
+        plan = response.json()
+        self.assertEqual(plan["status"], "ready")
+        self.assertEqual(plan["source"], "calculated_fallback")
+        self.assertEqual(plan["currency"], "EUR")
+        self.assertEqual(plan["date"], "2026-10-20")
+        washer = self._entry(plan, "washer")
+        self.assertEqual((washer["from"], washer["to"]), ("19:00", "08:00"))
+        self.assertEqual(washer["saving_per_cycle"], "0.12")
+        self.assertEqual(washer["estimated_annual_saving"], "2.50")
+        self.assertEqual(self._entry(plan, "dryer")["status"], "no_cycle")
+        self.assertEqual(self._entry(plan, "dryer")["matching_weekday_days"], 1)
+        self.assertEqual(
+            {item["event"] for item in plan["observed_events"]}, {"praca zdalna", "goście"}
+        )
+        remote = next(item for item in plan["observed_events"] if item["event"] == "praca zdalna")
+        self.assertEqual(remote["days_in_history"], 2)
+        self.assertEqual(remote["days_on_matching_weekday"], 2)
+        self.assertEqual(plan["total_daily_saving"], "0.24")
+
+    def test_session_endpoint_converts_currency_to_pln(self):
+        response = self.client.get(reverse("recommendations"), HTTP_COOKIE="display_currency=PLN")
+        plan = response.json()
+        self.assertEqual(plan["currency"], "PLN")
+        washer = self._entry(plan, "washer")
+        self.assertEqual(washer["saving_per_cycle"], "0.52")
+        self.assertEqual(washer["estimated_annual_saving"], "10.75")
+        self.assertEqual(plan["total_daily_saving"], "1.03")
+
+    def test_session_endpoint_rejects_invalid_params(self):
+        response = self.client.get(reverse("recommendations"), {"kwp": "bad"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["status"], "error")
+
+    def test_pv_page_renders_recommendation_cards(self):
+        response = self.client.get(reverse("pv_simulator"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Plan pracy urządzeń na jutro")
+        self.assertContains(response, "Zmywarka")
+        self.assertContains(response, "19:00 → 08:00")
+        self.assertContains(response, "Oszczędność na cyklu")
+        self.assertContains(response, "Szacunek roczny")
+        self.assertContains(response, "Brak przewidywanego cyklu na jutro")
+        self.assertContains(response, "Aktywność historyczna")
+        self.assertContains(response, "praca zdalna")
+        self.assertContains(response, "goście")
+        self.assertContains(response, "Razem na jutro")
+        self.assertContains(response, "0.24")
+        self.assertContains(response, "wyliczenie zastępcze")
+        self.assertNotContains(response, "Efekt zmiany godziny pracy")
+
+        response_en = self.client.get(reverse("pv_simulator"), HTTP_COOKIE="django_language=en")
+        self.assertContains(response_en, "Appliance schedule for tomorrow")
+        self.assertContains(response_en, "Dishwasher")
+        self.assertContains(response_en, "Washing machine")
+        self.assertContains(response_en, "Tumble dryer")
+        self.assertContains(response_en, "No cycle predicted for tomorrow")
+        self.assertContains(response_en, "Historical activity")
+        self.assertContains(response_en, "working from home")
+        self.assertContains(response_en, "guests")
+        self.assertContains(response_en, "Annual estimate")
+        self.assertContains(response_en, "calculated fallback")
+
+    def test_keep_status_matches_initial_card_and_session_json(self):
+        plan = self.client.get(reverse("recommendations")).json()
+        dishwasher = self._entry(plan, "dishwasher")
+        dishwasher.update(
+            status="keep",
+            to=dishwasher["from"],
+            reason="Brak tańszej godziny.",
+        )
+        dishwasher.pop("saving_per_cycle")
+        dishwasher.pop("estimated_annual_saving")
+
+        with patch("energy.views._device_plan", return_value=plan):
+            page = self.client.get(reverse("pv_simulator"))
+            endpoint = self.client.get(reverse("recommendations")).json()
+
+        self.assertContains(page, "Pozostaw o")
+        self.assertContains(page, "Brak tańszej godziny.")
+        self.assertNotContains(page, "19:00 → 19:00")
+        self.assertEqual(self._entry(endpoint, "dishwasher")["status"], "keep")
+        self.assertNotIn("saving_per_cycle", self._entry(endpoint, "dishwasher"))
+
+    def test_pv_page_shows_no_data_state_without_forecast(self):
+        (self.data_dir / forecasting.FORECAST_FILENAME).unlink()
+        response = self.client.get(reverse("pv_simulator"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Brak pełnej prognozy zużycia na jutro")
+        self.assertNotContains(response, "Razem na jutro:</strong>")
+
+    def test_dynamic_tariff_without_tomorrow_prices_shows_fixed_fallback(self):
+        session = self.client.session
+        session[tariffs.TARIFF_COOKIE] = {"mode": tariffs.MODE_DYNAMIC}
+        session.save()
+        self.client.cookies["django_language"] = "en"
+
+        response = self.client.get(reverse("pv_simulator"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("No PSE price for 24 of 24 hours", response.content.decode())
+        self.assertEqual(response.context["recommendation_plan"]["status"], "ready")
+        self.assertIn("working from home", response.content.decode())
+
+        plan = self.client.get(reverse("recommendations")).json()
+        self.assertEqual(plan["status"], "ready")
+        self.assertEqual(plan["tariff_fallback_hours"], 24)
+        self.assertIn("fixed tariff rate", plan["tariff_notice"])
+        self.assertIn("total_daily_saving", plan)
+        self.assertEqual(len(plan["observed_events"]), 2)
+
+    def test_switching_scenario_changes_observed_events(self):
+        other_dir = self.data_dir / "scenario_3"
+        other_dir.mkdir()
+        prepare_fixture_dir(other_dir)
+        history = load_history(other_dir)
+        annotated = []
+        for record in history:
+            hour = record.timestamp.hour
+            label = "pompa basenu" if 9 <= hour < 17 else "ładowanie EV" if hour >= 22 else ""
+            annotated.append(
+                household.ConsumptionHour(record.timestamp, record.categories, label, record.total)
+            )
+        household.write_consumption_csv(annotated, other_dir / household.HISTORY_FILENAME)
+
+        original = self.client.get(reverse("recommendations")).json()
+        switched = self.client.get(reverse("recommendations"), {"scenario": 3}).json()
+
+        self.assertEqual(
+            {item["event"] for item in original["observed_events"]},
+            {"praca zdalna", "goście"},
+        )
+        self.assertEqual(
+            {item["event"] for item in switched["observed_events"]},
+            {"pompa basenu", "ładowanie EV"},
+        )
+
+    def test_pv_page_hooks_recommendations_script(self):
+        response = self.client.get(reverse("pv_simulator"))
+        self.assertContains(response, "energy/recommendations.js")
+        self.assertContains(response, 'id="recommendations-cards"')
+        self.assertContains(response, 'data-reco-url="/rekomendacje/"')
+        self.assertContains(response, 'id="reco-labels"')
+
+
+class RecommendationApiTests(TestCase):
+    """Testy endpointu API /api/v1/devices/ai-plan/."""
+
+    def setUp(self):
+        day_patch = patch("models.recommendations._target_date", return_value=date(2026, 10, 20))
+        day_patch.start()
+        self.addCleanup(day_patch.stop)
+        self.data_dir = make_test_dir()
+        self.addCleanup(clean_test_dir, self.data_dir)
+        settings_context = override_settings(
+            DEMO_DATA_DIR=self.data_dir,
+            API_KEY="test-api-key",
+        )
+        settings_context.enable()
+        self.addCleanup(settings_context.disable)
+        prepare_fixture_dir(self.data_dir)
+        write_reco_view_events(self.data_dir)
+        generate_patch = patch("models.recommendations.ollama_client.generate", return_value=None)
+        generate_patch.start()
+        self.addCleanup(generate_patch.stop)
+
+        from energy.api import get_expected_api_key
+
+        api_key = get_expected_api_key()
+        if api_key:
+            self.client.defaults["HTTP_AUTHORIZATION"] = f"Bearer {api_key}"
+
+    @staticmethod
+    def _entry(plan: dict, slug: str) -> dict:
+        return next(item for item in plan["recommendations"] if item["device"] == slug)
+
+    def test_ai_plan_requires_bearer_token(self):
+        client = self.client_class()
+        response = client.get(reverse("api_devices_ai_plan"))
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"]["code"], "UNAUTHORIZED")
+
+    def test_ai_plan_returns_plan_with_user_currency(self):
+        response = self.client.get(reverse("api_devices_ai_plan"))
+        self.assertEqual(response.status_code, 200)
+        plan = response.json()["data"]
+        self.assertEqual(plan["status"], "ready")
+        self.assertEqual(plan["currency"], "EUR")
+        self.assertEqual(plan["date"], "2026-10-20")
+        self.assertEqual(self._entry(plan, "washer")["saving_per_cycle"], "0.12")
+        self.assertEqual(self._entry(plan, "dryer")["status"], "no_cycle")
+
+        self.client.cookies.load({"display_currency": "PLN"})
+        plan_pln = self.client.get(reverse("api_devices_ai_plan")).json()["data"]
+        self.assertEqual(plan_pln["currency"], "PLN")
+        self.assertEqual(self._entry(plan_pln, "washer")["saving_per_cycle"], "0.52")
+
+    def test_ai_plan_amounts_match_session_view(self):
+        params = {"kwp": "5", "magazyn_kwh": "0", "magazyn_moc_kw": "5"}
+        session_plan = self.client.get(reverse("recommendations"), params).json()
+        api_plan = self.client.get(reverse("api_devices_ai_plan"), params).json()["data"]
+        self.assertEqual(api_plan["total_daily_saving"], session_plan["total_daily_saving"])
+        for slug in ("dishwasher", "washer", "dryer"):
+            self.assertEqual(self._entry(api_plan, slug), self._entry(session_plan, slug))
+        self.assertEqual(api_plan["observed_events"], session_plan["observed_events"])
+
+    def test_ai_plan_preserves_keep_status_without_amount(self):
+        plan = self.client.get(reverse("recommendations")).json()
+        dishwasher = self._entry(plan, "dishwasher")
+        dishwasher.update(status="keep", to=dishwasher["from"], reason="No cheaper hour.")
+        dishwasher.pop("saving_per_cycle")
+        dishwasher.pop("estimated_annual_saving")
+
+        with patch("energy.api.reco.build_plan", return_value=plan):
+            response = self.client.get(reverse("api_devices_ai_plan"))
+
+        self.assertEqual(response.status_code, 200)
+        api_dishwasher = self._entry(response.json()["data"], "dishwasher")
+        self.assertEqual(api_dishwasher["status"], "keep")
+        self.assertNotIn("saving_per_cycle", api_dishwasher)
+
+    def test_english_plan_labels_and_fallback_reason_match_page_json(self):
+        self.client.cookies.load({"django_language": "en"})
+        session_plan = self.client.get(reverse("recommendations")).json()
+        api_plan = self.client.get(reverse("api_devices_ai_plan"), {"lang": "en"}).json()["data"]
+        self.assertEqual(self._entry(session_plan, "dishwasher")["label"], "Dishwasher")
+        self.assertEqual(self._entry(api_plan, "dryer")["label"], "Tumble dryer")
+        self.assertEqual(
+            self._entry(api_plan, "washer")["reason"],
+            "Lowest household cost: this allowed hour gives the biggest saving.",
+        )
+        self.assertEqual(api_plan["observed_events"], session_plan["observed_events"])
+
+    def test_ai_plan_rejects_invalid_params(self):
+        response = self.client.get(reverse("api_devices_ai_plan"), {"kwp": "-5"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["code"], "INVALID_PV_PARAMS")
+
+
+class PrepareRecommendationsCommandTests(SimpleTestCase):
+    """Testy komendy prepare_recommendations na fixturowym katalogu danych."""
+
+    def setUp(self):
+        day_patch = patch("models.recommendations._target_date", return_value=date(2026, 10, 20))
+        day_patch.start()
+        self.addCleanup(day_patch.stop)
+
+    def test_command_writes_cache_file_with_metadata(self):
+        data_dir = make_test_dir()
+        self.addCleanup(clean_test_dir, data_dir)
+        scen_dir = data_dir / "scenario_1"
+        scen_dir.mkdir(parents=True)
+        prepare_fixture_dir(scen_dir)
+        write_reco_view_events(scen_dir)
+        settings_context = override_settings(DEMO_DATA_DIR=data_dir)
+        settings_context.enable()
+        self.addCleanup(settings_context.disable)
+
+        output = io.StringIO()
+        with patch("models.recommendations.ollama_client.generate", return_value=None):
+            call_command("prepare_recommendations", "--scenario", "1", stdout=output)
+        text = output.getvalue()
+        self.assertIn("Warszawa", text)
+        self.assertIn("2 rekomendacji", text)
+        self.assertIn("1 bez cyklu", text)
+        self.assertIn("Ollama niedostępna — wyliczony wariant zastępczy", text)
+
+        cache_dir = data_dir / "recommendations"
+        files = list(cache_dir.glob("scenario_1_2026-10-20_*.json"))
+        self.assertEqual(len(files), 1)
+        payload = json.loads(files[0].read_text(encoding="utf-8"))
+        self.assertEqual(payload["status"], "ready")
+        self.assertEqual(payload["date"], "2026-10-20")
+        self.assertIn("generated_at", payload)
+        self.assertEqual(payload["inputs"]["forecast_file"], forecasting.FORECAST_FILENAME)
+        self.assertEqual(payload["inputs"]["events_file"], household.FLEX_EVENTS_FILENAME)
+
+    def test_command_distinguishes_rejected_model_response(self):
+        data_dir = make_test_dir()
+        self.addCleanup(clean_test_dir, data_dir)
+        scen_dir = data_dir / "scenario_1"
+        scen_dir.mkdir(parents=True)
+        prepare_fixture_dir(scen_dir)
+        write_reco_view_events(scen_dir)
+        settings_context = override_settings(DEMO_DATA_DIR=data_dir)
+        settings_context.enable()
+        self.addCleanup(settings_context.disable)
+
+        output = io.StringIO()
+        invalid = {"choices": [{"device": "washer", "to": "03:00", "reason": "x"}]}
+        with patch("models.recommendations.ollama_client.generate", return_value=invalid):
+            call_command("prepare_recommendations", "--scenario", "1", stdout=output)
+        text = output.getvalue()
+        self.assertIn("odpowiedź modelu odrzucona — wyliczony wariant zastępczy", text)
+        self.assertNotIn("Ollama niedostępna", text)
+
+    def test_command_reports_no_data_without_files(self):
+        data_dir = make_test_dir()
+        self.addCleanup(clean_test_dir, data_dir)
+        (data_dir / "scenario_2").mkdir(parents=True)
+        settings_context = override_settings(DEMO_DATA_DIR=data_dir)
+        settings_context.enable()
+        self.addCleanup(settings_context.disable)
+
+        output = io.StringIO()
+        with patch("models.recommendations.ollama_client.generate", return_value=None):
+            call_command("prepare_recommendations", "--scenario", "2", stdout=output)
+        self.assertIn("brak danych", output.getvalue())
+        self.assertFalse((data_dir / "recommendations").exists())
+
+    def test_command_counts_kept_cycle_without_claiming_ollama_failure(self):
+        data_dir = make_test_dir()
+        self.addCleanup(clean_test_dir, data_dir)
+        settings_context = override_settings(DEMO_DATA_DIR=data_dir)
+        settings_context.enable()
+        self.addCleanup(settings_context.disable)
+        plan = {
+            "status": "ready",
+            "date": "2026-10-20",
+            "source": "calculated_fallback",
+            "recommendations": [
+                {"device": "dishwasher", "status": "keep", "from": "19:00", "to": "19:00"},
+                {"device": "washer", "status": "no_cycle"},
+            ],
+        }
+        output = io.StringIO()
+
+        with patch(
+            "energy.management.commands.prepare_recommendations.recommendations.build_plan",
+            return_value=plan,
+        ):
+            call_command("prepare_recommendations", "--scenario", "1", stdout=output)
+
+        self.assertIn("0 rekomendacji, 1 pozostawionych, 1 bez cyklu", output.getvalue())
+        self.assertIn("brak opłacalnej zmiany godziny", output.getvalue())

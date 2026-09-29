@@ -21,6 +21,7 @@ urlpatterns = [
     # Urządzenia elastyczne i kalkulator przesunięcia
     path("devices/flexible-events/", api.flexible_events_list, name="api_flexible_events"),
     path("devices/shift-simulation/", api.shift_simulation, name="api_shift_simulation"),
+    path("devices/ai-plan/", api.devices_ai_plan, name="api_devices_ai_plan"),
     # Metadane i metryki systemu
     path("system/assumptions/", api.system_assumptions, name="api_system_assumptions"),
     path("system/metrics/", api.system_metrics, name="api_system_metrics"),

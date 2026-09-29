@@ -22,7 +22,8 @@ class Command(BaseCommand):
     help = (
         "Wykonuje pełny rozruch systemu HackoWatt / EkoDzik: "
         "synchronizuje zależności (uv sync), pobiera ceny RCE (fetch_tariff_prices), "
-        "generuje dane i symulacje scenariuszy (prepare_data) "
+        "generuje dane i symulacje scenariuszy (prepare_data), liczy rekomendacje "
+        "pracy urządzeń (prepare_recommendations) "
         "oraz uruchamia serwer deweloperski na 0.0.0.0:8000."
     )
 
@@ -48,6 +49,11 @@ class Command(BaseCommand):
             help="Pomiń generowanie danych scenariuszy (prepare_data).",
         )
         parser.add_argument(
+            "--no-recommendations",
+            action="store_true",
+            help="Pomiń liczenie rekomendacji pracy urządzeń (prepare_recommendations).",
+        )
+        parser.add_argument(
             "--no-server",
             action="store_true",
             help="Wykonaj tylko kroki przygotowawcze i zakończ bez uruchamiania serwera.",
@@ -71,7 +77,7 @@ class Command(BaseCommand):
 
         # Krok 1: uv sync
         if not options["no_sync"]:
-            self.stdout.write(self.style.NOTICE("\n[1/4] Synchronizacja bibliotek (uv sync)..."))
+            self.stdout.write(self.style.NOTICE("\n[1/5] Synchronizacja bibliotek (uv sync)..."))
             uv_path = shutil.which("uv") or "uv"
             try:
                 subprocess.run([uv_path, "sync"], cwd=base_dir, check=True)
@@ -85,12 +91,12 @@ class Command(BaseCommand):
                     self.style.WARNING(f"! Błąd podczas uv sync: {exc}. Kontynuuję...")
                 )
         else:
-            self.stdout.write("\n[1/4] Pomijam synchronizację uv (--no-sync).")
+            self.stdout.write("\n[1/5] Pomijam synchronizację uv (--no-sync).")
 
         # Krok 2: fetch_tariff_prices
         if not options["no_tariffs"]:
             self.stdout.write(
-                self.style.NOTICE("\n[2/4] Pobieranie cen taryfowych RCE (fetch_tariff_prices)...")
+                self.style.NOTICE("\n[2/5] Pobieranie cen taryfowych RCE (fetch_tariff_prices)...")
             )
             try:
                 call_command("fetch_tariff_prices", stdout=self.stdout, stderr=self.stderr)
@@ -100,12 +106,12 @@ class Command(BaseCommand):
                     self.style.WARNING(f"! Ostrzeżenie przy fetch_tariff_prices: {exc}")
                 )
         else:
-            self.stdout.write("\n[2/4] Pomijam pobieranie cen taryfowych (--no-tariffs).")
+            self.stdout.write("\n[2/5] Pomijam pobieranie cen taryfowych (--no-tariffs).")
 
         # Krok 3: prepare_data
         if not options["no_data"]:
             self.stdout.write(
-                self.style.NOTICE("\n[3/4] Przygotowanie danych scenariuszy (prepare_data)...")
+                self.style.NOTICE("\n[3/5] Przygotowanie danych scenariuszy (prepare_data)...")
             )
             try:
                 call_command("prepare_data", stdout=self.stdout, stderr=self.stderr)
@@ -113,12 +119,29 @@ class Command(BaseCommand):
             except Exception as exc:
                 self.stderr.write(self.style.WARNING(f"! Ostrzeżenie przy prepare_data: {exc}"))
         else:
-            self.stdout.write("\n[3/4] Pomijam przygotowanie danych (--no-data).")
+            self.stdout.write("\n[3/5] Pomijam przygotowanie danych (--no-data).")
 
-        # Krok 4: runserver 0.0.0.0:8000
+        # Krok 4: prepare_recommendations
+        if not options["no_recommendations"]:
+            self.stdout.write(
+                self.style.NOTICE(
+                    "\n[4/5] Liczenie rekomendacji pracy urządzeń (prepare_recommendations)..."
+                )
+            )
+            try:
+                call_command("prepare_recommendations", stdout=self.stdout, stderr=self.stderr)
+                self.stdout.write(self.style.SUCCESS("[OK] Rekomendacje urządzeń gotowe."))
+            except Exception as exc:
+                self.stderr.write(
+                    self.style.WARNING(f"! Ostrzeżenie przy prepare_recommendations: {exc}")
+                )
+        else:
+            self.stdout.write("\n[4/5] Pomijam rekomendacje urządzeń (--no-recommendations).")
+
+        # Krok 5: runserver 0.0.0.0:8000
         if not options["no_server"]:
             self.stdout.write(
-                self.style.NOTICE(f"\n[4/4] Start serwera Django na {addrport} (runserver)...")
+                self.style.NOTICE(f"\n[5/5] Start serwera Django na {addrport} (runserver)...")
             )
             cmd = [sys.executable, str(manage_py), "runserver", addrport]
             if options.get("noreload"):

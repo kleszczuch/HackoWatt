@@ -21,15 +21,29 @@ from dotenv import load_dotenv
 
 from energy import data, household, pv, tariffs
 from energy.charts import CATEGORY_LABELS_EN, CATEGORY_LABELS_PL
+from energy.currency import convert_plan_currency, selected_currency, to_eur
 from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm
 from energy.language import selected_language
 from energy.presentation import device_name, event_names
-from energy.scenarios import SCENARIOS, get_active_scenario, get_scenario_data_dir
+from energy.scenarios import (
+    SCENARIOS,
+    get_scenario_data_dir,
+    localized_scenario,
+)
+from energy.scenarios import (
+    get_active_scenario as get_raw_active_scenario,
+)
+from models import recommendations as reco
 
 
 def _tr(request: HttpRequest, pl: str, en: str) -> str:
     return en if selected_language(request) == "en" else pl
+
+
+def get_active_scenario(request: HttpRequest) -> dict:
+    """Metadane scenariusza w języku bieżącego żądania API."""
+    return localized_scenario(get_raw_active_scenario(request), selected_language(request))
 
 
 def api_success(data_payload: Any, status: int = 200) -> JsonResponse:
@@ -485,8 +499,12 @@ def consumption_history(request: HttpRequest) -> JsonResponse:
     paginator = Paginator(filtered_history, page_size)
     try:
         page_obj = paginator.get_page(page_num)
-    except (EmptyPage, PageNotAnInteger) as exc:
-        return api_error(str(exc), code="INVALID_PAGE", status=400)
+    except EmptyPage, PageNotAnInteger:
+        return api_error(
+            _tr(request, "Niepoprawny numer strony.", "Invalid page number."),
+            code="INVALID_PAGE",
+            status=400,
+        )
 
     # Agregaty dla wybranego zakresu dat
     total_kwh = sum((r.total for r in filtered_history), Decimal(0))
@@ -929,8 +947,12 @@ def flexible_events_list(request: HttpRequest) -> JsonResponse:
     paginator = Paginator(events, page_size)
     try:
         page_obj = paginator.get_page(page_num)
-    except (EmptyPage, PageNotAnInteger) as exc:
-        return api_error(str(exc), code="INVALID_PAGE", status=400)
+    except EmptyPage, PageNotAnInteger:
+        return api_error(
+            _tr(request, "Niepoprawny numer strony.", "Invalid page number."),
+            code="INVALID_PAGE",
+            status=400,
+        )
 
     items = [
         {
@@ -1068,6 +1090,7 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
                 "city": scen["city"],
             },
             "device": device,
+            "device_label": device_name(device, lang=selected_language(request)),
             "energy_kwh": _to_float(energy_kwh),
             "original_hour": orig_h,
             "original_price_eur": _to_float(orig_price),
@@ -1097,7 +1120,64 @@ def shift_simulation(request: HttpRequest) -> JsonResponse:
 
 
 # ----------------------------------------------------------------------
-# 9. Założenia i metryki systemu
+# 9. Plan pracy urządzeń na jutro (lokalne AI)
+# ----------------------------------------------------------------------
+
+
+@require_http_methods(["GET"])
+@require_api_secret
+@handle_data_errors
+def devices_ai_plan(request: HttpRequest) -> JsonResponse:
+    """Zwraca plan pracy urządzeń na jutro z lokalnego modelu AI (lub fallbacku).
+
+    Parametry opcjonalne jak w formularzu PV (kwp, magazyn_kwh, magazyn_moc_kw);
+    taryfa, scenariusz, język i waluta pochodzą z sesji/ciastek lub nagłówków.
+    """
+    lang = selected_language(request)
+    currency = selected_currency(request)
+    defaults = {
+        "kwp": "5",
+        "miesiac": "6",
+        "magazyn_kwh": "0",
+        "magazyn_moc_kw": "5",
+        "magazyn_koszt_eur": "0",
+    }
+    form = PvForm({**defaults, **request.GET.dict()}, lang=lang, currency=currency)
+    if not form.is_valid():
+        return api_error(
+            _tr(request, "Niepoprawne parametry instalacji PV.", "Invalid PV parameters."),
+            code="INVALID_PV_PARAMS",
+            status=400,
+            details=form.errors.get_json_data(),
+        )
+
+    tariff_config, dynamic_prices = _tariff(request)
+    storage = pv.StorageConfig(
+        form.cleaned_data["magazyn_kwh"],
+        form.cleaned_data["magazyn_moc_kw"],
+        to_eur(form.cleaned_data["magazyn_koszt_eur"], currency),
+    )
+    plan = reco.build_plan(
+        scenario_id=get_active_scenario(request)["folder"],
+        data_dir=get_scenario_data_dir(request),
+        tariff=tariff_config,
+        dynamic=dynamic_prices,
+        kwp=form.cleaned_data["kwp"],
+        storage=storage,
+        lang=lang,
+        cache_dir=settings.DEMO_DATA_DIR / reco.CACHE_DIRNAME,
+    )
+    display = convert_plan_currency(plan, currency)
+    device_labels = {slug: device_name(name, lang=lang) for name, slug in reco.DEVICE_SLUGS.items()}
+    for item in display["recommendations"]:
+        item["label"] = device_labels[item["device"]]
+    for item in display["observed_events"]:
+        item["label"] = event_names(item["event"], lang=lang)
+    return api_success(display)
+
+
+# ----------------------------------------------------------------------
+# 10. Założenia i metryki systemu
 # ----------------------------------------------------------------------
 
 
@@ -1153,6 +1233,7 @@ def system_assumptions(request: HttpRequest) -> JsonResponse:
             "household": household_payload,
             "device_profiles": {
                 name: {
+                    "label": device_name(name, lang=selected_language(request)),
                     "energy_range_kwh": profile["energy"],
                     "duration_range_h": profile["duration"],
                 }
@@ -1199,7 +1280,7 @@ def system_metrics(request: HttpRequest) -> JsonResponse:
 
 
 # ----------------------------------------------------------------------
-# 10. Scenariusze symulacji
+# 11. Scenariusze symulacji
 # ----------------------------------------------------------------------
 
 
@@ -1208,6 +1289,7 @@ def system_metrics(request: HttpRequest) -> JsonResponse:
 def scenarios_list(request: HttpRequest) -> JsonResponse:
     """Zwraca listę wszystkich 5 dostępnych scenariuszy symulacji."""
     active = get_active_scenario(request)
+    lang = selected_language(request)
     items = [
         {
             "id": s["id"],
@@ -1223,7 +1305,7 @@ def scenarios_list(request: HttpRequest) -> JsonResponse:
             "household": s.get("household", {}),
             "is_active": s["id"] == active["id"],
         }
-        for s in SCENARIOS.values()
+        for s in (localized_scenario(source, lang) for source in SCENARIOS.values())
     ]
     return api_success({"active_scenario_id": active["id"], "scenarios": items})
 
