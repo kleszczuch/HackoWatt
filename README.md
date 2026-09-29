@@ -133,6 +133,40 @@ Jeżeli repozytorium zostało już sklonowane bez submodułów:
 git submodule update --init --recursive
 ```
 
+### Kluczowe funkcjonalności aplikacji mobilnej
+
+1. **Szybki podgląd sytuacji w bieżącej godzinie:**
+   * **Bieżąca stawka energii:** Wyświetlanie aktualnej ceny prądu za kWh z dynamicznym oznaczeniem strefy cenowej (zielona – tani prąd / okno PV, żółta – stawka średnia, czerwona – drogi szczyt) oraz rekomendacją natychmiastową.
+   * **Chwilowy pobór prądu:** Podgląd bieżącego obciążenia domu w czasie rzeczywistym w kWh wraz z informacją o dominującej kategorii urządzeń.
+   * **Temperatura zewnętrzna:** Odczyt temperatury (°C) z Open-Meteo, która bezpośrednio warunkuje zapotrzebowanie na ogrzewanie i chłodzenie.
+   * **Alert najbliższego szczytu:** Dynamiczne powiadomienie o zbliżającym się szczytowym zapotrzebowaniu z podaniem godziny i prognozowanego poboru.
+
+2. **Harmonogram 24h z podziałem na konkretne godziny i zalecenia (`/schedule`):**
+   * **Interaktywna oś 24 godzin:** Wizualna siatka kafelków dla każdej godziny doby z kodowaniem kolorystycznym (zielony / żółty / czerwony) oraz znacznikiem aktualnej godziny („TERAZ”).
+   * **Szczegóły wybranej godziny:** Dotknięcie dowolnej godziny rozwija panel z dokładną stawką za kWh oraz konkretną wskazówką działania (np. kiedy włączać pralkę/zmywarkę, a kiedy ograniczyć urządzenia grzewcze).
+   * **Rekomendowane okna czasowe:**
+     * **Okno słoneczne i dzienne (09:00 – 15:00):** Najtańszy prąd i autokonsumpcja z fotowoltaiki – idealny czas na duże AGD.
+     * **Nocna dolina taryfowa (00:00 – 06:00):** Niski koszt energii – rekomendowane dla timerów w zmywarkach/pralkach oraz ładowania aut elektrycznych.
+     * **Szczyt popołudniowy (17:00 – 21:00):** Najwyższe ceny – zalecenie unikania jednoczesnego korzystania z płyty indukcyjnej, piekarnika i pralki.
+   * **Porady pokoleniowe:** Podpowiedzi dopasowane do domowników (dziadkowie w domu w dzień, młodzież po szkole, pracujący rodzice).
+
+3. **Kalkulator przesunięcia pracy urządzeń AGD (`/devices`):**
+   * **Symulacja zysku finansowego w locie:** Narzędzie pozwalające sprawdzić, ile dokładnie użytkownik zaoszczędzi, przesuwając cykl pracy urządzenia.
+   * **Wybór sprzętu:** Pralka, zmywarka, suszarka bębnowa, piekarnik/płyta indukcyjna, sprzęt RTV/komputery.
+   * **Porównanie godzin:** Możliwość zestawienia dowolnych godzin – np. sprawdzenie, jaki zysk przyniesie uruchomienie pralki jutro o **12:00** (w oknie taniej energii / słońca) zamiast dzisiaj o **19:00** (w drogim szczycie popołudniowym).
+   * **Wyliczenie korzyści:** Prezentacja oszczędności w walucie per pojedynczy cykl oraz ekstrapolacja zysku w skali całego roku.
+
+4. **Tryb seniora i personalizacja motywu (`AccessibilityBar`):**
+   * **Powiększone litery (skalowanie czcionki):**
+     * Szybki wybór presetu: **Młodzież (100%)** vs 👓 **Senior (powiększenie do 118%)**.
+     * Precyzyjne stopniowanie przyciskami **A- / A+** (zakres od 90% do 136%) z wskaźnikiem procentowym.
+     * Duże, wygodne elementy dotykowe (min. 44×44 px) zaprojektowane z myślą o osobach starszych i słabowidzących.
+     * Dynamiczne przeskalowanie wszystkich tekstów w aplikacji (`TextScaleContext`).
+   * **Przełącznik motywu (Dzienny / Nocny):**
+     * Ergonomiczny, animowany suwak `ThemeSwitch` oparty o NativeWind.
+     * **Tryb dzienny (jasny):** Przejrzyste, pastelowe tło (`#F7F6ED`), wysoki kontrast i czytelne ciemne fonty.
+     * **Tryb nocny (ciemny):** Głębokie, ciemne tło (`#1A1C1E`), zredukowana emisja światła niebieskiego i kontrastowe akcenty w kolorze chartreuse (`#CBFF4D`).
+
 ---
 
 # Uruchomienie na Windows (PowerShell)
