@@ -1,4 +1,5 @@
 *Choose language: [English](#english) | [Polski](#polski)*
+
 <a name="english"></a>
 
 # Eko-dziki
@@ -520,7 +521,7 @@ The project utilizes, among others:
 ---
 <br><br>
 
-<a name="Polish"></a>
+<a name="polski"></a>
 
 # Eko-dziki
 
