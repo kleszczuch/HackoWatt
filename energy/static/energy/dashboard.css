@@ -14,13 +14,29 @@
   font-synthesis: none;
 }
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { margin: 0; min-height: 100vh; background: #f7f6ed var(--page-background) center center / cover fixed no-repeat; }
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  max-width: 100vw;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  max-width: 100vw;
+  background: #f7f6ed var(--page-background) center center / cover fixed no-repeat;
+}
+@media (max-width: 768px) {
+  body {
+    background-attachment: scroll;
+  }
+}
 button, input, select { font: inherit; }
 a { color: var(--charcoal); }
 :is(a, button, input, select, summary):focus-visible { outline: 3px solid var(--charcoal); outline-offset: 3px; box-shadow: 0 0 0 6px var(--chartreuse); }
 ::selection { background: var(--chartreuse); color: var(--charcoal); }
-.shell { max-width: 1460px; margin: auto; padding: 0 32px; }
+.shell { width: 100%; max-width: 1460px; margin: auto; padding: 0 32px; box-sizing: border-box; }
 .topbar { min-height: 76px; display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; column-gap: 24px; border-bottom: 1px solid var(--line); }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--charcoal); font-size: 24px; font-weight: 850; letter-spacing: -.045em; text-decoration: none; white-space: nowrap; }
 .brand-icon { width: 48px; height: 48px; display: block; object-fit: contain; flex: none; }
@@ -248,8 +264,10 @@ a { color: var(--charcoal); }
 .metric strong { color: var(--charcoal); font-size: 28px; letter-spacing: -.045em; }
 .metric strong small { color: var(--slate); font-size: 14px; font-weight: 600; letter-spacing: 0; }
 .metric p { margin: 7px 0 0; color: var(--slate); font-size: 12px; line-height: 1.4; }
-.plot { padding: 0 12px 8px; }
-.plot .plotly-graph-div { width: 100% !important; }
+.plot { padding: 0 12px 8px; overflow: hidden; width: 100%; max-width: 100%; box-sizing: border-box; }
+.plot .plotly-graph-div { width: 100% !important; max-width: 100% !important; }
+.plot .plotly-graph-div .svg-container { width: 100% !important; max-width: 100% !important; }
+.plot .plotly-graph-div .main-svg { max-width: 100% !important; }
 .interactive-chart .plotly-graph-div .nsewdrag { cursor: grab !important; }
 .interactive-chart .plotly-graph-div:active .nsewdrag { cursor: grabbing !important; }
 .chart-toolbar { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px 18px; padding: 12px 14px 2px; }
@@ -400,61 +418,458 @@ body:has(.dashboard) footer { padding: 8px 0 12px; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .intro-aside { display: none; }
   .section-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
-  .dashboard-controls { flex-wrap: wrap; }
   .peaks-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .peaks-title { grid-column: 1 / -1; }
   .pv-daily-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .device-results { grid-template-columns: 1fr; }
 }
-@media (max-width: 750px) {
-  .chart-toolbar { padding: 10px 7px 0; }
-  .chart-legend { flex-basis: 100%; }
-  .chart-legend-actions { width: 100%; }
-  .dashboard-heading { align-items: flex-start; flex-direction: column; }
-  .dashboard-controls { align-items: stretch; }
-  .range-control { width: 100%; flex-wrap: wrap; }
-  .range-options { width: 100%; justify-content: space-between; }
-  .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dashboard-kpi:last-child { grid-column: 1 / -1; }
-  .dashboard-charts { grid-template-columns: 1fr; }
-  .overview-panel { max-height: none; overflow: hidden; }
-  .peaks-strip { grid-template-columns: 1fr; }
-  .peaks-title { grid-column: auto; }
-  .peak-item { max-height: none; }
-  .hourly-heading { align-items: flex-start; flex-direction: column; gap: 14px; }
-  .hourly-heading h1 { font-size: 32px; }
+
+@media (max-width: 768px) {
+  .shell { padding: 0 12px; }
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand settings"
+      "scenario scenario"
+      "nav nav";
+    row-gap: 10px;
+    column-gap: 8px;
+    align-items: center;
+    padding: 12px 0 8px;
+    min-height: auto;
+  }
+  .brand {
+    grid-area: brand;
+    font-size: 21px;
+  }
+  .brand-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .topbar-right {
+    display: contents;
+  }
+  .settings-btn {
+    grid-area: settings;
+    justify-self: end;
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--paper);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+  .scenario-selector {
+    grid-area: scenario;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-self: stretch;
+  }
+  .scenario-selector label {
+    font-size: 11px;
+    flex: none;
+  }
+  .scenario-dropdown {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+  }
+  .scenario-toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 11px;
+    font-size: 13px;
+    min-height: 36px;
+    box-sizing: border-box;
+  }
+  .scenario-menu {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .topnav {
+    grid-area: nav;
+    display: flex;
+    width: 100%;
+    gap: 4px;
+    background: rgba(84, 84, 84, 0.07);
+    padding: 3px;
+    border-radius: 10px;
+    box-sizing: border-box;
+    overflow-x: visible;
+  }
+  .topnav a {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 12px;
+    font-weight: 750;
+    border-radius: 7px;
+    white-space: nowrap;
+  }
+  .intro {
+    padding: 24px 0 18px;
+  }
+  .intro h1 {
+    font-size: clamp(28px, 7vw, 38px);
+  }
+  .dashboard {
+    padding-top: 12px;
+  }
+  .dashboard-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .dashboard-heading .eyebrow {
+    font-size: 11px;
+    margin-bottom: 3px;
+  }
+  .dashboard-heading h1 {
+    font-size: clamp(20px, 5.5vw, 26px);
+    line-height: 1.15;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .dashboard-heading p:last-child {
+    margin: 4px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .dashboard-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  .range-control {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    width: 100%;
+  }
+  .range-control > span {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--slate);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .range-options {
+    display: flex;
+    width: 100%;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: white;
+    box-sizing: border-box;
+  }
+  .range-options a {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 2px;
+    font-size: 11.5px;
+    font-weight: 750;
+    text-align: center;
+    justify-content: center;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .dashboard-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .dashboard-kpi {
+    padding: 10px 12px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .dashboard-kpi:last-child {
+    grid-column: 1 / -1;
+  }
+  .dashboard-kpi > span {
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dashboard-kpi strong {
+    margin: 4px 0 2px;
+    font-size: clamp(19px, 5vw, 24px);
+    letter-spacing: -.03em;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .dashboard-kpi strong small {
+    font-size: 12px;
+  }
+  .dashboard-kpi p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.35;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+  .dashboard-charts {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .overview-panel {
+    max-height: none;
+    overflow: visible;
+    margin-bottom: 0;
+  }
+  .overview-heading {
+    padding: 12px 14px 4px;
+  }
+  .overview-heading h2 {
+    font-size: 16px;
+  }
+  .overview-panel .plot {
+    padding: 0 4px 6px;
+    width: 100%;
+    overflow: hidden;
+  }
+  .chart-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 8px 10px 4px;
+  }
+  .chart-legend {
+    width: 100%;
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .chart-series {
+    min-height: 28px;
+    padding: 3px 6px;
+    font-size: 11px;
+    gap: 5px;
+    border-radius: 7px;
+  }
+  .chart-series-check {
+    width: 14px;
+    height: 14px;
+  }
+  .chart-series-mark {
+    width: 16px;
+    height: 8px;
+  }
+  .chart-legend-actions {
+    display: flex;
+    gap: 4px;
+  }
+  .chart-legend-actions button {
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: 11px;
+    border-radius: 7px;
+  }
+  .chart-zoom-actions {
+    margin-left: auto;
+    border-radius: 7px;
+  }
+  .chart-zoom-actions button {
+    width: 28px;
+    min-height: 28px;
+    font-size: 16px;
+  }
+  .peaks-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .peaks-title {
+    padding: 4px 0 2px;
+  }
+  .peak-item {
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+  .peak-item strong {
+    font-size: 12.5px;
+    word-break: break-word;
+  }
+  .peak-item small {
+    font-size: 11px;
+    word-break: break-word;
+  }
+  .backtest-details {
+    margin-bottom: 12px;
+  }
+  .backtest-details summary {
+    padding: 10px 12px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .backtest-details summary span {
+    display: block;
+    margin-left: 0;
+    margin-top: 4px;
+    font-size: 11.5px;
+  }
+  .backtest-details > p {
+    padding: 0 12px 6px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .hourly-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding: 18px 0 12px;
+  }
+  .hourly-heading h1 {
+    font-size: clamp(22px, 6vw, 32px);
+  }
+  .filter-panel {
+    padding: 14px;
+  }
+  .filter-form {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .field {
+    width: 100%;
+  }
+  .field :is(input, select) {
+    width: 100%;
+    min-width: 0;
+  }
+  .filter-form .button {
+    width: 100%;
+  }
+  .metrics {
+    gap: 8px;
+  }
+  .metric {
+    min-height: 95px;
+    padding: 12px 14px;
+  }
+  .metric strong {
+    font-size: 22px;
+  }
+  .section-heading {
+    padding: 14px 14px 6px;
+  }
+  .table-scroll {
+    padding: 6px 8px 0;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pagination {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+  .pagination > div {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+  .pagination .button {
+    flex: 1;
+  }
+  .pv-storage-fields .field {
+    width: 100%;
+  }
+  .pv-settings-form, .pv-storage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pv-form-actions .button {
+    width: 100%;
+  }
+  .pv-daily-summary strong {
+    font-size: 16px;
+  }
+  .device-results {
+    padding: 10px 12px 0;
+  }
+  .device-note {
+    padding: 12px 12px 18px;
+  }
+  .tariff-mode-options, .tariff-day-summary, .tariff-fixed-fields {
+    grid-template-columns: 1fr;
+  }
+  .tariff-preview {
+    padding: 16px 14px;
+  }
+  .tariff-date-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .tariff-date-shortcuts {
+    width: 100%;
+  }
+  .tariff-date-shortcuts a {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+  }
+  .tariff-date-form, .tariff-date-form label, .tariff-date-form input, .tariff-date-form .button {
+    width: 100%;
+  }
+  .preferences-form .field {
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+  footer {
+    padding: 16px 6px 24px;
+    font-size: 11px;
+    line-height: 1.45;
+  }
 }
-@media (max-width: 620px) {
-  .shell { padding: 0 14px; }
-  .topbar { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 11px 0 8px; }
-  .brand { font-size: 20px; }
-  .brand-icon { width: 39px; height: 39px; }
-  .scenario-selector { justify-self: start; }
-  .topbar-right { width: 100%; justify-self: stretch; gap: 8px; }
-  .topnav { flex: 1; min-width: 0; overflow-x: auto; gap: 2px; scrollbar-width: thin; }
-  .topnav a { padding: 7px 9px; font-size: 12px; }
-  .intro { padding: 32px 0 23px; }
-  .intro h1 { font-size: 40px; }
-  .filter-panel { padding: 18px; }
-  .field, .field :is(input, select) { width: 100%; }
-  .filter-form .button { flex: 1 1 auto; }
-  .metrics { gap: 9px; }
-  .metric { min-height: 105px; padding: 15px; }
-  .metric strong { font-size: 22px; }
-  .section-heading { padding: 19px 17px 7px; }
-  .table-scroll { padding: 8px 12px 0; }
-  .pagination { align-items: flex-start; flex-direction: column; gap: 8px; padding: 14px; }
-  .pv-storage-fields .field { width: 100%; }
-  .pv-settings-form, .pv-storage-grid { grid-template-columns: minmax(0, 1fr); }
-  .pv-form-actions .button { width: 100%; }
-  .pv-daily-summary strong { font-size: 16px; }
-  .device-results { padding: 12px 17px 0; }
-  .device-note { padding: 14px 17px 22px; }
+
+@media (max-width: 480px) {
+  .pv-daily-summary {
+    grid-template-columns: 1fr;
+  }
 }
-@media (max-width: 430px) {
-  .dashboard-kpis, .metrics, .pv-daily-summary { grid-template-columns: 1fr; }
-  .dashboard-kpi:last-child { grid-column: auto; }
-  .range-options a { padding: 6px 7px; font-size: 12px; }
+
+@media (max-width: 360px) {
+  .dashboard-kpis, .metrics {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-kpi:last-child {
+    grid-column: auto;
+  }
+  .range-options a {
+    font-size: 11px;
+    padding: 6px 1px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
@@ -524,9 +939,9 @@ body:has(.dashboard) footer { padding: 8px 0 12px; }
 .tariff-chart .chart-zoom-actions button { font-size: 22px; }
 .tariff-footnote { margin: 15px 0 0; color: var(--slate); font-size: 13px; line-height: 1.5; }
 @media (max-width: 900px) { .tariff-fixed-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 620px) {
+@media (max-width: 768px) {
   .tariff-mode-options, .tariff-day-summary { grid-template-columns: 1fr; }
-  .tariff-preview { padding: 18px 16px; }
+  .tariff-preview { padding: 16px 14px; }
   .tariff-date-form, .tariff-date-form label, .tariff-date-form input, .tariff-date-form button { width: 100%; }
 }
 .preferences-form { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; }

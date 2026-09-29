@@ -138,4 +138,22 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
         checkboxes.map((checkbox) => Number(checkbox.dataset.traceIndex)));
     });
   });
+
+  // Responsive Plotly chart resize on window resize and mobile orientation change
+  const resizeAllCharts = () => {
+    if (typeof window !== 'undefined' && window.Plotly) {
+      document.querySelectorAll('.plotly-graph-div').forEach((graph) => {
+        try {
+          Plotly.Plots.resize(graph);
+        } catch {
+          // ignore if graph is not initialized
+        }
+      });
+    }
+  };
+
+  window.addEventListener('resize', resizeAllCharts);
+  window.addEventListener('orientationchange', resizeAllCharts);
+  requestAnimationFrame(resizeAllCharts);
+  setTimeout(resizeAllCharts, 250);
 });
