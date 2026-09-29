@@ -7,7 +7,8 @@ from django.conf import settings
 
 FLAG_SVGS = {
     "PL": (
-        '<svg class="scenario-flag-svg" viewBox="0 0 20 14" width="20" height="14" '
+        '<svg class="inline-block h-[14px] w-5 shrink-0 rounded-sm align-middle '
+        'shadow-[0_0_0_1px_rgba(0,0,0,0.12)]" viewBox="0 0 20 14" width="20" height="14" '
         'aria-hidden="true" xmlns="http://www.w3.org/2000/svg">'
         '<rect width="20" height="14" fill="#ffffff" rx="2"/>'
         '<rect y="7" width="20" height="7" fill="#dc143c"/>'
@@ -16,7 +17,8 @@ FLAG_SVGS = {
         "</svg>"
     ),
     "ES": (
-        '<svg class="scenario-flag-svg" viewBox="0 0 20 14" width="20" height="14" '
+        '<svg class="inline-block h-[14px] w-5 shrink-0 rounded-sm align-middle '
+        'shadow-[0_0_0_1px_rgba(0,0,0,0.12)]" viewBox="0 0 20 14" width="20" height="14" '
         'aria-hidden="true" xmlns="http://www.w3.org/2000/svg">'
         '<rect width="20" height="3.5" fill="#c60b1e" rx="2"/>'
         '<rect y="3.5" width="20" height="7" fill="#ffc400"/>'
@@ -27,7 +29,8 @@ FLAG_SVGS = {
         "</svg>"
     ),
     "DK": (
-        '<svg class="scenario-flag-svg" viewBox="0 0 20 14" width="20" height="14" '
+        '<svg class="inline-block h-[14px] w-5 shrink-0 rounded-sm align-middle '
+        'shadow-[0_0_0_1px_rgba(0,0,0,0.12)]" viewBox="0 0 20 14" width="20" height="14" '
         'aria-hidden="true" xmlns="http://www.w3.org/2000/svg">'
         '<rect width="20" height="14" fill="#c8102e" rx="2"/>'
         '<rect x="6" width="2.5" height="14" fill="#ffffff"/>'
@@ -37,7 +40,8 @@ FLAG_SVGS = {
         "</svg>"
     ),
     "PT": (
-        '<svg class="scenario-flag-svg" viewBox="0 0 20 14" width="20" height="14" '
+        '<svg class="inline-block h-[14px] w-5 shrink-0 rounded-sm align-middle '
+        'shadow-[0_0_0_1px_rgba(0,0,0,0.12)]" viewBox="0 0 20 14" width="20" height="14" '
         'aria-hidden="true" xmlns="http://www.w3.org/2000/svg">'
         '<rect width="8" height="14" fill="#006600" rx="2"/>'
         '<rect x="8" width="12" height="14" fill="#ff0000"/>'

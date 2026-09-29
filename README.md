@@ -427,6 +427,7 @@ Projekt wykorzystuje m.in.:
 * **Pandas**
 * **NumPy**
 * **Plotly**
+* **Tailwind CSS 4 (django-tailwind)**
 * **scikit-learn**
 * **XGBoost**
 * **django-cors-headers**
