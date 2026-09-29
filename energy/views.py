@@ -715,9 +715,7 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
     )
     selected = next((result for result in comparison if result.kwp == kwp), None)
     if selected is None:
-        selected = pv.simulate(records, weather, events, kwp, storage)
-
-    selected = pv.simulate(records, weather, events, kwp, storage, tariff_used, dynamic_used)
+        selected = pv.simulate(records, weather, events, kwp, storage, tariff_used, dynamic_used)
 
     plan = _device_plan(request, data_dir, kwp, storage, lang)
 

@@ -56,6 +56,73 @@
   }
 }
 @layer components {
+  /* The whole summary stays clickable; the large +/− is its visible control. */
+  details > summary.disclosure-summary {
+    position: relative;
+    min-height: 52px;
+    padding-right: 96px !important;
+    list-style: none;
+  }
+
+  details > summary.disclosure-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details > summary.disclosure-summary::after {
+    content: "+";
+    position: absolute;
+    top: 50%;
+    right: 30px;
+    display: grid;
+    width: 52px;
+    height: 52px;
+    place-items: center;
+    transform: translateY(-50%);
+    border: 1px solid var(--color-charcoal);
+    border-radius: 12px;
+    background: rgb(203 255 77 / 40%);
+    color: var(--color-charcoal);
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  details[open] > summary.disclosure-summary::after {
+    content: "−";
+    background: var(--color-chartreuse);
+  }
+
+  details > summary.disclosure-summary:hover::after {
+    background: var(--color-chartreuse);
+    box-shadow: 0 3px 0 rgb(84 84 84 / 15%);
+  }
+
+  details > summary.disclosure-inset-zero {
+    padding-right: 66px !important;
+  }
+
+  details > summary.disclosure-inset-zero::after {
+    right: 0;
+  }
+
+  details > summary.disclosure-inset-compact {
+    padding-right: 80px !important;
+  }
+
+  details > summary.disclosure-inset-compact::after {
+    right: 16px;
+  }
+
+  @media (max-width: 620px) {
+    details > summary.disclosure-summary:not(.disclosure-inset-zero, .disclosure-inset-compact) {
+      padding-right: 78px !important;
+    }
+
+    details > summary.disclosure-summary:not(.disclosure-inset-zero, .disclosure-inset-compact)::after {
+      right: 17px;
+    }
+  }
+
   /* Plotly keeps inline widths; the wrapper must stretch the graph div. */
   .plot .plotly-graph-div {
     width: 100% !important;
@@ -186,11 +253,7 @@
   .settings-page .hourly-heading { display: flex; justify-content: space-between; align-items: center; padding: 30px 2px 20px; }
   .settings-page .hourly-heading h1 { margin: 0; color: var(--charcoal); font-size: 39px; letter-spacing: -.05em; }
   .settings-page .hourly-heading p:last-child { margin: 7px 0 0; color: var(--charcoal); font-size: 14px; }
-  .settings-page .collapsible-panel>summary { cursor: pointer; list-style: none; }
-  .settings-page .collapsible-panel>summary::-webkit-details-marker { display: none; }
-  .settings-page .collapsible-panel>summary::after { content: "+"; display: grid; place-items: center; flex: none; width: 44px; height: 44px; margin-left: auto; border: 1px solid var(--charcoal); border-radius: 11px; background: rgba(203, 255, 77, .4); color: var(--charcoal); font-size: 27px; font-weight: 700; line-height: 1; }
-  .settings-page .collapsible-panel[open]>summary::after { content: "−"; background: var(--chartreuse); }
-  .settings-page .collapsible-panel>summary:hover::after { background: var(--chartreuse); box-shadow: 0 3px 0 rgba(84, 84, 84, .15); }
+  .settings-page .collapsible-panel>summary { cursor: pointer; }
   .settings-page .collapsible-panel:not([open])>summary.section-heading { padding-bottom: 24px; }
   .settings-page .collapsible-panel:not([open])>summary.section-heading.compact { padding-bottom: 0; }
   .settings-page .tariff-note { display: inline-block; margin: 0 0 14px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }

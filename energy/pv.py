@@ -156,7 +156,12 @@ def _shift_records(
     radiation: dict[tuple, float],
     devices: tuple[str, ...] | None = None,
 ) -> list[ConsumptionHour]:
-    """Przesuwa elastyczne urządzenia do godzin z największym promieniowaniem słonecznym."""
+    """Przesuwa energię cykli w obrębie dnia do godzin z większym nasłonecznieniem.
+
+    Wariant B służy do porównania nawyków: zachowuje sumę energii cyklu i
+    zmienia wyłącznie kategorię dużego AGD. Każda zmiana ma osobny odczyt
+    przed/po, więc nie używamy tego uproszczenia do sterowania urządzeniami.
+    """
     index = {(r.timestamp.date(), r.timestamp.hour): i for i, r in enumerate(records)}
     values = [list(record.categories) for record in records]
     for event in events:
@@ -187,7 +192,13 @@ def _shift_records(
 def hour_balance(
     load: Decimal, production: Decimal, charge: Decimal, storage: StorageConfig
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal]:
-    """Rozwiązuje bilans godzinowy PV, zużycia, eksportu, importu i magazynowania."""
+    """Rozlicza godzinę: autokonsumpcja, ładowanie z nadwyżki, rozładowanie.
+
+    Stan `charge` jest energią przechowaną przed stratą obiegu. Oddanie
+    `delivered` do domu zużywa `delivered / sprawność` z magazynu. Zwracana
+    krotka to (energia użyta w domu, eksport, import, ładowanie, oddanie,
+    stan końcowy); tej kolejności używa symulator i plan rekomendacji.
+    """
     direct = min(load, production)
     surplus = production - direct
     deficit = load - direct
@@ -205,7 +216,13 @@ def hour_balance(
 def _settled_charge(
     hours: list[tuple[Decimal, Decimal]], storage: StorageConfig, full_year: bool
 ) -> Decimal:
-    """Ustala stan początkowy baterii na podstawie nadwyżek z poprzednich godzin."""
+    """Wyznacza stan baterii na początku pełnego roku modelowego.
+
+    Symulowany rok traktujemy cyklicznie: ostatnia godzina zasila stan
+    pierwszej. Powtarzamy przejście przez rok do stałego stanu (maks. 24
+    razy), aby sztucznie pusta bateria 1 stycznia nie zaniżała pokrycia.
+    Dla krótszego wycinka brak poprzednich godzin, więc startujemy od zera.
+    """
     if not full_year or storage.capacity_kwh <= 0:
         return Decimal(0)
     initial = Decimal(0)
@@ -430,6 +447,8 @@ def choose_capacity(
         return CapacityChoice(kwp, coverage, payback, grid == 0), grid
 
     if goal == "coverage":
+        # Import z sieci maleje wraz z mocą PV; szukamy najmniejszego kroku,
+        # który osiąga minimum importu dostępne przy górnej granicy mocy.
         last = int((MAX_KWP - MIN_KWP) / KWP_STEP)
         last_choice, lowest_grid = evaluate(last)
         low, high = 0, last

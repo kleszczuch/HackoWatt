@@ -473,12 +473,12 @@ def _compute_plans(
     storage: StorageConfig,
     tariff: TariffConfig,
     dynamic: dict[datetime, Decimal] | None,
-    washer_hour: int | None = None,
 ) -> list[DevicePlan]:
-    """Cykle i kandydaci; pralka dobierana przed suszarką (jej okno od pralki).
+    """Wstępne warianty dla modelu z kolejnością pralka → suszarka.
 
-    `washer_hour` wymusza godzinę pralki (wybór modelu), dzięki czemu kandydaci
-    i oszczędności suszarki odpowiadają faktycznie wybranej parze godzin.
+    Dla okna suszarki zakładamy najlepszą opłacalną godzinę pralki. To tylko
+    lista opcji dla Ollamy: po jej odpowiedzi każdą godzinę wyceniamy ponownie
+    względem pełnego kosztu domu i faktycznie przyjętych wcześniejszych zmian.
     """
     plans: list[DevicePlan] = []
     washer_end: int | None = None
@@ -507,13 +507,7 @@ def _compute_plans(
             profitable = [
                 candidate for candidate in candidates if _visible_saving(candidate.saving)
             ]
-            chosen_hour = (
-                washer_hour
-                if washer_hour is not None
-                else _best(profitable).hour
-                if profitable
-                else cycle.start_hour
-            )
+            chosen_hour = _best(profitable).hour if profitable else cycle.start_hour
             washer_end = chosen_hour + cycle.duration_h
             if chosen_hour != cycle.start_hour:
                 current_loads = _shifted_loads(
@@ -651,6 +645,9 @@ def build_plan(
     current_loads = list(loads)
     current_cost = _day_cost(timestamps, loads, radiation, kwp, storage, tariff, dynamic)
     washer_end: int | None = None
+    # PV i magazyn łączą koszty urządzeń. Po każdym przyjętym ruchu wyceniamy
+    # kolejne urządzenie na nowym profilu całego domu, zamiast sumować niezależne
+    # oszczędności z początkowej listy kandydatów.
     for device in DEVICE_ORDER:
         slug = DEVICE_SLUGS[device]
         plan = plans_by_device.get(device)

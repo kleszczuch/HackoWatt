@@ -113,13 +113,11 @@ def _add_price_traces(
     axis_options = {
         "overlaying": "y",
         "side": "right",
-        "title_text": f"{symbol}/kWh",
         "fixedrange": True,
         "showgrid": False,
-        "linecolor": SLATE,
+        "showline": False,
+        "showticklabels": False,
         "automargin": True,
-        # Mniejszy odstęp tytułu dla osi cen (y2/y3), żeby nie wchodziły na wykres
-        "title_standoff": 5,
     }
     if third_axis:
         axis_options.update(anchor="free", position=1.0)

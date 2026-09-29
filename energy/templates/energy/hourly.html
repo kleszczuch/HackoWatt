@@ -11,7 +11,7 @@
   <a class="btn btn-secondary" href="{% url 'dashboard' %}">{% if is_en %}← Dashboard{% else %}← Pulpit{% endif %}</a>
 </section>
 <details class="group mb-5 rounded-[17px] border border-line bg-paper px-[30px] py-[25px] shadow-card max-sm:p-[18px]" aria-labelledby="filter-heading" {% if not form.is_valid %}open{% endif %}>
-  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] pb-[19px] after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-0 max-lg:flex-col max-lg:items-start max-lg:gap-[5px]">
+  <summary class="disclosure-summary disclosure-inset-zero flex cursor-pointer list-none items-center justify-between gap-[18px] pb-[19px] group-not-open:pb-0 max-lg:flex-col max-lg:items-start max-lg:gap-[5px]">
     <div>
       <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}SELECT DATA{% else %}WYBIERZ DANE{% endif %}</p>
       <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="filter-heading">{% if is_en %}Date range{% else %}Zakres dat{% endif %}</h2>
@@ -37,7 +37,7 @@
   <div class="plot px-3 pb-2">{{ history_chart|safe }}</div>
 </section>
 <details class="group mb-5 overflow-hidden rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="table-heading">
-  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
+  <summary class="disclosure-summary flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
       <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}EXACT VALUES{% else %}DOKŁADNE WARTOŚCI{% endif %}</p>
       <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="table-heading">{% if is_en %}Hourly history{% else %}Historia godzinowa{% endif %}</h2>

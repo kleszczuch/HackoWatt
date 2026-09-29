@@ -730,7 +730,7 @@ class ViewTests(SimpleTestCase):
         self.assertEqual(
             tariff_trace.y[24], float(tariffs.price_for_hour(records[24].timestamp.hour))
         )
-        self.assertEqual(history_chart.layout.yaxis3.title.text, "€/kWh")
+        self.assertIsNone(history_chart.layout.yaxis3.title.text)
         self.assertIn("€/kWh", rce_trace.hovertemplate)
 
         forecast_records = load_forecast()[:24]
@@ -764,7 +764,7 @@ class ViewTests(SimpleTestCase):
                     traces["Cena · taryfa"].y[1],
                     float(tariffs.price_for_hour(records[1].timestamp.hour) * rate),
                 )
-                self.assertEqual(chart.layout.yaxis3.title.text, f"{symbol}/kWh")
+                self.assertIsNone(chart.layout.yaxis3.title.text)
                 self.assertIn(f"{symbol}/kWh", traces["Cena · RCE"].hovertemplate)
                 self.assertEqual(chart.layout.yaxis.title.text, "kWh")
                 self.assertEqual(chart.layout.yaxis2.title.text, "°C")
@@ -772,7 +772,7 @@ class ViewTests(SimpleTestCase):
                 overview = build_overview_chart(
                     records, weather_rows, prices=prices, currency=currency
                 )
-                self.assertEqual(overview.layout.yaxis3.title.text, f"{symbol}/kWh")
+                self.assertIsNone(overview.layout.yaxis3.title.text)
 
     def test_load_tariff_prices_reads_hourly_prices(self):
         test_dir = make_test_dir()
@@ -1138,7 +1138,10 @@ class ViewTests(SimpleTestCase):
         self.assertContains(
             response, 'id="tariffDynamicPreview" aria-labelledby="tariff-preview-heading">'
         )
-        self.assertContains(response, '<summary class="tariff-preview-heading">')
+        self.assertContains(
+            response,
+            '<summary class="tariff-preview-heading disclosure-summary disclosure-inset-zero">',
+        )
         self.assertContains(response, "date=" + today.date().isoformat() + "&amp;expand=1")
 
         expanded = self.client.get(
@@ -2736,3 +2739,35 @@ class PrepareRecommendationsCommandTests(SimpleTestCase):
 
         self.assertIn("0 rekomendacji, 1 pozostawionych, 1 bez cyklu", output.getvalue())
         self.assertIn("brak opłacalnej zmiany godziny", output.getvalue())
+
+
+class StartupCommandTests(SimpleTestCase):
+    """Rozruch nie może ogłosić gotowości po błędzie danych ani osłabić HTTPS."""
+
+    def test_all_stops_before_server_when_preparation_fails(self):
+        with (
+            patch("energy.management.commands.all.call_command") as steps,
+            patch("energy.management.commands.all.subprocess.run") as process,
+        ):
+            steps.side_effect = CommandError("brak pogody")
+            with self.assertRaisesMessage(CommandError, "Przygotowanie danych"):
+                call_command("all", "--no-sync", "--no-tariffs")
+            steps.assert_called_once()
+            self.assertEqual(steps.call_args.args[0], "prepare_data")
+            process.assert_not_called()
+
+            steps.reset_mock()
+            steps.side_effect = [None, CommandError("brak prognozy")]
+            with self.assertRaisesMessage(CommandError, "Przygotowanie rekomendacji"):
+                call_command("all", "--no-sync", "--no-tariffs")
+            self.assertEqual([call.args[0] for call in steps.call_args_list], [
+                "prepare_data", "prepare_recommendations"
+            ])
+            process.assert_not_called()
+
+    def test_all_preserves_https_certificate_verification(self):
+        import ssl
+
+        import energy.management.commands.all  # noqa: F401
+
+        self.assertIs(ssl._create_default_https_context, ssl.create_default_context)

@@ -22,7 +22,7 @@
 </section>
 
 <details class="group mb-5 rounded-[17px] border border-line bg-paper px-[30px] py-[25px] shadow-card max-sm:p-[18px]" aria-labelledby="pv-form-heading" {% if not form.is_valid %}open{% endif %}>
-  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] pb-[19px] after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-0 max-lg:flex-col max-lg:items-start max-lg:gap-[5px]">
+  <summary class="disclosure-summary disclosure-inset-zero flex cursor-pointer list-none items-center justify-between gap-[18px] pb-[19px] group-not-open:pb-0 max-lg:flex-col max-lg:items-start max-lg:gap-[5px]">
     <div>
       <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}CHOOSE PV SETTINGS{% else %}WYBIERZ USTAWIENIA PV{% endif %}</p>
       <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="pv-form-heading">{% if is_en %}PV capacity and chart month{% else %}Moc instalacji i miesiąc wykresu{% endif %}</h2>
@@ -128,7 +128,7 @@
 </section>
 
 <details class="group mb-5 overflow-hidden rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="variants-heading">
-  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
+  <summary class="disclosure-summary flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
       <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}CAPACITY COMPARISON{% else %}PORÓWNANIE MOCY{% endif %}</p>
       <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="variants-heading">{% if is_en %}PV system options{% else %}Warianty instalacji{% endif %}</h2>
@@ -178,7 +178,7 @@
 </section>
 
 <details class="group mb-5 overflow-hidden rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="daily-heading">
-  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
+  <summary class="disclosure-summary flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
       <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}DAILY BALANCE{% else %}BILANS DZIENNY{% endif %}</p>
       <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="daily-heading">{% if is_en %}Household use in the selected week{% else %}Zużycie budynku w wybranym tygodniu{% endif %}</h2>
@@ -212,7 +212,7 @@
 </details>
 
 <details class="group mb-5 rounded-[17px] border border-line bg-paper shadow-card" id="recommendations-section" data-reco-url="{% url 'recommendations' %}" aria-labelledby="reco-heading">
-  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
+  <summary class="disclosure-summary flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
       <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}LOCAL AI · TOMORROW{% else %}LOKALNE AI · JUTRO{% endif %}</p>
       <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="reco-heading">{% if is_en %}Appliance schedule for tomorrow{% else %}Plan pracy urządzeń na jutro{% endif %}</h2>

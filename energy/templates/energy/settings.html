@@ -75,7 +75,7 @@
 </section>
 
 <details class="panel tariff-preview collapsible-panel" id="tariffDynamicPreview" aria-labelledby="tariff-preview-heading"{% if form.mode.value != "dynamic" %} hidden{% endif %}{% if request.GET.expand == '1' %} open{% endif %}>
-  <summary class="tariff-preview-heading">
+  <summary class="tariff-preview-heading disclosure-summary disclosure-inset-zero">
     <div>
       <p class="eyebrow">{% if is_en %}DYNAMIC TARIFF{% else %}TARYFA DYNAMICZNA{% endif %}</p>
       <h2 id="tariff-preview-heading">{% if is_en %}Hourly prices · {{ selected_date_label }}{% else %}Ceny godzinowe · {{ selected_date_label }}{% endif %}</h2>
