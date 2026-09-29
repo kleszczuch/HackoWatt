@@ -69,6 +69,24 @@ System może również uwzględniać magazyn energii poprzez podanie:
 
 W bilansie magazynu uwzględniana jest sprawność obiegu na poziomie **90%**.
 
+Sekcja **Plan pracy urządzeń na jutro** korzysta z 35 dni historii cykli,
+jutrzejszej prognozy, taryfy, PV i magazynu. Python liczy dopuszczalne godziny
+i kwoty, a lokalny Qwen3 wybiera godzinę z listy i pisze uzasadnienie.
+Model dostaje tylko warianty, które po zaokrągleniu dają widoczną oszczędność;
+każda propozycja jest ponownie liczona po przesunięciu pozostałych cykli.
+Gdy tańszej godziny nie ma, karta zaleca pozostawienie obecnej bez kwoty.
+Szacunek roczny jest ekstrapolacją częstotliwości cykli z 35 dni historii przy
+jutrzejszych warunkach, nie prognozą przyszłorocznych cen.
+Karty pokazują również liczbę dni z cyklem. Obok nich znajdują się wszystkie
+typy zdarzeń zapisane w historii wybranego scenariusza (np. praca zdalna,
+goście, wyjazd, opieka nad psem, pompa basenu, sauna, ładowanie EV). Dla
+pompy basenu aplikacja wykrywa cykl z aktualnej historii i proponuje
+przesunięcie wyłącznie wtedy, gdy obniża ono policzony koszt całego domu.
+Gdy tańszej godziny nie ma, pokazuje zalecenie pozostawienia obecnej.
+Ładowanie EV przechodzi przez północ, więc do wiarygodnej wyceny jego pełnego
+cyklu potrzebna byłaby prognoza dłuższa niż obecne 24 godziny. Pozostałe
+zdarzenia są obserwacjami historycznymi, bez wymyślonych kwot.
+
 ---
 
 ## Dane pogodowe
@@ -134,105 +152,154 @@ git submodule update --init --recursive
 
 ---
 
-# Uruchomienie
+# Uruchomienie na Windows (PowerShell)
 
-## Wymagania
+Wykonuj poniższe kroki w PowerShellu. Potrzebne są Git, połączenie z internetem
+przy pierwszej instalacji i pobieraniu danych oraz miejsce na model Qwen3 1.7B
+(około 1,4 GB). Projekt wymaga Pythona `>=3.14,<3.15`; `uv` może go zainstalować.
 
-Projekt wymaga:
+### Całość w jednej linii
 
-* **Python 3.14**
-* **uv**
-* dostępu do sieci podczas pierwszego przygotowania danych pogodowych
+W katalogu sklonowanego projektu uruchom poniższą linię w PowerShellu. Instaluje
+uv i Ollamę, odświeża `PATH`, pobiera Pythona i model, przygotowuje dane oraz
+uruchamia stronę. Pierwsze wykonanie wymaga internetu; jeśli instalator Ollamy
+poprosi o dokończenie instalacji, wykonaj to przed ponownym uruchomieniem linii.
 
-Wersja Pythona jest określona bezpośrednio w `pyproject.toml`:
-
-```text
->=3.14,<3.15
+```powershell
+$ErrorActionPreference='Stop'; irm https://astral.sh/uv/install.ps1 | iex; irm https://ollama.com/install.ps1 | iex; $env:Path=[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User')+";$HOME\.local\bin"; uv python install 3.14; if($LASTEXITCODE){throw 'Instalacja Pythona nie powiodła się'}; ollama pull qwen3:1.7b; if($LASTEXITCODE){throw 'Pobranie modelu nie powiodło się'}; if(!(Test-Path .env)){ @("API_KEY=$([guid]::NewGuid().ToString('N'))",'OLLAMA_MODEL=qwen3:1.7b','OLLAMA_HOST=http://localhost:11434') | Set-Content -Encoding ascii .env }; uv sync; if($LASTEXITCODE){throw 'Instalacja zależności nie powiodła się'}; uv run python manage.py migrate; if($LASTEXITCODE){throw 'Migracje nie powiodły się'}; uv run python manage.py fetch_tariff_prices; if($LASTEXITCODE){throw 'Pobranie cen nie powiodło się'}; uv run python manage.py prepare_data; if($LASTEXITCODE){throw 'Przygotowanie danych nie powiodło się'}; uv run python manage.py prepare_recommendations; if($LASTEXITCODE){throw 'Przygotowanie rekomendacji nie powiodło się'}; uv run python manage.py runserver 127.0.0.1:8000
 ```
 
----
+Adres strony: `http://127.0.0.1:8000/symulator-pv/`. Jeśli ceny PSE są
+niedostępne, uruchom rozruch krok po kroku i pomiń samo
+`fetch_tariff_prices`; plan użyje wtedy stawki taryfy stałej.
 
-## Sklonuj repozytorium
+## 1. Zainstaluj uv i Python 3.14
 
-```bash
+Zainstaluj [uv](https://docs.astral.sh/uv/getting-started/installation/) oficjalnym
+instalatorem i otwórz nowy PowerShell, aby odświeżyć `PATH`:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+uv --version
+uv python install 3.14
+```
+
+Jeśli masz już `uv` i Python 3.14, wystarczy sprawdzić `uv --version`.
+
+## 2. Zainstaluj Ollamę i pobierz model
+
+Zainstaluj [Ollamę dla Windows](https://ollama.com/download/windows), a następnie
+otwórz nowy PowerShell:
+
+```powershell
+irm https://ollama.com/install.ps1 | iex
+ollama --version
+ollama pull qwen3:1.7b
+ollama list
+```
+
+Instalator Windows uruchamia serwer Ollamy w tle pod `http://localhost:11434`.
+Sprawdź połączenie i uruchom model próbnie:
+
+```powershell
+Invoke-RestMethod http://localhost:11434/api/tags
+ollama run qwen3:1.7b
+```
+
+Wpisz przykładowe pytanie; zakończ rozmowę poleceniem `/bye`. Po wyjściu
+Ollama nadal obsługuje żądania aplikacji w tle. Jeśli `Invoke-RestMethod` nie
+może się połączyć, uruchom `ollama serve` w osobnym oknie PowerShell i zostaw
+je otwarte. Nie uruchamiaj drugiego serwera, jeśli port `11434` już działa.
+
+## 3. Sklonuj repozytorium i ustaw środowisko
+
+```powershell
 git clone --recurse-submodules https://github.com/kleszczuch/HackoWatt.git
 cd HackoWatt
-```
-
-Następnie jedną komendą możesz włączyć serwer z pobranymi danymi:
-
-```bash
-uv run manage.py all
-```
-
-Jest możliwość konfiguracji powyższej komendy, jeżeli wymagane jest pominięcie jakiegoś kroku:
-
-```bash
-uv run manage.py all --no-server  #wykonuje tylko synchronizację i przygotowanie danych bez uruchamiania serwera.
-uv run manage.py all --no-sync  #pomija krok uv sync.
-uv run manage.py all --no-tariffs  #pomija pobieranie cen RCE.
-uv run manage.py all --no-data  #pomija generowanie symulacji scenariuszy.
-uv run manage.py all --addrport 127.0.0.1:8000  #pozwala zmienić adres lub port serwera.
-```
-
-Poniżej znajduje się krok po kroku, możliwość ręcznego pobrania danych i włączenia serwera
-
----
-
-## 1. Zainstaluj zależności
-
-Projekt wykorzystuje `uv` do zarządzania środowiskiem i zależnościami:
-
-```bash
 uv sync
+uv run python --version
 ```
 
----
+Jeśli repozytorium zostało wcześniej sklonowane bez submodułu, wykonaj
+`git submodule update --init --recursive`.
 
-## 2. Wykonaj migracje Django
+Utwórz lokalny plik `.env`. Klucz jest potrzebny do mobilnego API; strona
+internetowa korzysta z sesji. Domyślny model to `qwen3:1.7b`, ale zapisanie
+go w `.env` ułatwia zmianę konfiguracji:
 
-```bash
+```powershell
+$apiKey = [guid]::NewGuid().ToString("N")
+@("API_KEY=$apiKey", "OLLAMA_MODEL=qwen3:1.7b", "OLLAMA_HOST=http://localhost:11434") | Set-Content -Encoding ascii .env
+```
+
+`.env` jest ignorowany przez Git. Po zmianie `OLLAMA_MODEL` pobierz wskazany
+model przez `ollama pull NAZWA_MODELU` i ponownie uruchom serwer Django.
+
+## 4. Przygotuj bazę, ceny i dane
+
+W katalogu projektu wykonaj komendy w tej kolejności:
+
+```powershell
 uv run python manage.py migrate
-```
----
-
-## 3. Pobierz ceny dla taryfy dynamicznej
-
-```bash
 uv run python manage.py fetch_tariff_prices
-```
-
----
-
-## 4. Przygotuj dane demonstracyjne
-
-```bash
 uv run python manage.py prepare_data
+uv run python manage.py prepare_recommendations
 ```
 
-Podczas tego kroku aplikacja może pobrać dane pogodowe z Open-Meteo i wygenerować dane potrzebne do działania dashboardu, prognoz oraz symulatora.
+`fetch_tariff_prices` zapisuje dostępne ceny RCE w `data/tariff_prices.json`.
+`prepare_data` pobiera pogodę z Open-Meteo i przygotowuje pięć scenariuszy.
+`prepare_recommendations` tworzy plany na jutro dla tych scenariuszy przy
+domyślnych ustawieniach i zapisuje je w ignorowanym przez Git
+`data/recommendations/`. Pierwsze przeliczenie może potrwać, gdy model ładuje
+się do pamięci. Jeśli Ollama nie działa, plan otrzyma źródło
+`calculated_fallback` i godziny nadal zostaną wyliczone przez Python.
 
-Ponowne uruchomienie tej komendy odświeża dane.
+## 5. Uruchom stronę
 
----
-
-## 5. Uruchom aplikację
-
-```bash
+```powershell
 uv run python manage.py runserver 127.0.0.1:8000
 ```
 
-Następnie otwórz:
+Otwórz `http://127.0.0.1:8000/symulator-pv/` i rozwiń sekcję **Plan pracy
+urządzeń na jutro**. Po zmianie taryfy w Ustawieniach wróć do symulatora;
+po zmianie mocy PV lub magazynu karty pobiorą nowy plan automatycznie.
 
-```text
-http://127.0.0.1:8000/
+Gdy chcesz otworzyć lokalny serwer z telefonu w tej samej sieci, możesz użyć
+`uv run python manage.py runserver 0.0.0.0:8000` i adresu komputera w sieci.
+
+### Krótszy rozruch po instalacji
+
+Po zainstalowaniu Ollamy, pobraniu modelu i wykonaniu migracji komenda
+`all` uruchamia kolejno synchronizację zależności, pobranie cen,
+`prepare_data`, `prepare_recommendations` oraz serwer:
+
+```powershell
+uv run python manage.py all --addrport 127.0.0.1:8000
 ```
 
-Dla użycia aplikacji mobilnej na telefonie użyj komendy:
+Komenda `all` nie wykonuje migracji Django ani nie instaluje Ollamy.
+Przydatne opcje: `--no-server` przygotowuje dane bez startu serwera,
+`--no-sync`, `--no-tariffs`, `--no-data` i `--no-recommendations` pomijają
+odpowiednie kroki, a `--noreload` wyłącza automatyczny restart serwera.
 
-```bash
-uv run python manage.py runserver 0.0.0.0:8000
+### Gdy brakuje cen taryfy dynamicznej
+
+Plan wymaga pełnej prognozy zużycia i pogody na jutro. Jeśli plik RCE nie
+zawiera ceny dla części lub wszystkich 24 godzin, aplikacja używa w tych
+godzinach **stawek taryfy stałej** i pokazuje, ile godzin miało stawkę
+zastępczą. Wykres taryfy oznacza brakujące ceny. Aby pobrać nowe ceny:
+
+```powershell
+uv run python manage.py fetch_tariff_prices
+uv run python manage.py prepare_recommendations
 ```
+
+Sprawdź zakres dat wypisany przez `fetch_tariff_prices`. Komunikat „Brak
+pobierania” oznacza, że plik nie został zaktualizowany, np. z powodu braku
+połączenia z PSE. Jeśli cen jutra nadal nie ma, plan nadal działa na stawkach
+zastępczych; możesz ponowić pobieranie później. Przy braku prognozy zużycia lub pogody uruchom
+ponownie `uv run python manage.py prepare_data`, a potem
+`uv run python manage.py prepare_recommendations`.
 
 ---
 
@@ -263,6 +330,24 @@ API_KEY=your-secret-key
 Klucz powinien być skonfigurowany również po stronie aplikacji mobilnej.
 
 > Nie należy commitować rzeczywistego klucza API do repozytorium.
+
+Przykładowe wywołanie planu z PowerShella po uruchomieniu serwera:
+
+```powershell
+$apiKey = ((Get-Content .env | Where-Object { $_ -like 'API_KEY=*' }) -split '=', 2)[1]
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/devices/ai-plan/ -Headers @{Authorization = "Bearer $apiKey"}
+```
+
+Endpoint strony `/rekomendacje/` używa sesji przeglądarki. Wynik API jest
+opakowany w `{"status":"success","data":{...}}`; sam plan zawiera m.in.
+`date`, `scenario_id`, `status`, `source`, `currency`, `recommendations`,
+`observed_events` (w tym opcjonalne `advice` dla pompy basenu),
+`tariff_fallback_hours` i `total_daily_saving`. Przy braku
+prognozy lub historii ma `status: "no_data"`, pole `missing_data`
+(`forecast`, `weather` lub `history`) i nie zawiera kwoty oszczędności.
+Brak cen RCE powoduje użycie stawek stałych, nie `no_data`.
+Domyślną walutą jest EUR; wybrana waluta jest
+stosowana zarówno na stronie, jak i w API.
 
 ---
 
@@ -306,6 +391,7 @@ Klucz powinien być skonfigurowany również po stronie aplikacji mobilnej.
 | `GET`  | `/api/v1/pv/simulate/`              | Symulacja instalacji PV                              |
 | `GET`  | `/api/v1/pv/variants/`              | Przykładowe warianty mocy PV                         |
 | `GET`  | `/api/v1/devices/flexible-events/`  | Historia elastycznych zdarzeń urządzeń               |
+| `GET`  | `/api/v1/devices/ai-plan/`          | Plan pracy urządzeń na jutro z lokalnym AI             |
 | `GET`  | `/api/v1/system/assumptions/`       | Założenia modelu                                     |
 | `GET`  | `/api/v1/system/metrics/`           | Metryki jakości prognoz                              |
 
@@ -370,32 +456,46 @@ Przykładowo:
 
 Testy Django:
 
-```bash
+```powershell
 uv run python manage.py test
+```
+
+Test z uruchomioną Ollamą i pobranym modelem:
+
+```powershell
+$env:OLLAMA_E2E = "1"
+uv run python manage.py test energy.tests.RecommendationTests.test_e2e_real_ollama
+Remove-Item Env:OLLAMA_E2E
 ```
 
 Kontrola konfiguracji Django:
 
-```bash
+```powershell
 uv run python manage.py check
 ```
 
 Lint:
 
-```bash
+```powershell
 uv run ruff check .
 ```
 
 Sprawdzenie formatowania:
 
-```bash
+```powershell
 uv run ruff format --check .
+```
+
+Sprawdzenie odświeżania kart po zmianie parametrów (wymaga Node.js):
+
+```powershell
+node energy/tests_recommendations.cjs
 ```
 
 Walidacja specyfikacji OpenSpec:
 
-```bash
-openspec validate magazyn-energii-pv --strict
+```powershell
+openspec validate lokalne-ai-planowanie-urzadzen --strict
 ```
 
 ---

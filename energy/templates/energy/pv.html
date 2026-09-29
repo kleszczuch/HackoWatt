@@ -1,5 +1,6 @@
 {% extends "energy/base.html" %}
 {% load energy_labels %}
+{% load static %}
 {% block title %}{% if is_en %}eko-dziki · PV simulator{% else %}eko-dziki · Symulator PV{% endif %}{% endblock %}
 {% block content %}
 <section class="flex items-end justify-between gap-7 px-0.5 pb-[19px] pt-7 max-sm:pb-[23px] max-sm:pt-8">
@@ -210,31 +211,85 @@
   </div>
 </details>
 
-<details class="group mb-5 rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="reco-heading">
+<details class="group mb-5 rounded-[17px] border border-line bg-paper shadow-card" id="recommendations-section" data-reco-url="{% url 'recommendations' %}" aria-labelledby="reco-heading">
   <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
-      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}APPLIANCE CALCULATIONS{% else %}OBLICZENIE DLA URZĄDZEŃ{% endif %}</p>
-      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="reco-heading">{% if is_en %}Effect of shifting appliance use{% else %}Efekt zmiany godziny pracy{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}LOCAL AI · TOMORROW{% else %}LOKALNE AI · JUTRO{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="reco-heading">{% if is_en %}Appliance schedule for tomorrow{% else %}Plan pracy urządzeń na jutro{% endif %}</h2>
     </div>
-    <span class="text-xs text-slate">{% if is_en %}Annual result for {{ kwp }} kWp and the selected battery{% else %}Roczny wynik dla {{ kwp }} kWp i wskazanego magazynu{% endif %}</span>
+    <span class="text-xs text-slate">{% if recommendation_plan.date %}{% if is_en %}Forecast day{% else %}Dzień prognozy{% endif %}: {{ recommendation_plan.date }}{% endif %}</span>
   </summary>
-  <div class="grid grid-cols-3 gap-3 px-[30px] pt-3 max-lg:grid-cols-1 max-sm:px-[17px]">
-    {% for effect in effects %}
-    <article class="grid min-w-0 grid-cols-2 gap-[9px] rounded-[13px] border border-line border-t-4 bg-white/[0.88] p-4 {% if forloop.counter == 1 %}border-t-grass{% elif forloop.counter == 2 %}border-t-sage{% else %}border-t-chartreuse{% endif %}">
-      <h3 class="col-span-2 m-0 mb-[3px] text-[15px] text-charcoal">{{ effect.device }}</h3>
-      <div><span class="block text-[11px] font-bold text-slate">{% if is_en %}Less grid electricity{% else %}Mniej z sieci{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ effect.grid_saved_kwh|floatformat:1 }} <small class="text-[11px] font-[650] tracking-normal">kWh/{% if is_en %}year{% else %}rok{% endif %}</small></strong></div>
-      <div><span class="block text-[11px] font-bold text-slate">{% if is_en %}Change in savings{% else %}Zmiana oszczędności{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ effect.money_saved|display_currency:current_currency|floatformat:1 }} <small class="text-[11px] font-[650] tracking-normal">{{ currency_symbol }}/{% if is_en %}year{% else %}rok{% endif %}</small></strong></div>
-      <p class="col-span-2 m-0 border-t border-line pt-2 text-[11px] leading-[1.4] text-slate">{% if is_en %}{{ effect.moved_kwh|floatformat:0 }} kWh of appliance cycles began outside the 9:00–15:00 window.{% else %}{{ effect.moved_kwh|floatformat:0 }} kWh cykli zaczynało się poza oknem 9:00–15:00.{% endif %}</p>
-      <div class="col-span-2 rounded-[9px] bg-sage/[0.12] px-3 py-2.5">
-        <h4 class="m-0 mb-[5px] text-xs font-extrabold text-charcoal">{{ effect.advice.headline }}</h4>
-        <p class="m-0 text-xs leading-[1.5] text-charcoal">{{ effect.advice.action }}</p>
-        <p class="m-0 mt-1.5 text-[11px] leading-[1.5] text-slate">{{ effect.advice.comfort }}</p>
+  <div id="recommendations-cards">
+    {% if recommendation_plan.tariff_notice %}
+    <p class="m-0 mx-[30px] mt-3 rounded-[13px] border border-line bg-white/[0.88] p-4 text-[12px] leading-[1.5] text-charcoal max-sm:mx-[17px]">{{ recommendation_plan.tariff_notice }}</p>
+    {% endif %}
+    {% if recommendation_plan.status == "no_data" %}
+    <div class="px-[30px] pt-3 max-sm:px-[17px]"><p class="m-0 rounded-[13px] border border-line bg-white/[0.88] p-4 text-[13px] leading-[1.5] text-charcoal">{{ recommendation_plan.no_data_message }}</p></div>
+    {% else %}
+    <div class="grid grid-cols-3 gap-3 px-[30px] pt-3 max-lg:grid-cols-1 max-sm:px-[17px]">
+      {% for item in recommendation_plan.recommendations %}
+      <article class="grid min-w-0 grid-cols-2 gap-[9px] rounded-[13px] border border-line border-t-4 bg-white/[0.88] p-4 {% if forloop.counter == 1 %}border-t-grass{% elif forloop.counter == 2 %}border-t-sage{% else %}border-t-chartreuse{% endif %}">
+        <h3 class="col-span-2 m-0 mb-[3px] text-[15px] text-charcoal">{{ item.label }}</h3>
+        {% if item.status == "no_cycle" %}
+        <p class="col-span-2 m-0 text-[13px] leading-[1.5] text-slate">{% if is_en %}No cycle predicted for tomorrow{% else %}Brak przewidywanego cyklu na jutro{% endif %}</p>
+        {% elif item.status == "keep" %}
+        <p class="col-span-2 m-0 text-[13px] leading-[1.5] text-slate">{% if is_en %}Keep at{% else %}Pozostaw o{% endif %} <strong>{{ item.from }}</strong>. {{ item.reason }}</p>
+        {% else %}
+        <div><span class="block text-[11px] font-bold text-slate">{% if is_en %}Move start{% else %}Przesuń start{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ item.from }} → {{ item.to }}</strong></div>
+        <div><span class="block text-[11px] font-bold text-slate">{% if is_en %}Saving per cycle · tomorrow{% else %}Oszczędność na cyklu · jutro{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ item.saving_per_cycle }} <small class="text-[11px] font-[650] tracking-normal">{{ currency_symbol }}</small></strong></div>
+        <div class="col-span-2"><span class="block text-[11px] font-bold text-slate">{% if is_en %}Annual estimate{% else %}Szacunek roczny{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ item.estimated_annual_saving }} <small class="text-[11px] font-[650] tracking-normal">{{ currency_symbol }}/{% if is_en %}year{% else %}rok{% endif %}</small></strong></div>
+        <p class="col-span-2 m-0 border-t border-line pt-2 text-[11px] leading-[1.4] text-slate">{{ item.reason }}</p>
+        {% endif %}
+        <p class="col-span-2 m-0 text-[11px] leading-[1.4] text-slate">{% if is_en %}Days in 35-day history{% else %}Dni w historii 35 dni{% endif %}: {{ item.history_days }} · {% if is_en %}matching weekdays{% else %}pasujące dni tygodnia{% endif %}: {{ item.matching_weekday_days }}</p>
+      </article>
+      {% endfor %}
+      {% for event in recommendation_plan.observed_events %}
+      <article class="grid min-w-0 grid-cols-2 gap-[9px] rounded-[13px] border border-line border-t-4 border-t-sage bg-white/[0.88] p-4">
+        <h3 class="col-span-2 m-0 mb-[3px] text-[15px] text-charcoal">{{ event.label }}</h3>
+        {% if event.advice.status == 'keep' %}
+        <p class="col-span-2 m-0 text-[13px] leading-[1.5] text-slate">{% if is_en %}Keep at{% else %}Pozostaw o{% endif %} <strong>{{ event.advice.from }}</strong>. {{ event.advice.reason }}</p>
+        {% elif event.advice %}
+        <div><span class="block text-[11px] font-bold text-slate">{% if is_en %}Move start{% else %}Przesuń start{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ event.advice.from }} → {{ event.advice.to }}</strong></div>
+        <div><span class="block text-[11px] font-bold text-slate">{% if is_en %}Saving per cycle · tomorrow{% else %}Oszczędność na cyklu · jutro{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ event.advice.saving_per_cycle }} <small class="text-[11px] font-[650] tracking-normal">{{ currency_symbol }}</small></strong></div>
+        <div class="col-span-2"><span class="block text-[11px] font-bold text-slate">{% if is_en %}Annual estimate{% else %}Szacunek roczny{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ event.advice.estimated_annual_saving }} <small class="text-[11px] font-[650] tracking-normal">{{ currency_symbol }}/{% if is_en %}year{% else %}rok{% endif %}</small></strong></div>
+        <p class="col-span-2 m-0 border-t border-line pt-2 text-[11px] leading-[1.4] text-slate">{{ event.advice.reason }}</p>
+        {% elif event.event == 'ładowanie EV' %}
+        <p class="col-span-2 m-0 text-[12px] leading-[1.5] text-slate">{% if is_en %}Charging crosses midnight; a full cycle cannot be priced from tomorrow's 24-hour forecast.{% else %}Ładowanie przechodzi przez północ; pełnego cyklu nie da się wycenić z 24-godzinnej prognozy na jutro.{% endif %}</p>
+        {% else %}
+        <p class="col-span-2 m-0 text-[12px] leading-[1.5] text-slate">{% if is_en %}Historical activity; no reliable time-shift calculation.{% else %}Aktywność historyczna; brak wiarygodnego wyliczenia przesunięcia.{% endif %}</p>
+        {% endif %}
+        <p class="col-span-2 m-0 text-[11px] leading-[1.4] text-slate">{% if is_en %}Days in history{% else %}Dni w historii{% endif %}: {{ event.days_in_history }}/35 · {% if is_en %}matching weekdays{% else %}pasujące dni tygodnia{% endif %}: {{ event.days_on_matching_weekday }}/{{ event.matching_weekdays }}</p>
+      </article>
+      {% endfor %}
+    </div>
+    {% if recommendation_plan.total_daily_saving %}
+    <p class="m-0 px-[30px] pt-3 text-[13px] text-charcoal max-sm:px-[17px]"><strong>{% if is_en %}Total for tomorrow{% else %}Razem na jutro{% endif %}:</strong> {{ recommendation_plan.total_daily_saving }} {{ currency_symbol }} · <span class="text-slate">{% if is_en %}source: {% if recommendation_plan.source == "local_ai" %}local AI{% else %}calculated fallback{% endif %}{% else %}źródło: {% if recommendation_plan.source == "local_ai" %}lokalne AI{% else %}wyliczenie zastępcze{% endif %}{% endif %}</span></p>
+    {% endif %}
+    {% endif %}
+    {% if recommendation_plan.status == 'no_data' %}
+    <div class="px-[30px] pt-5 max-sm:px-[17px]" id="observed-events">
+      <h3 class="m-0 text-[16px] text-charcoal">{% if is_en %}Other activities in this scenario{% else %}Inne aktywności w tym scenariuszu{% endif %}</h3>
+      <p class="m-0 mt-1 text-[11px] leading-[1.4] text-slate">{% if is_en %}Historical observations; no calculated shifting advice{% else %}Obserwacje z historii; bez wyliczonej porady przesunięcia{% endif %}</p>
+      {% if recommendation_plan.observed_events %}
+      <div class="mt-3 grid grid-cols-3 gap-3 max-lg:grid-cols-1">
+        {% for event in recommendation_plan.observed_events %}
+        <article class="rounded-[13px] border border-line bg-white/[0.88] p-4">
+          <h4 class="m-0 text-[14px] text-charcoal">{{ event.label }}</h4>
+          <p class="m-0 mt-2 text-[12px] text-slate">{% if is_en %}Days in history{% else %}Dni w historii{% endif %}: <strong>{{ event.days_in_history }}/35</strong> · {% if is_en %}matching weekdays{% else %}pasujące dni tygodnia{% endif %}: <strong>{{ event.days_on_matching_weekday }}/{{ event.matching_weekdays }}</strong></p>
+          <p class="m-0 mt-2 text-[11px] text-slate">{% if event.status == 'repeated' %}{% if is_en %}Repeated on matching weekdays{% else %}Powtarzało się w pasujące dni tygodnia{% endif %}{% else %}{% if is_en %}Observed in history{% else %}Zaobserwowano w historii{% endif %}{% endif %}</p>
+        </article>
+        {% endfor %}
       </div>
-    </article>
-    {% endfor %}
+      {% else %}
+      <p class="m-0 mt-3 text-[12px] text-slate">{% if is_en %}No other activities were recorded in this scenario.{% else %}W tym scenariuszu nie zapisano innych aktywności.{% endif %}</p>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
-  <p class="m-0 px-[30px] pb-[22px] pt-3.5 text-xs leading-[1.5] text-charcoal max-sm:px-[17px]">{% if is_en %}Each appliance is compared separately with scenario A. The target hour has the highest solar irradiance between 9:00 and 15:00. A positive result means a benefit; shifting within this window may also reduce grid purchases.{% else %}Każde urządzenie porównano osobno z wariantem A. Godzina docelowa ma najwyższe promieniowanie w oknie 9:00–15:00. Dodatni wynik oznacza korzyść; zmiana w obrębie tego okna też może zmniejszyć zakup.{% endif %}</p>
+  <p class="m-0 px-[30px] pb-[22px] pt-3.5 text-xs leading-[1.5] text-charcoal max-sm:px-[17px]">{% if is_en %}Tomorrow's schedule uses the complete forecast day for tomorrow. The annual figure is an extrapolation of cycle frequency from 35 days of history under tomorrow's conditions.{% else %}Plan na jutro korzysta z pełnej doby prognozy na jutro. Szacunek roczny to ekstrapolacja częstotliwości cykli z 35 dni historii przy jutrzejszych warunkach.{% endif %}</p>
 </details>
+{{ reco_labels|json_script:"reco-labels" }}
+<script src="{% static 'energy/recommendations.js' %}" defer></script>
 
 {% endif %}
 <script>
@@ -244,6 +299,7 @@
     group.querySelectorAll('.suggestion-chip').forEach(function (chip) {
       chip.addEventListener('click', function () {
         input.value = chip.dataset.value;
+        input.dispatchEvent(new Event('change', {bubbles: true}));
         input.focus();
       });
     });

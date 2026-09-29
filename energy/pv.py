@@ -184,7 +184,7 @@ def _shift_records(
     ]
 
 
-def _hour_balance(
+def hour_balance(
     load: Decimal, production: Decimal, charge: Decimal, storage: StorageConfig
 ) -> tuple[Decimal, Decimal, Decimal, Decimal, Decimal, Decimal]:
     """Rozwiązuje bilans godzinowy PV, zużycia, eksportu, importu i magazynowania."""
@@ -212,7 +212,7 @@ def _settled_charge(
     for _ in range(24):
         charge = initial
         for load, production in hours:
-            _, _, _, _, _, charge = _hour_balance(load, production, charge, storage)
+            _, _, _, _, _, charge = hour_balance(load, production, charge, storage)
         if charge == initial:
             break
         initial = charge
@@ -265,7 +265,7 @@ def _variant(
     else:
         for record, (load, pv_kwh) in zip(records, hours, strict=True):
             production += pv_kwh
-            used, exported_hour, grid_amount, charged, delivered, charge = _hour_balance(
+            used, exported_hour, grid_amount, charged, delivered, charge = hour_balance(
                 load, pv_kwh, charge, storage
             )
             self_kwh += used
@@ -414,7 +414,7 @@ def choose_capacity(
         grid = Decimal(0)
         for load, production_per_kwp, price in hours:
             production = production_per_kwp * kwp
-            used, exported_hour, grid_hour, _, _, charge = _hour_balance(
+            used, exported_hour, grid_hour, _, _, charge = hour_balance(
                 load, production, charge, storage
             )
             self_kwh += used
@@ -509,7 +509,7 @@ def representative_week(
         charge = _settled_charge(hours, storage, len(series) >= 8760)
         profile = {}
         for record, (load, production) in zip(series, hours, strict=True):
-            _, _, grid, _, delivered, charge = _hour_balance(load, production, charge, storage)
+            _, _, grid, _, delivered, charge = hour_balance(load, production, charge, storage)
             profile[record.timestamp] = (grid, delivered)
         return profile
 

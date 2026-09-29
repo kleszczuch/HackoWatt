@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from django.conf import settings as django_settings
 from django.core.paginator import Paginator
-from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from django.utils.http import url_has_allowed_host_and_scheme
 
@@ -28,11 +28,18 @@ from energy.charts import (
     build_pv_chart,
     build_tariff_price_chart,
 )
-from energy.currency import CURRENCY_COOKIE, SYMBOLS, from_eur, selected_currency, to_eur
+from energy.currency import (
+    CURRENCY_COOKIE,
+    SYMBOLS,
+    convert_plan_currency,
+    from_eur,
+    selected_currency,
+    to_eur,
+)
 from energy.explanations import explain_peaks
 from energy.forms import DateRangeForm, HorizonForm, PvForm, TariffSettingsForm
 from energy.language import selected_language
-from energy.presentation import device_name, event_names
+from energy.presentation import event_names
 from energy.scenarios import (
     SCENARIOS,
     capture_scenario_context,
@@ -40,6 +47,7 @@ from energy.scenarios import (
     localized_scenario,
     set_server_active_scenario,
 )
+from models import recommendations as reco
 
 PLOTLY_CONFIG = {
     "responsive": True,
@@ -246,8 +254,9 @@ def _simulation_days(request: HttpRequest) -> int:
 
 def dashboard(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
-    scen, data_dir = capture_scenario_context(request)
-    active_scenario = localized_scenario(scen, lang)
+    currency = selected_currency(request)
+    data_dir = get_scenario_data_dir(request)
+    active_scenario = localized_scenario(get_active_scenario(request), lang)
     try:
         history = data.load_history(data_dir)
         forecast = data.load_forecast(data_dir)
@@ -302,13 +311,16 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         "selected_count": len(selected_history),
         "selected_total": sum((record.total for record in selected_history), Decimal(0)),
         "history_chart": _chart_html(
-            build_overview_chart(selected_history, selected_weather, prices=prices, lang=lang),
+            build_overview_chart(
+                selected_history, selected_weather, prices=prices, lang=lang, currency=currency
+            ),
             include_plotlyjs=True,
             lang=lang,
             compact=True,
         ),
         "backtest_chart": _chart_html(
-            build_backtest_chart(backtest_rows, prices=prices, lang=lang), lang=lang
+            build_backtest_chart(backtest_rows, prices=prices, lang=lang, currency=currency),
+            lang=lang,
         ),
     }
     forecast_total = sum((record.total for record in forecast_slice), Decimal(0))
@@ -317,7 +329,12 @@ def dashboard(request: HttpRequest) -> HttpResponse:
             "forecast_total": forecast_total,
             "forecast_chart": _chart_html(
                 build_overview_chart(
-                    forecast_slice, weather_forecast_slice, prices=prices, forecast=True, lang=lang
+                    forecast_slice,
+                    weather_forecast_slice,
+                    prices=prices,
+                    forecast=True,
+                    lang=lang,
+                    currency=currency,
                 ),
                 lang=lang,
                 compact=True,
@@ -330,7 +347,8 @@ def dashboard(request: HttpRequest) -> HttpResponse:
 
 def hourly_history(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
-    data_dir = capture_scenario_data_dir(request)
+    currency = selected_currency(request)
+    data_dir = get_scenario_data_dir(request)
     try:
         history = data.load_history(data_dir)
         weather_history = data.load_weather_history(data_dir)
@@ -381,7 +399,11 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
                 "selected_total": sum((record.total for record in selected_history), Decimal(0)),
                 "history_chart": _chart_html(
                     build_history_chart(
-                        selected_history, selected_weather, prices=prices, lang=lang
+                        selected_history,
+                        selected_weather,
+                        prices=prices,
+                        lang=lang,
+                        currency=currency,
                     ),
                     include_plotlyjs=True,
                     lang=lang,
@@ -389,140 +411,6 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
             }
         )
     return render(request, "energy/hourly.html", context)
-
-
-def get_behavioral_advice(
-    device_name: str, moved_kwh: Decimal, scenario_id: int = 4, lang: str = "pl"
-):
-    is_single = scenario_id == 1  # Sprawdzamy czy to singielka (Scenariusz 1)
-
-    if lang == "pl":
-        if moved_kwh <= 0:
-            comfort_msg = (
-                "Nic nie zmieniaj - Twoje obecne nawyki są wzorowe."
-                if is_single
-                else "Nic nie zmieniaj - Wasze obecne nawyki są wzorowe."
-            )
-            return {
-                "headline": "Jest dobrze!",
-                "action": (
-                    "Urządzenie już teraz pracuje w godzinach najwyższej produkcji słonecznej."
-                ),
-                "comfort": comfort_msg,
-            }
-        if device_name in ("Zmywarka", "Dishwasher"):
-            if is_single:
-                return {
-                    "headline": "Opóźniony start",
-                    "action": (
-                        "Zamiast czekać do wieczora, możesz załadować zmywarkę po obiedzie "
-                        "i używać funkcji opóźnionego startu na godziny 13:00."
-                    ),
-                    "comfort": "Wracasz do domu z czystymi naczyniami - zero stresu!",
-                }
-            return {
-                "headline": "Opóźniony start",
-                "action": (
-                    "Zamiast czekać do wieczora, można załadować zmywarkę po obiedzie i używać "
-                    "funkcji opóźnionego startu celując w okolice 13:00."
-                ),
-                "comfort": (
-                    "Zmywarka pracuje bezgłośnie, gdy jesteście poza domem. "
-                    "Wieczorem macie puste zlewy - zero stresu!"
-                ),
-            }
-        if device_name in ("Pralka", "Washing machine"):
-            # Dziadkowie pasują tylko do Domu Pokoleń (Scenariusz 4)
-            if scenario_id == 4:
-                pralka_action = (
-                    "Skoro dziadkowie lub osoby pracujące zdalnie są rano w domu, "
-                    "nastawiajcie pranie w okolicach 10:00 - 12:00."
-                )
-            elif is_single:
-                pralka_action = (
-                    "Ustaw pranie na godziny przedpołudniowe, gdy przebywasz w domu przed wyjazdem."
-                )
-            else:
-                pralka_action = (
-                    "Warto nastawiać pranie w godzinach porannych lub wczesnopopołudniowych, "
-                    "gdy świeci słońce."
-                )
-
-            return {
-                "headline": "Darmowe pranie",
-                "action": pralka_action,
-                "comfort": (
-                    "Pralka skończy cykl w dzień, co ułatwi szybkie suszenie ubrań "
-                    "na świeżym powietrzu."
-                ),
-            }
-        if device_name in ("Suszarka", "Tumble dryer"):
-            return {
-                "headline": "Wykorzystaj ciepło dnia",
-                "action": (
-                    "Należy unikać uruchamiania suszarki w nocy. "
-                    "Najlepsze okno to wczesne popołudnie."
-                ),
-                "comfort": (
-                    "Suszarka generuje ciepło. Uruchomienie jej w dzień, gdy mniej osób "
-                    "jest w domu, zmniejszy wieczorny zaduch."
-                ),
-            }
-        action_msg = (
-            "Spróbuj przenieść pracę tego urządzenia na godziny wczesnopopołudniowe."
-            if is_single
-            else "Spróbujcie przenieść pracę tego urządzenia na godziny wczesnopopołudniowe."
-        )
-        return {
-            "headline": "Drobna zmiana, duży efekt",
-            "action": action_msg,
-            "comfort": (
-                "Każde zasilenie urządzenia w dzień to mniejszy rachunek i więcej oszczędności."
-            ),
-        }
-
-    # Angielskie tłumaczenia z zachowaniem logiki
-    if moved_kwh <= 0:
-        comfort_en = (
-            "Your habits are exemplary."
-            if is_single
-            else "The model can still compare different start times within that window."
-        )
-        return {
-            "headline": "Already within the solar window",
-            "action": "No recorded cycles of this appliance start outside 9:00–15:00.",
-            "comfort": comfort_en,
-        }
-    if device_name in ("Zmywarka", "Dishwasher"):
-        comfort_dish = (
-            "Choose a start time that suits your routine."
-            if is_single
-            else "Choose a start time that suits the household's routine."
-        )
-        return {
-            "headline": "Shift dishwasher cycles",
-            "action": "A delayed start can move a cycle into the 9:00–15:00 solar window.",
-            "comfort": comfort_dish,
-        }
-    if device_name in ("Pralka", "Washing machine"):
-        return {
-            "headline": "Shift washing cycles",
-            "action": "A daytime start can align a washing cycle with solar production.",
-            "comfort": "The simulated benefit is shown above for this appliance alone.",
-        }
-    if device_name in ("Suszarka", "Tumble dryer"):
-        return {
-            "headline": "Shift drying cycles",
-            "action": (
-                "Running the tumble dryer during solar production may reduce grid purchases."
-            ),
-            "comfort": "The simulated benefit is shown above for this appliance alone.",
-        }
-    return {
-        "headline": "Consider a daytime start",
-        "action": "The model compares this appliance's schedule with a solar-window start.",
-        "comfort": "Check the calculated change in grid use and savings above.",
-    }
 
 
 def _tariff_for_calculation(
@@ -581,9 +469,195 @@ def _tariff_for_calculation(
     return config, dynamic, text
 
 
+RECO_DEVICE_LABELS = {
+    "pl": {"dishwasher": "Zmywarka", "washer": "Pralka", "dryer": "Suszarka"},
+    "en": {"dishwasher": "Dishwasher", "washer": "Washing machine", "dryer": "Tumble dryer"},
+}
+
+
+def _device_plan(
+    request: HttpRequest, data_dir, kwp: Decimal, storage: pv.StorageConfig, lang: str
+) -> dict:
+    """Plan pracy urządzeń na jutro dla taryfy i scenariusza z żądania (kwoty w EUR)."""
+    tariff_config, dynamic_prices = tariffs.tariff_for_request(
+        request, django_settings.DEMO_DATA_DIR
+    )
+    return reco.build_plan(
+        scenario_id=get_active_scenario(request)["folder"],
+        data_dir=data_dir,
+        tariff=tariff_config,
+        dynamic=dynamic_prices,
+        kwp=kwp,
+        storage=storage,
+        lang=lang,
+        cache_dir=django_settings.DEMO_DATA_DIR / reco.CACHE_DIRNAME,
+    )
+
+
+def _plan_display(plan: dict, currency: str, lang: str) -> dict:
+    """Plan po konwersji waluty, z etykietami urządzeń do prezentacji w szablonie."""
+    display = convert_plan_currency(plan, currency)
+    if display["status"] == "no_data":
+        display["no_data_message"] = _reco_no_data_message(display.get("missing_data"), lang)
+    display["tariff_notice"] = _reco_tariff_notice(display, lang)
+    names = RECO_DEVICE_LABELS.get(lang, RECO_DEVICE_LABELS["pl"])
+    for item in display.get("recommendations", []):
+        item["label"] = names[item["device"]]
+    for item in display["observed_events"]:
+        item["label"] = event_names(item["event"], lang=lang)
+    return display
+
+
+def _reco_tariff_notice(plan: dict, lang: str) -> str:
+    missing = plan.get("tariff_fallback_hours", 0)
+    if not missing:
+        return ""
+    if lang == "en":
+        return (
+            f"No PSE price for {missing} of 24 hours. Those hours use your fixed tariff "
+            "rate and are marked on the tariff chart."
+        )
+    return (
+        f"Brak ceny PSE dla {missing} z 24 godzin. W tych godzinach używamy Twojej "
+        "stawki taryfy stałej; są oznaczone na wykresie taryfy."
+    )
+
+
+def _reco_no_data_message(missing_data: str | None, lang: str) -> str:
+    messages = {
+        "pl": {
+            "dynamic_prices": (
+                "Brak cen taryfy dynamicznej na jutro. Sprawdź ponownie po ich publikacji "
+                "albo wybierz taryfę stałą."
+            ),
+            "forecast": "Brak pełnej prognozy zużycia na jutro. Uruchom ponownie prepare_data.",
+            "weather": "Brak pełnej prognozy pogody na jutro. Uruchom ponownie prepare_data.",
+            "history": "Brak historii cykli urządzeń. Uruchom ponownie prepare_data.",
+        },
+        "en": {
+            "dynamic_prices": (
+                "Tomorrow's dynamic tariff prices are unavailable. "
+                "Check again after publication or choose a fixed tariff."
+            ),
+            "forecast": (
+                "The complete consumption forecast for tomorrow is unavailable. "
+                "Run prepare_data again."
+            ),
+            "weather": (
+                "The complete weather forecast for tomorrow is unavailable. Run prepare_data again."
+            ),
+            "history": "Appliance cycle history is unavailable. Run prepare_data again.",
+        },
+    }
+    language = lang if lang in messages else "pl"
+    return messages[language].get(
+        missing_data,
+        "Complete data for tomorrow are unavailable."
+        if language == "en"
+        else "Brak kompletnych danych na jutro.",
+    )
+
+
+def _reco_labels(lang: str, currency: str) -> dict:
+    """Teksty kart rekomendacji dla renderowania po stronie klienta (JSON w szablonie)."""
+    labels = {
+        "devices": RECO_DEVICE_LABELS.get(lang, RECO_DEVICE_LABELS["pl"]),
+        "currency_symbol": SYMBOLS[currency],
+    }
+    if lang == "en":
+        labels.update(
+            {
+                "move_start": "Move start",
+                "per_cycle": "Saving per cycle",
+                "tomorrow": "tomorrow",
+                "annual": "Annual estimate",
+                "year_suffix": "year",
+                "no_cycle": "No cycle predicted for tomorrow",
+                "no_data": "Complete data for tomorrow are unavailable.",
+                "total_tomorrow": "Total for tomorrow",
+                "source_label": "source",
+                "source_local_ai": "local AI",
+                "source_fallback": "calculated fallback",
+                "history_counts": "Observed in 35 days / matching weekday",
+                "observed_heading": "Other activities in this scenario",
+                "observed_caption": "Historical observations; no calculated shifting advice",
+                "observed_days": "Days in history",
+                "matching_days": "Matching weekdays",
+                "observed_repeated": "Repeated on matching weekdays",
+                "observed_only": "Observed in history",
+                "observed_empty": "No other activities were recorded in this scenario.",
+                "ev_crosses_midnight": (
+                    "Charging crosses midnight; a full cycle cannot be priced from "
+                    "tomorrow's 24-hour forecast."
+                ),
+                "activity_no_advice": "Historical activity; no reliable time-shift calculation.",
+                "keep_at": "Keep at",
+            }
+        )
+    else:
+        labels.update(
+            {
+                "move_start": "Przesuń start",
+                "per_cycle": "Oszczędność na cyklu",
+                "tomorrow": "jutro",
+                "annual": "Szacunek roczny",
+                "year_suffix": "rok",
+                "no_cycle": "Brak przewidywanego cyklu na jutro",
+                "no_data": "Brak kompletnych danych na jutro.",
+                "total_tomorrow": "Razem na jutro",
+                "source_label": "źródło",
+                "source_local_ai": "lokalne AI",
+                "source_fallback": "wyliczenie zastępcze",
+                "history_counts": "Wystąpienia w 35 dniach / w tym dniu tygodnia",
+                "observed_heading": "Inne aktywności w tym scenariuszu",
+                "observed_caption": "Obserwacje z historii; bez wyliczonej porady przesunięcia",
+                "observed_days": "Dni w historii",
+                "matching_days": "Pasujące dni tygodnia",
+                "observed_repeated": "Powtarzało się w pasujące dni tygodnia",
+                "observed_only": "Zaobserwowano w historii",
+                "observed_empty": "W tym scenariuszu nie zapisano innych aktywności.",
+                "ev_crosses_midnight": (
+                    "Ładowanie przechodzi przez północ; pełnego cyklu nie da się "
+                    "wycenić z 24-godzinnej prognozy na jutro."
+                ),
+                "activity_no_advice": (
+                    "Aktywność historyczna; brak wiarygodnego wyliczenia przesunięcia."
+                ),
+                "keep_at": "Pozostaw o",
+            }
+        )
+    return labels
+
+
+def recommendations_view(request: HttpRequest) -> JsonResponse:
+    """Sesyjny endpoint strony PV: plan pracy urządzeń na jutro dla bieżących ustawień."""
+    lang = _current_lang(request)
+    currency = selected_currency(request)
+    form = PvForm({**PV_DEFAULTS, **request.GET.dict()}, lang=lang, currency=currency)
+    if not form.is_valid():
+        message = (
+            "Invalid PV parameters." if lang == "en" else "Niepoprawne parametry instalacji PV."
+        )
+        return JsonResponse(
+            {"status": "error", "message": message, "errors": form.errors.get_json_data()},
+            status=400,
+        )
+    storage = pv.StorageConfig(
+        form.cleaned_data["magazyn_kwh"],
+        form.cleaned_data["magazyn_moc_kw"],
+        to_eur(form.cleaned_data["magazyn_koszt_eur"], currency),
+    )
+    plan = _device_plan(
+        request, get_scenario_data_dir(request), form.cleaned_data["kwp"], storage, lang
+    )
+    display = _plan_display(plan, currency, lang)
+    return JsonResponse(display)
+
+
 def pv_simulator(request: HttpRequest) -> HttpResponse:
     lang = _current_lang(request)
     currency = selected_currency(request)
+    data_dir = get_scenario_data_dir(request)
     active_scenario, data_dir = capture_scenario_context(request)
     scenario_id = active_scenario["id"]
 
@@ -643,24 +717,8 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
 
     selected = pv.simulate(records, weather, events, kwp, storage, tariff_used, dynamic_used)
 
-    oryginalne_efekty = pv.device_effects(
-        records, weather, events, kwp, storage, tariff_used, dynamic_used
-    )
+    plan = _device_plan(request, data_dir, kwp, storage, lang)
 
-    effects = []
-    for effect in oryginalne_efekty:
-        porada = get_behavioral_advice(
-            effect.device, effect.moved_kwh, scenario_id=scenario_id, lang=lang
-        )
-        effects.append(
-            {
-                "device": device_name(effect.device, lang=lang),
-                "moved_kwh": effect.moved_kwh,
-                "grid_saved_kwh": effect.grid_saved_kwh,
-                "money_saved": effect.money_saved,
-                "advice": porada,
-            }
-        )
     week = pv.representative_week(records, weather, events, kwp, month, storage)
     max_production = sum(
         (pv.pv_production(hour.radiation, pv.MAX_KWP) for hour in weather), Decimal(0)
@@ -674,9 +732,16 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
             "comparison": comparison,
             "selected": selected,
             "tariff_notice": tariff_notice,
-            "effects": effects,
+            "recommendation_plan": _plan_display(plan, currency, lang),
+            "reco_labels": _reco_labels(lang, currency),
             "pv_chart": _chart_html(
-                build_pv_chart(week, kwp, prices=data.load_tariff_prices(), lang=lang),
+                build_pv_chart(
+                    week,
+                    kwp,
+                    prices=data.load_tariff_prices(),
+                    lang=lang,
+                    currency=currency,
+                ),
                 include_plotlyjs=True,
                 lang=lang,
             ),

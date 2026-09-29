@@ -9,6 +9,7 @@ __pycache__/
 # Baza i generowane dane
 db.sqlite3
 data/
+data/recommendations/
 
 # Pliki agentowe i planowanie (poza repozytorium)
 .ai/
