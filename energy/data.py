@@ -250,6 +250,25 @@ def load_metrics(data_dir: Path | None = None) -> dict:
         raise DemoDataError(f"File {path.name} is not valid JSON: {exc}") from exc
 
 
+TARIFF_PRICES_FILENAME = "tariff_prices.json"
+
+
+def load_tariff_prices(data_dir: Path | None = None) -> dict[datetime, Decimal]:
+    """Wczytuje godzinowe ceny RCE; brak lub błąd pliku daje pusty słownik."""
+    target = Path(data_dir) if data_dir else settings.DEMO_DATA_DIR
+    path = target / TARIFF_PRICES_FILENAME
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return {
+            datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S"): Decimal(str(price))
+            for stamp, price in payload["prices"].items()
+        }
+    except KeyError, TypeError, ValueError, InvalidOperation, json.JSONDecodeError:
+        return {}
+
+
 def default_dates(history: list[ConsumptionHour]) -> tuple[date, date]:
     end = history[-1].timestamp.date()
     return end - timedelta(days=6), end

@@ -84,19 +84,66 @@ def change_language(request: HttpRequest, lang_code: str) -> HttpResponse:
     return response
 
 
-def _chart_html(figure, include_plotlyjs: bool = False, lang: str = "en") -> str:
+def _chart_html(
+    figure, include_plotlyjs: bool = False, lang: str = "en", compact: bool = False
+) -> str:
+    # Class strings must stay static so Tailwind can detect them when scanning this file.
     chart_id = f"chart-{uuid4().hex}"
+    series_cls = (
+        (
+            "relative inline-flex min-h-[29px] cursor-pointer items-center gap-[7px] rounded-[9px] "
+            "border border-line bg-white/[0.88] px-[7px] py-1 text-[10px] font-[650] leading-[1.2] "
+        )
+        if compact
+        else (
+            "relative inline-flex min-h-[34px] cursor-pointer items-center gap-[7px] rounded-[9px] "
+            "border border-line bg-white/[0.88] py-[5px] pl-2 pr-2.5 text-xs font-[650] "
+        )
+    )
+    series_cls += (
+        "leading-[1.2] "
+        "text-charcoal transition-[background-color,border-color,opacity] duration-150 "
+        "hover:border-sage hover:bg-chartreuse/[0.15] "
+        "has-[input:not(:checked)]:bg-white/[0.55] has-[input:not(:checked)]:opacity-60 "
+        "has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 "
+        "has-[input:focus-visible]:outline-charcoal"
+    )
+    check_cls = (
+        "relative inline-block size-4 shrink-0 rounded border-[1.5px] border-slate bg-white "
+        "peer-checked:border-charcoal peer-checked:bg-chartreuse "
+        "peer-checked:after:absolute peer-checked:after:left-[4px] peer-checked:after:top-[1px] "
+        "peer-checked:after:h-2 peer-checked:after:w-1 peer-checked:after:rotate-45 "
+        "peer-checked:after:border-b-2 peer-checked:after:border-r-2 "
+        "peer-checked:after:border-solid peer-checked:after:border-charcoal "
+        "peer-checked:after:content-['']"
+    )
+    mark_base = "inline-block shrink-0 "
+    mark_line = (
+        "h-[10px] w-[21px] border-t-[3px] "
+        "[border-top-color:var(--series-color)] [background:var(--series-fill)]"
+    )
+    mark_marker = (
+        "mx-[5px] size-[11px] rotate-45 border-[1.5px] border-charcoal "
+        "[background:var(--series-color)]"
+    )
+    dash_styles = {
+        "dash": "[border-top-style:dashed]",
+        "dot": "[border-top-style:dotted]",
+        "dashdot": "[border-top-style:dashed]",
+    }
+
     controls = []
     for index, trace in enumerate(figure.data):
         is_marker = trace.mode == "markers"
         color = trace.marker.color if is_marker else trace.line.color
-        line_style = "legend-mark-marker" if is_marker else "legend-mark-line"
-        if not is_marker and trace.line.dash in {"dash", "dot", "dashdot"}:
-            line_style += f" legend-mark-{trace.line.dash}"
+        mark_cls = mark_base + (mark_marker if is_marker else mark_line)
+        if not is_marker and trace.line.dash in dash_styles:
+            mark_cls += f" {dash_styles[trace.line.dash]}"
         controls.append(
-            f'<label class="chart-series"><input type="checkbox" data-trace-index="{index}" '
-            'checked><span class="chart-series-check" aria-hidden="true"></span>'
-            f'<span class="chart-series-mark {line_style}" '
+            f'<label class="{series_cls}">'
+            f'<input type="checkbox" class="peer sr-only" data-trace-index="{index}" checked>'
+            f'<span class="{check_cls}" aria-hidden="true"></span>'
+            f'<span class="{mark_cls}" '
             f'style="--series-color:{escape(str(color))};'
             f'--series-fill:{escape(str(trace.fillcolor or "transparent"))}" '
             f'aria-hidden="true"></span><span>{escape(str(trace.name))}</span></label>'
@@ -117,17 +164,45 @@ def _chart_html(figure, include_plotlyjs: bool = False, lang: str = "en") -> str
         zoom_in = "Przybliż"
         zoom_out = "Oddal"
 
+    action_btn_cls = (
+        (
+            "min-h-[29px] cursor-pointer rounded-lg border border-slate bg-white px-2.5 py-[5px] "
+            "text-[10px] font-extrabold text-charcoal hover:border-charcoal hover:bg-chartreuse"
+        )
+        if compact
+        else (
+            "min-h-[34px] cursor-pointer rounded-lg border border-slate bg-white px-2.5 py-[5px] "
+            "text-[11px] font-extrabold text-charcoal hover:border-charcoal hover:bg-chartreuse"
+        )
+    )
+    zoom_btn_cls = (
+        ("min-h-[29px] w-[29px] cursor-pointer bg-transparent text-xl font-bold ")
+        if compact
+        else ("min-h-[34px] w-[34px] cursor-pointer bg-transparent text-xl font-bold ")
+    )
+    zoom_btn_cls += (
+        "leading-none text-charcoal enabled:hover:bg-chartreuse disabled:cursor-default "
+        "disabled:text-slate disabled:opacity-45"
+    )
+    toolbar_cls = "flex flex-wrap items-start justify-between gap-x-[18px] gap-y-2.5 " + (
+        "px-2.5 pt-[9px]" if compact else "px-3.5 pb-0.5 pt-3 max-md:px-[7px] max-md:pt-2.5"
+    )
     legend = (
-        f'<div class="chart-toolbar">'
-        f'<div class="chart-legend" role="group" aria-label="{legend_aria}">'
+        f'<div class="{toolbar_cls}">'
+        f'<div class="flex flex-[1_1_520px] flex-wrap items-center gap-1.5 max-md:basis-full" '
+        f'role="group" aria-label="{legend_aria}">'
         + "".join(controls)
-        + '</div><div class="chart-legend-actions">'
-        f'<button type="button" data-chart-action="select-all">{select_all}</button>'
-        f'<button type="button" data-chart-action="deselect-all">{deselect_all}</button>'
-        f'</div><div class="chart-zoom-actions" role="group" aria-label="{zoom_aria}">'
-        f'<button type="button" data-chart-zoom="in" '
+        + '</div><div class="flex flex-wrap gap-[5px] max-md:w-full">'
+        f'<button type="button" class="{action_btn_cls}" '
+        f'data-chart-action="select-all">{select_all}</button>'
+        f'<button type="button" class="{action_btn_cls}" '
+        f'data-chart-action="deselect-all">{deselect_all}</button>'
+        f'</div><div class="ml-auto inline-flex overflow-hidden rounded-lg border '
+        f'border-slate bg-white" role="group" aria-label="{zoom_aria}">'
+        f'<button type="button" class="{zoom_btn_cls}" data-chart-zoom="in" '
         f'aria-label="{zoom_in}" title="{zoom_in}">+</button>'
-        f'<button type="button" data-chart-zoom="out" '
+        f'<button type="button" class="{zoom_btn_cls} border-l border-line" '
+        f'data-chart-zoom="out" '
         f'aria-label="{zoom_out}" title="{zoom_out}">−</button>'
         "</div></div>"
     )
@@ -184,6 +259,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         return render(request, "energy/dashboard.html", {"data_error": err})
 
     days = _simulation_days(request)
+    prices = data.load_tariff_prices()
     selected_history = history[-days * 24 :]
     selected_weather = data.filter_records(
         weather_history,
@@ -221,11 +297,14 @@ def dashboard(request: HttpRequest) -> HttpResponse:
         "selected_count": len(selected_history),
         "selected_total": sum((record.total for record in selected_history), Decimal(0)),
         "history_chart": _chart_html(
-            build_overview_chart(selected_history, selected_weather, lang=lang),
+            build_overview_chart(selected_history, selected_weather, prices=prices, lang=lang),
             include_plotlyjs=True,
             lang=lang,
+            compact=True,
         ),
-        "backtest_chart": _chart_html(build_backtest_chart(backtest_rows, lang=lang), lang=lang),
+        "backtest_chart": _chart_html(
+            build_backtest_chart(backtest_rows, prices=prices, lang=lang), lang=lang
+        ),
     }
     forecast_total = sum((record.total for record in forecast_slice), Decimal(0))
     context.update(
@@ -233,9 +312,10 @@ def dashboard(request: HttpRequest) -> HttpResponse:
             "forecast_total": forecast_total,
             "forecast_chart": _chart_html(
                 build_overview_chart(
-                    forecast_slice, weather_forecast_slice, forecast=True, lang=lang
+                    forecast_slice, weather_forecast_slice, prices=prices, forecast=True, lang=lang
                 ),
                 lang=lang,
+                compact=True,
             ),
             "peaks": explain_peaks(forecast_slice, weather_forecast_slice, lang=lang),
         }
@@ -279,6 +359,7 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
     if form.is_valid():
         start = form.cleaned_data["start"]
         end = form.cleaned_data["end"]
+        prices = data.load_tariff_prices()
         selected_history = selected if rolling_days else data.filter_records(history, start, end)
         selected_weather = data.filter_records(weather_history, start, end)
         if rolling_days:
@@ -294,7 +375,9 @@ def hourly_history(request: HttpRequest) -> HttpResponse:
                 "selected_count": len(selected_history),
                 "selected_total": sum((record.total for record in selected_history), Decimal(0)),
                 "history_chart": _chart_html(
-                    build_history_chart(selected_history, selected_weather, lang=lang),
+                    build_history_chart(
+                        selected_history, selected_weather, prices=prices, lang=lang
+                    ),
                     include_plotlyjs=True,
                     lang=lang,
                 ),
@@ -590,7 +673,9 @@ def pv_simulator(request: HttpRequest) -> HttpResponse:
             "tariff_notice": tariff_notice,
             "effects": effects,
             "pv_chart": _chart_html(
-                build_pv_chart(week, kwp, lang=lang), include_plotlyjs=True, lang=lang
+                build_pv_chart(week, kwp, prices=data.load_tariff_prices(), lang=lang),
+                include_plotlyjs=True,
+                lang=lang,
             ),
             "consumption_kwh": selected.consumption_kwh,
             "daily_average_kwh": selected.consumption_kwh / Decimal(day_count),

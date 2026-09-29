@@ -1,56 +1,57 @@
 {% extends "energy/base.html" %}
 {% block title %}{% if is_en %}eko-dziki · Energy dashboard{% else %}eko-dziki · Pulpit zużycia{% endif %}{% endblock %}
+{% block body_class %}dashboard-page{% endblock %}
 {% block content %}
-<div class="dashboard">
-  <header class="dashboard-heading">
+<div class="pt-[18px]">
+  <header class="mb-3.5 flex items-center justify-between gap-[18px] max-md:flex-col max-md:items-start">
     <div>
-      <p class="eyebrow">{% if is_en %}SCENARIO{% else %}SCENARIUSZ{% endif %} {{ active_scenario.id }} · {{ active_scenario.city|upper }}</p>
-      <h1>{% if is_en %}Energy in a home <span>{{ active_scenario.title }}</span>{% else %}Energia w domu <span>{{ active_scenario.name }}</span>{% endif %}</h1>
-      <p>{% if is_en %}Energy use simulated with real weather data and an XGBoost forecast · demo data, not meter readings{% else %}Symulacja zużycia na realnej pogodzie i prognoza XGBoost · dane demonstracyjne, nie odczyty licznika{% endif %}</p>
+      <p class="mb-1 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}SCENARIO{% else %}SCENARIUSZ{% endif %} {{ active_scenario.id }} · {{ active_scenario.city|upper }}</p>
+      <h1 class="m-0 text-[clamp(25px,2.5vw,34px)] leading-[1.1] tracking-[-0.045em] text-charcoal">{% if is_en %}Energy in a home <span class="bg-[linear-gradient(transparent_67%,var(--color-chartreuse)_67%)]">{{ active_scenario.title }}</span>{% else %}Energia w domu <span class="bg-[linear-gradient(transparent_67%,var(--color-chartreuse)_67%)]">{{ active_scenario.name }}</span>{% endif %}</h1>
+      <p class="mb-0 mt-[5px] text-xs text-charcoal">{% if is_en %}Energy use simulated with real weather data and an XGBoost forecast · demo data, not meter readings{% else %}Symulacja zużycia na realnej pogodzie i prognoza XGBoost · dane demonstracyjne, nie odczyty licznika{% endif %}</p>
     </div>
   </header>
 
-  <div class="dashboard-controls" aria-label="{% if is_en %}Data ranges{% else %}Zakresy danych{% endif %}">
-    <div class="range-control">
-      <span>{% if is_en %}Simulation · last{% else %}Symulacja · ostatnie{% endif %}</span>
-      <nav class="range-options" aria-label="{% if is_en %}Simulation period{% else %}Okres symulacji{% endif %}">
-        {% for days in simulation_options %}<a href="?dni={{ days }}&amp;horyzont={{ horizon_hours }}" {% if days == simulation_days %}class="selected" aria-current="page"{% endif %}>{{ days }} d</a>{% endfor %}
+  <div class="mb-3 flex items-center justify-between gap-4 rounded-[13px] border border-line bg-paper px-3 py-2 shadow-card max-lg:flex-wrap max-md:items-stretch" aria-label="{% if is_en %}Data ranges{% else %}Zakresy danych{% endif %}">
+    <div class="flex min-w-0 items-center gap-3 max-md:w-full max-md:flex-wrap">
+      <span class="whitespace-nowrap text-xs font-[750] text-charcoal">{% if is_en %}Simulation · last{% else %}Symulacja · ostatnie{% endif %}</span>
+      <nav class="flex gap-[3px] rounded-[9px] border border-line bg-white p-[3px] max-md:w-full max-md:justify-between" aria-label="{% if is_en %}Simulation period{% else %}Okres symulacji{% endif %}">
+        {% for days in simulation_options %}<a class="whitespace-nowrap rounded-[7px] px-[9px] py-1.5 text-xs font-[750] text-charcoal no-underline hover:bg-chartreuse max-xs:px-[7px] max-xs:text-[11px] {% if days == simulation_days %}bg-charcoal text-white shadow-[inset_0_-2px_0_var(--color-grass)] hover:bg-charcoal{% endif %}" href="?dni={{ days }}&amp;horyzont={{ horizon_hours }}" {% if days == simulation_days %}aria-current="page"{% endif %}>{{ days }} d</a>{% endfor %}
       </nav>
     </div>
-    <div class="range-control">
-      <span>{% if is_en %}Forecast{% else %}Prognoza{% endif %}</span>
-      <nav class="range-options" aria-label="{% if is_en %}Forecast horizon{% else %}Horyzont prognozy{% endif %}">
-        {% for hours, label in forecast_options %}<a href="?dni={{ simulation_days }}&amp;horyzont={{ hours }}" {% if hours == horizon_hours %}class="selected" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+    <div class="flex min-w-0 items-center gap-3 max-md:w-full max-md:flex-wrap">
+      <span class="whitespace-nowrap text-xs font-[750] text-charcoal">{% if is_en %}Forecast{% else %}Prognoza{% endif %}</span>
+      <nav class="flex gap-[3px] rounded-[9px] border border-line bg-white p-[3px] max-md:w-full max-md:justify-between" aria-label="{% if is_en %}Forecast horizon{% else %}Horyzont prognozy{% endif %}">
+        {% for hours, label in forecast_options %}<a class="whitespace-nowrap rounded-[7px] px-[9px] py-1.5 text-xs font-[750] text-charcoal no-underline hover:bg-chartreuse max-xs:px-[7px] max-xs:text-[11px] {% if hours == horizon_hours %}bg-charcoal text-white shadow-[inset_0_-2px_0_var(--color-grass)] hover:bg-charcoal{% endif %}" href="?dni={{ simulation_days }}&amp;horyzont={{ hours }}" {% if hours == horizon_hours %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
       </nav>
     </div>
   </div>
 
-  <section class="dashboard-kpis" aria-label="{% if is_en %}Key figures{% else %}Najważniejsze dane{% endif %}">
-    <article class="dashboard-kpi"><span>{% if is_en %}Simulation · {{ selected_count }} h{% else %}Symulacja · {{ selected_count }} h{% endif %}</span><strong>{{ selected_total|floatformat:1 }} <small>kWh</small></strong><p>{{ start }} – {{ end }}</p></article>
-    <article class="dashboard-kpi forecast-kpi"><span>{% if is_en %}Forecast · {{ horizon_hours }} h{% else %}Prognoza · {{ horizon_hours }} h{% endif %}</span><strong>{{ forecast_total|floatformat:1 }} <small>kWh</small></strong><p>{% if is_en %}Expected consumption{% else %}Oczekiwane zużycie{% endif %}</p></article>
-    <article class="dashboard-kpi"><span>{% if is_en %}Model error · MAE{% else %}Błąd modelu · MAE{% endif %}</span><strong>{{ metrics.mae_model|floatformat:3 }} <small>kWh</small></strong><p>{% if is_en %}Reference forecast{% else %}Prognoza odniesienia{% endif %}: {{ metrics.mae_baseline|floatformat:3 }} kWh · MAPE {{ metrics.mape_model|floatformat:1 }}%</p></article>
+  <section class="mb-3 grid grid-cols-3 gap-2.5 max-md:grid-cols-2 max-xs:grid-cols-1" aria-label="{% if is_en %}Key figures{% else %}Najważniejsze dane{% endif %}">
+    <article class="min-w-0 rounded-[17px] border border-line border-t-4 border-t-sage bg-paper px-4 py-3 shadow-card"><span class="block text-[11px] font-[750] tracking-[0.025em] text-slate">{% if is_en %}Simulation · {{ selected_count }} h{% else %}Symulacja · {{ selected_count }} h{% endif %}</span><strong class="mb-[3px] mt-[5px] block text-[26px] leading-[1.1] tracking-[-0.045em] text-charcoal">{{ selected_total|floatformat:1 }} <small class="text-xs tracking-normal text-slate">kWh</small></strong><p class="m-0 truncate text-[11px] text-slate">{{ start }} – {{ end }}</p></article>
+    <article class="min-w-0 rounded-[17px] border border-line border-t-4 border-t-chartreuse bg-paper px-4 py-3 shadow-card"><span class="block text-[11px] font-[750] tracking-[0.025em] text-slate">{% if is_en %}Forecast · {{ horizon_hours }} h{% else %}Prognoza · {{ horizon_hours }} h{% endif %}</span><strong class="mb-[3px] mt-[5px] block text-[26px] leading-[1.1] tracking-[-0.045em] text-charcoal">{{ forecast_total|floatformat:1 }} <small class="text-xs tracking-normal text-slate">kWh</small></strong><p class="m-0 truncate text-[11px] text-slate">{% if is_en %}Expected consumption{% else %}Oczekiwane zużycie{% endif %}</p></article>
+    <article class="min-w-0 rounded-[17px] border border-line border-t-4 border-t-charcoal bg-paper px-4 py-3 shadow-card max-md:col-span-2 max-xs:col-span-1"><span class="block text-[11px] font-[750] tracking-[0.025em] text-slate">{% if is_en %}Model error · MAE{% else %}Błąd modelu · MAE{% endif %}</span><strong class="mb-[3px] mt-[5px] block text-[26px] leading-[1.1] tracking-[-0.045em] text-charcoal">{{ metrics.mae_model|floatformat:3 }} <small class="text-xs tracking-normal text-slate">kWh</small></strong><p class="m-0 truncate text-[11px] text-slate">{% if is_en %}Reference forecast{% else %}Prognoza odniesienia{% endif %}: {{ metrics.mae_baseline|floatformat:3 }} kWh · MAPE {{ metrics.mape_model|floatformat:1 }}%</p></article>
   </section>
 
-  <div class="dashboard-charts">
-    <section class="panel overview-panel" aria-labelledby="history-heading">
-      <div class="overview-heading"><div><p class="eyebrow">{% if is_en %}HISTORY · SIMULATION{% else %}HISTORIA · SYMULACJA{% endif %}</p><h2 id="history-heading">{% if is_en %}Energy use and temperature{% else %}Zużycie i temperatura{% endif %}</h2></div><a href="{% url 'hourly_history' %}?dni={{ simulation_days }}">{% if is_en %}Hourly data →{% else %}Godziny →{% endif %}</a></div>
-      <div class="plot">{{ history_chart|safe }}</div>
+  <div class="grid grid-cols-2 gap-2.5 max-md:grid-cols-1">
+    <section class="mb-2.5 max-h-[440px] min-w-0 overflow-x-hidden overflow-y-auto rounded-[17px] border border-line bg-paper shadow-card max-md:max-h-none max-md:overflow-hidden" aria-labelledby="history-heading">
+      <div class="flex items-center justify-between gap-2 px-[17px] pt-[13px]"><div><p class="m-0 mb-[3px] text-[10px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}HISTORY · SIMULATION{% else %}HISTORIA · SYMULACJA{% endif %}</p><h2 class="m-0 text-base leading-[1.15] tracking-[-0.025em] text-charcoal" id="history-heading">{% if is_en %}Energy use and temperature{% else %}Zużycie i temperatura{% endif %}</h2></div><a class="whitespace-nowrap text-[11px] font-extrabold text-charcoal underline decoration-sage decoration-[3px] underline-offset-[3px]" href="{% url 'hourly_history' %}?dni={{ simulation_days }}">{% if is_en %}Hourly data →{% else %}Godziny →{% endif %}</a></div>
+      <div class="plot px-1">{{ history_chart|safe }}</div>
     </section>
-    <section class="panel overview-panel" aria-labelledby="forecast-heading">
-      <div class="overview-heading"><div><p class="eyebrow">{% if is_en %}FORECAST · {{ horizon_hours }} H{% else %}PROGNOZA · {{ horizon_hours }} H{% endif %}</p><h2 id="forecast-heading">{% if is_en %}Energy use and temperature{% else %}Zużycie i temperatura{% endif %}</h2></div></div>
-      <div class="plot">{{ forecast_chart|safe }}</div>
+    <section class="mb-2.5 max-h-[440px] min-w-0 overflow-x-hidden overflow-y-auto rounded-[17px] border border-line bg-paper shadow-card max-md:max-h-none max-md:overflow-hidden" aria-labelledby="forecast-heading">
+      <div class="flex items-center justify-between gap-2 px-[17px] pt-[13px]"><div><p class="m-0 mb-[3px] text-[10px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}FORECAST · {{ horizon_hours }} H{% else %}PROGNOZA · {{ horizon_hours }} H{% endif %}</p><h2 class="m-0 text-base leading-[1.15] tracking-[-0.025em] text-charcoal" id="forecast-heading">{% if is_en %}Energy use and temperature{% else %}Zużycie i temperatura{% endif %}</h2></div></div>
+      <div class="plot px-1">{{ forecast_chart|safe }}</div>
     </section>
   </div>
 
-  <section class="peaks-strip" aria-label="{% if is_en %}Forecast peak hours{% else %}Godziny szczytu prognozy{% endif %}">
-    <div class="peaks-title"><span class="eyebrow">{% if is_en %}FORECAST{% else %}PROGNOZA{% endif %}</span><strong>{% if is_en %}Peak hours{% else %}Godziny szczytu{% endif %}</strong></div>
-    {% for peak in peaks %}<div class="peak-item"><span class="peak-number">0{{ forloop.counter }}</span><span><strong>{% if is_en %}Peak:{% else %}Szczyt:{% endif %} {{ peak.timestamp|date:"d.m H:i" }} · {{ peak.total|floatformat:1 }} kWh</strong><small>{{ peak.components|join:", " }}</small></span></div>{% endfor %}
+  <section class="mb-2.5 grid grid-cols-[135px_repeat(3,minmax(0,1fr))] items-stretch gap-2.5 max-lg:grid-cols-3 max-md:grid-cols-1" aria-label="{% if is_en %}Forecast peak hours{% else %}Godziny szczytu prognozy{% endif %}">
+    <div class="flex flex-col justify-center px-1 py-[5px] max-lg:col-span-3 max-md:col-span-1"><span class="m-0 mb-1 text-[10px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}FORECAST{% else %}PROGNOZA{% endif %}</span><strong class="text-sm text-charcoal">{% if is_en %}Peak hours{% else %}Godziny szczytu{% endif %}</strong></div>
+    {% for peak in peaks %}<div class="flex max-h-[86px] min-h-16 items-start gap-2 overflow-auto rounded-[11px] border border-line border-l-4 border-l-sage bg-paper px-2.5 py-[9px] text-[11px] leading-[1.35] text-charcoal max-md:max-h-none"><span class="shrink-0 font-[850] text-charcoal">0{{ forloop.counter }}</span><span><strong class="font-[850] text-charcoal">{% if is_en %}Peak:{% else %}Szczyt:{% endif %} {{ peak.timestamp|date:"d.m H:i" }} · {{ peak.total|floatformat:1 }} kWh</strong><small class="mt-[3px] block text-[10px] leading-[1.35] text-slate">{{ peak.components|join:", " }}</small></span></div>{% endfor %}
   </section>
 
-  <details class="panel backtest-details" id="backtest-details">
-    <summary>{% if is_en %}Model versus reference forecast on the final week of history <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · view chart</span>{% else %}Model i prognoza odniesienia na końcu historii <span>MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · zobacz wykres</span>{% endif %}</summary>
-    <p>{% if is_en %}Final 7 days of simulated history · forecast made without seeing the simulated demand. Model MAPE: {{ metrics.mape_model|floatformat:1 }}%, reference forecast {{ metrics.mape_baseline|floatformat:1 }}%.{% else %}Ostatnie 7 dni symulowanej historii · prognoza „na ślepo”. MAPE modelu {{ metrics.mape_model|floatformat:1 }}%, prognozy odniesienia {{ metrics.mape_baseline|floatformat:1 }}%.{% endif %}</p>
-    <div class="plot">{{ backtest_chart|safe }}</div>
+  <details class="mb-2.5 overflow-hidden rounded-[17px] border border-line bg-paper shadow-card" id="backtest-details">
+    <summary class="cursor-pointer px-4 py-2.5 text-xs font-extrabold text-charcoal">{% if is_en %}Model versus reference forecast on the final week of history <span class="ml-3 font-medium text-slate">MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · view chart</span>{% else %}Model i prognoza odniesienia na końcu historii <span class="ml-3 font-medium text-slate">MAE {{ metrics.mae_model|floatformat:3 }} vs {{ metrics.mae_baseline|floatformat:3 }} kWh · zobacz wykres</span>{% endif %}</summary>
+    <p class="px-4 text-xs text-charcoal">{% if is_en %}Final 7 days of simulated history · forecast made without seeing the simulated demand. Model MAPE: {{ metrics.mape_model|floatformat:1 }}%, reference forecast {{ metrics.mape_baseline|floatformat:1 }}%.{% else %}Ostatnie 7 dni symulowanej historii · prognoza „na ślepo”. MAPE modelu {{ metrics.mape_model|floatformat:1 }}%, prognozy odniesienia {{ metrics.mape_baseline|floatformat:1 }}%.{% endif %}</p>
+    <div class="plot px-3 pb-2">{{ backtest_chart|safe }}</div>
   </details>
   <script>
     document.getElementById('backtest-details').addEventListener('toggle', function () {
