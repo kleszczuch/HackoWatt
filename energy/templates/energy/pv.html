@@ -1,139 +1,139 @@
 {% extends "energy/base.html" %}
 {% block title %}{% if is_en %}eko-dziki · PV simulator{% else %}eko-dziki · Symulator PV{% endif %}{% endblock %}
 {% block content %}
-<section class="intro">
+<section class="flex items-end justify-between gap-7 px-0.5 pb-[19px] pt-7 max-sm:pb-[23px] max-sm:pt-8">
   <div>
-    <p class="eyebrow">{% if is_en %}SOLAR PV SIMULATOR{% else %}SYMULATOR FOTOWOLTAIKI{% endif %}</p>
-    <h1>{% if is_en %}What could your roof<br><span>deliver with solar?</span>{% else %}Ile da dach<br><span>z panelami?</span>{% endif %}</h1>
-    <p class="lead">{% if is_en %}Explore annual solar output, demand covered, grid purchases, savings and payback under two appliance schedules: current use (A) and shifting the dishwasher, washing machine and tumble dryer (B).{% else %}Roczna produkcja, pokrycie zapotrzebowania, zakup z sieci, oszczędności i czas zwrotu dla dwóch sposobów korzystania z urządzeń: obecnego (A) i po przesunięciu zmywarki, pralki oraz suszarki (B).{% endif %}</p>
+    <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}SOLAR PV SIMULATOR{% else %}SYMULATOR FOTOWOLTAIKI{% endif %}</p>
+    <h1 class="m-0 text-[clamp(38px,3.5vw,50px)] leading-[1.05] tracking-[-0.06em] text-charcoal max-sm:text-[39px]">{% if is_en %}What could your roof<br><span class="bg-[linear-gradient(transparent_67%,var(--color-chartreuse)_67%)]">deliver with solar?</span>{% else %}Ile da dach<br><span class="bg-[linear-gradient(transparent_67%,var(--color-chartreuse)_67%)]">z panelami?</span>{% endif %}</h1>
+    <p class="mb-0 mt-[11px] max-w-[770px] text-sm leading-[1.55] text-charcoal">{% if is_en %}Explore annual solar output, demand covered, grid purchases, savings and payback under two appliance schedules: current use (A) and shifting the dishwasher, washing machine and tumble dryer (B).{% else %}Roczna produkcja, pokrycie zapotrzebowania, zakup z sieci, oszczędności i czas zwrotu dla dwóch sposobów korzystania z urządzeń: obecnego (A) i po przesunięciu zmywarki, pralki oraz suszarki (B).{% endif %}</p>
   </div>
-  <div class="intro-aside">
-    <span class="pulse"></span>
-    <strong>{% if is_en %}Annual estimate{% else %}Szacunek roczny{% endif %}</strong>
-    <small>{% if is_en %}Observed Open-Meteo solar irradiance, 12 months, hourly electricity rates{% else %}Realne promieniowanie Open-Meteo, 12 miesięcy, taryfa godzinowa{% endif %}</small>
+  <div class="grid min-w-[245px] grid-cols-[10px_auto] items-center gap-x-3 rounded-[17px] border border-line bg-paper px-5 py-[18px] shadow-card max-lg:hidden">
+    <span class="size-2.5 rounded-full bg-grass shadow-[0_0_0_4px_var(--color-chartreuse)]"></span>
+    <strong class="text-[13px]">{% if is_en %}Annual estimate{% else %}Szacunek roczny{% endif %}</strong>
+    <small class="col-start-2 mt-[5px] text-slate">{% if is_en %}Observed Open-Meteo solar irradiance, 12 months, hourly electricity rates{% else %}Realne promieniowanie Open-Meteo, 12 miesięcy, taryfa godzinowa{% endif %}</small>
   </div>
 </section>
 
-<section class="notice" aria-label="{% if is_en %}About these estimates{% else %}Charakter obliczeń{% endif %}">
-  <span class="notice-icon">i</span>
-  <p>{% if is_en %}<strong>These figures are estimates.</strong> Annual consumption comes from the same generator as the 35-day history, run against 12 months of observed weather. PV costs €1,300/kWp, exported electricity earns €0.08/kWh, and annual PV operating costs are 1%. Battery cost comes from the price entered below.{% else %}<strong>To są szacunki.</strong> Roczne zużycie pochodzi z tego samego generatora co 35-dniowa historia, uruchomionego na 12 miesiącach realnej pogody. Koszt PV 1300 €/kWp, eksport 0,08 €/kWh, koszt operacyjny PV 1% rocznie. Cena magazynu pochodzi z wartości podanej w formularzu.{% endif %}</p>
+<section class="mb-5 flex items-start gap-3 rounded-xl border border-line border-l-[5px] border-l-sage bg-paper px-[17px] py-[13px] text-charcoal" aria-label="{% if is_en %}About these estimates{% else %}Charakter obliczeń{% endif %}">
+  <span class="grid size-[18px] shrink-0 place-items-center rounded-full bg-charcoal font-[Georgia] text-xs font-bold text-white">i</span>
+  <p class="m-0 text-xs leading-[1.6]">{% if is_en %}<strong>These figures are estimates.</strong> Annual consumption comes from the same generator as the 35-day history, run against 12 months of observed weather. PV costs €1,300/kWp, exported electricity earns €0.08/kWh, and annual PV operating costs are 1%. Battery cost comes from the price entered below.{% else %}<strong>To są szacunki.</strong> Roczne zużycie pochodzi z tego samego generatora co 35-dniowa historia, uruchomionego na 12 miesiącach realnej pogody. Koszt PV 1300 €/kWp, eksport 0,08 €/kWh, koszt operacyjny PV 1% rocznie. Cena magazynu pochodzi z wartości podanej w formularzu.{% endif %}</p>
 </section>
 
-<details class="panel filter-panel collapsible-panel" aria-labelledby="pv-form-heading" {% if not form.is_valid %}open{% endif %}>
-  <summary class="section-heading compact">
+<details class="group mb-5 rounded-[17px] border border-line bg-paper px-[30px] py-[25px] shadow-card max-sm:p-[18px]" aria-labelledby="pv-form-heading" {% if not form.is_valid %}open{% endif %}>
+  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] pb-[19px] after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-0 max-lg:flex-col max-lg:items-start max-lg:gap-[5px]">
     <div>
-      <p class="eyebrow">{% if is_en %}CHOOSE PV SETTINGS{% else %}WYBIERZ USTAWIENIA PV{% endif %}</p>
-      <h2 id="pv-form-heading">{% if is_en %}PV capacity and chart month{% else %}Moc instalacji i miesiąc wykresu{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}CHOOSE PV SETTINGS{% else %}WYBIERZ USTAWIENIA PV{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="pv-form-heading">{% if is_en %}PV capacity and chart month{% else %}Moc instalacji i miesiąc wykresu{% endif %}</h2>
     </div>
   </summary>
-  <form class="filter-form" method="get" action="{% url 'pv_simulator' %}">
+  <form class="flex flex-wrap items-end gap-3" method="get" action="{% url 'pv_simulator' %}">
     <div class="field"><label for="{{ form.kwp.id_for_label }}">{% if is_en %}Capacity [kWp] · 1–150{% else %}Moc [kWp] · 1–150{% endif %}</label>{{ form.kwp }}
-      <div class="suggestions" data-target="{{ form.kwp.id_for_label }}">
-        <button type="button" class="suggestion-chip" data-value="25">25</button>
-        <button type="button" class="suggestion-chip" data-value="50">50</button>
-        <button type="button" class="suggestion-chip" data-value="75">75</button>
-        <button type="button" class="suggestion-chip" data-value="100">100</button>
-        <button type="button" class="suggestion-chip" data-value="125">125</button>
-        <button type="button" class="suggestion-chip" data-value="150">150</button>
+      <div class="mt-[7px] flex flex-wrap gap-1.5" data-target="{{ form.kwp.id_for_label }}">
+        <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="25">25</button>
+        <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="50">50</button>
+        <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="75">75</button>
+        <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="100">100</button>
+        <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="125">125</button>
+        <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="150">150</button>
       </div>
     </div>
     <div class="field"><label for="{{ form.miesiac.id_for_label }}">{% if is_en %}Chart month{% else %}Miesiąc wykresu{% endif %}</label>{{ form.miesiac }}</div>
-    <fieldset class="pv-storage-fields">
-      <legend>{% if is_en %}Battery storage · optional{% else %}Magazyn energii · opcjonalnie{% endif %}</legend>
+    <fieldset class="mt-0.5 flex w-full flex-wrap items-end gap-3 rounded-[11px] border border-line bg-sage/[0.08] px-4 py-3.5">
+      <legend class="px-[5px] text-xs font-extrabold text-charcoal">{% if is_en %}Battery storage · optional{% else %}Magazyn energii · opcjonalnie{% endif %}</legend>
       <div class="field"><label for="{{ form.magazyn_kwh.id_for_label }}">{% if is_en %}Capacity [kWh] · up to 5,000{% else %}Pojemność [kWh] · do 5000{% endif %}</label>{{ form.magazyn_kwh }}
-        <div class="suggestions" data-target="{{ form.magazyn_kwh.id_for_label }}">
-          <button type="button" class="suggestion-chip" data-value="5">5</button>
-          <button type="button" class="suggestion-chip" data-value="10">10</button>
-          <button type="button" class="suggestion-chip" data-value="20">20</button>
-          <button type="button" class="suggestion-chip" data-value="50">50</button>
-          <button type="button" class="suggestion-chip" data-value="100">100</button>
-          <button type="button" class="suggestion-chip" data-value="500">500</button>
+        <div class="mt-[7px] flex flex-wrap gap-1.5" data-target="{{ form.magazyn_kwh.id_for_label }}">
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="5">5</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="10">10</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="20">20</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="50">50</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="100">100</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="500">500</button>
         </div>
       </div>
       <div class="field"><label for="{{ form.magazyn_moc_kw.id_for_label }}">{% if is_en %}Power [kW] · up to 150{% else %}Moc [kW] · do 150{% endif %}</label>{{ form.magazyn_moc_kw }}
-        <div class="suggestions" data-target="{{ form.magazyn_moc_kw.id_for_label }}">
-          <button type="button" class="suggestion-chip" data-value="3">3</button>
-          <button type="button" class="suggestion-chip" data-value="5">5</button>
-          <button type="button" class="suggestion-chip" data-value="10">10</button>
-          <button type="button" class="suggestion-chip" data-value="25">25</button>
-          <button type="button" class="suggestion-chip" data-value="50">50</button>
-          <button type="button" class="suggestion-chip" data-value="100">100</button>
+        <div class="mt-[7px] flex flex-wrap gap-1.5" data-target="{{ form.magazyn_moc_kw.id_for_label }}">
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="3">3</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="5">5</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="10">10</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="25">25</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="50">50</button>
+          <button type="button" class="suggestion-chip cursor-pointer rounded-full border border-line bg-paper px-[11px] py-1 text-xs font-bold text-charcoal hover:border-charcoal hover:bg-chartreuse" data-value="100">100</button>
         </div>
       </div>
       <div class="field"><label for="{{ form.magazyn_koszt_eur.id_for_label }}">{% if is_en %}Purchase price [€]{% else %}Cena zakupu [€]{% endif %}</label>{{ form.magazyn_koszt_eur }}</div>
-      <p>{% if is_en %}Enter 0 kWh and €0 for no battery. Round-trip efficiency is 90%; the battery charges only from surplus solar power. The 100% coverage search varies PV capacity using the battery settings entered here. Large systems are theoretical scenarios; this calculator does not check roof space or quoted prices.{% else %}0 kWh i 0 € oznacza brak magazynu. Sprawność obiegu: 90%; magazyn ładuje się tylko z nadwyżki PV. Dobór do 100% zmienia moc PV przy podanych parametrach magazynu. Duże instalacje są scenariuszem teoretycznym; kalkulator nie sprawdza powierzchni dachu ani cen ofertowych.{% endif %}</p>
+      <p class="m-0 basis-full text-[11px] leading-[1.5] text-charcoal">{% if is_en %}Enter 0 kWh and €0 for no battery. Round-trip efficiency is 90%; the battery charges only from surplus solar power. The 100% coverage search varies PV capacity using the battery settings entered here. Large systems are theoretical scenarios; this calculator does not check roof space or quoted prices.{% else %}0 kWh i 0 € oznacza brak magazynu. Sprawność obiegu: 90%; magazyn ładuje się tylko z nadwyżki PV. Dobór do 100% zmienia moc PV przy podanych parametrach magazynu. Duże instalacje są scenariuszem teoretycznym; kalkulator nie sprawdza powierzchni dachu ani cen ofertowych.{% endif %}</p>
     </fieldset>
-    <button class="button primary" type="submit">{% if is_en %}Calculate <span aria-hidden="true">→</span>{% else %}Przelicz <span aria-hidden="true">→</span>{% endif %}</button>
-    <button class="button secondary" type="submit" name="cel" value="coverage">{% if is_en %}Find 100% coverage{% else %}Dobierz do 100% pokrycia{% endif %}</button>
-    <button class="button secondary" type="submit" name="cel" value="payback">{% if is_en %}Shortest payback (B){% else %}Najkrótszy zwrot (B){% endif %}</button>
+    <button class="btn btn-primary max-sm:flex-1" type="submit">{% if is_en %}Calculate <span aria-hidden="true">→</span>{% else %}Przelicz <span aria-hidden="true">→</span>{% endif %}</button>
+    <button class="btn btn-secondary max-sm:flex-1" type="submit" name="cel" value="coverage">{% if is_en %}Find 100% coverage{% else %}Dobierz do 100% pokrycia{% endif %}</button>
+    <button class="btn btn-secondary max-sm:flex-1" type="submit" name="cel" value="payback">{% if is_en %}Shortest payback (B){% else %}Najkrótszy zwrot (B){% endif %}</button>
   </form>
-  {% if form.errors %}<div class="form-errors" role="alert">{{ form.kwp.errors }}{{ form.miesiac.errors }}{{ form.magazyn_kwh.errors }}{{ form.magazyn_moc_kw.errors }}{{ form.magazyn_koszt_eur.errors }}</div>{% endif %}
+  {% if form.errors %}<div class="mt-[13px] text-[13px] font-bold text-charcoal [&_ul]:m-0 [&_ul]:pl-[18px]" role="alert">{{ form.kwp.errors }}{{ form.miesiac.errors }}{{ form.magazyn_kwh.errors }}{{ form.magazyn_moc_kw.errors }}{{ form.magazyn_koszt_eur.errors }}</div>{% endif %}
 </details>
 
 {% if form.is_valid %}
 {% if auto_goal %}
-<section class="panel pv-auto-result" role="status" aria-label="{% if is_en %}Automatic sizing result{% else %}Wynik automatycznego doboru{% endif %}">
+<section class="mb-5 flex flex-col gap-[5px] rounded-[17px] border border-line border-l-[5px] border-l-grass bg-paper px-5 py-4 text-charcoal shadow-card" role="status" aria-label="{% if is_en %}Automatic sizing result{% else %}Wynik automatycznego doboru{% endif %}">
   {% if auto_goal == "coverage" %}
     {% if capacity_choice.target_met %}
-      <strong>{% if is_en %}100% coverage under variant B at {{ kwp }} kWp.{% else %}100% pokrycia w wariancie B przy {{ kwp }} kWp.{% endif %}</strong>
-      <span>{% if is_en %}This is the smallest capacity that meets the target between 1 and 150 kWp, in 0.1 kWp steps, with the selected battery. The 100% result applies to this model year and is not a guarantee for every year.{% else %}To najmniejsza moc osiągająca cel w zakresie 1–150 kWp co 0,1 kWp przy wskazanym magazynie. 100% dotyczy tego roku modelowego, nie gwarancji na każdy rok.{% endif %}</span>
+      <strong class="text-[15px]">{% if is_en %}100% coverage under variant B at {{ kwp }} kWp.{% else %}100% pokrycia w wariancie B przy {{ kwp }} kWp.{% endif %}</strong>
+      <span class="text-[13px] leading-[1.5]">{% if is_en %}This is the smallest capacity that meets the target between 1 and 150 kWp, in 0.1 kWp steps, with the selected battery. The 100% result applies to this model year and is not a guarantee for every year.{% else %}To najmniejsza moc osiągająca cel w zakresie 1–150 kWp co 0,1 kWp przy wskazanym magazynie. 100% dotyczy tego roku modelowego, nie gwarancji na każdy rok.{% endif %}</span>
     {% else %}
-      <strong>{% if is_en %}100% coverage is not achievable with the selected battery.{% else %}100% pokrycia nie jest osiągalne przy wskazanym magazynie.{% endif %}</strong>
-      <span>{% if is_en %}The highest coverage under variant B is {{ selected.coverage_b|floatformat:1 }}% at {{ kwp }} kWp; remaining grid purchases: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/year. {% if annual_energy_shortfall %}Even at {{ max_kwp }} kWp, annual PV output ({{ max_production_kwh|floatformat:0 }} kWh) is lower than household consumption ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Annual output is sufficient, but the selected battery capacity or power cannot cover hours and seasons with little sunlight. Increase its capacity or power and calculate again.{% else %}Annual output is sufficient, but without a battery the household still buys electricity outside solar production hours. Enter a battery capacity, power and price, then calculate again.{% endif %}{% else %}Najwyższe pokrycie w wariancie B to {{ selected.coverage_b|floatformat:1 }}% przy {{ kwp }} kWp; pozostały zakup z sieci: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/rok. {% if annual_energy_shortfall %}Nawet przy {{ max_kwp }} kWp roczna produkcja PV ({{ max_production_kwh|floatformat:0 }} kWh) jest mniejsza od zużycia budynku ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Produkcja roczna wystarcza, lecz wskazana pojemność lub moc magazynu nie pokrywa godzin i sezonów o słabym słońcu. Zwiększ magazyn albo jego moc i przelicz ponownie.{% else %}Produkcja roczna wystarcza, lecz bez magazynu dom nadal pobiera prąd poza godzinami produkcji. Dodaj pojemność, moc i cenę magazynu, a następnie przelicz ponownie.{% endif %}{% endif %}</span>
+      <strong class="text-[15px]">{% if is_en %}100% coverage is not achievable with the selected battery.{% else %}100% pokrycia nie jest osiągalne przy wskazanym magazynie.{% endif %}</strong>
+      <span class="text-[13px] leading-[1.5]">{% if is_en %}The highest coverage under variant B is {{ selected.coverage_b|floatformat:1 }}% at {{ kwp }} kWp; remaining grid purchases: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/year. {% if annual_energy_shortfall %}Even at {{ max_kwp }} kWp, annual PV output ({{ max_production_kwh|floatformat:0 }} kWh) is lower than household consumption ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Annual output is sufficient, but the selected battery capacity or power cannot cover hours and seasons with little sunlight. Increase its capacity or power and calculate again.{% else %}Annual output is sufficient, but without a battery the household still buys electricity outside solar production hours. Enter a battery capacity, power and price, then calculate again.{% endif %}{% else %}Najwyższe pokrycie w wariancie B to {{ selected.coverage_b|floatformat:1 }}% przy {{ kwp }} kWp; pozostały zakup z sieci: {{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/rok. {% if annual_energy_shortfall %}Nawet przy {{ max_kwp }} kWp roczna produkcja PV ({{ max_production_kwh|floatformat:0 }} kWh) jest mniejsza od zużycia budynku ({{ consumption_kwh|floatformat:0 }} kWh).{% elif battery_enabled %}Produkcja roczna wystarcza, lecz wskazana pojemność lub moc magazynu nie pokrywa godzin i sezonów o słabym słońcu. Zwiększ magazyn albo jego moc i przelicz ponownie.{% else %}Produkcja roczna wystarcza, lecz bez magazynu dom nadal pobiera prąd poza godzinami produkcji. Dodaj pojemność, moc i cenę magazynu, a następnie przelicz ponownie.{% endif %}{% endif %}</span>
     {% endif %}
   {% elif capacity_choice.kwp %}
-    <strong>{% if is_en %}Shortest payback under variant B: {{ selected.variant_b.payback_years|floatformat:1 }} years at {{ kwp }} kWp.{% else %}Najkrótszy zwrot wariantu B: {{ selected.variant_b.payback_years|floatformat:1 }} lat przy {{ kwp }} kWp.{% endif %}</strong>
-    <span>{% if is_en %}Capacities from 1 to 15 kWp were compared in 0.1 kWp steps; ties favor the smaller system.{% else %}Porównano moce 1–15 kWp co 0,1 kWp; przy takim samym zwrocie wybrano mniejszą instalację.{% endif %}</span>
+    <strong class="text-[15px]">{% if is_en %}Shortest payback under variant B: {{ selected.variant_b.payback_years|floatformat:1 }} years at {{ kwp }} kWp.{% else %}Najkrótszy zwrot wariantu B: {{ selected.variant_b.payback_years|floatformat:1 }} lat przy {{ kwp }} kWp.{% endif %}</strong>
+    <span class="text-[13px] leading-[1.5]">{% if is_en %}Capacities from 1 to 15 kWp were compared in 0.1 kWp steps; ties favor the smaller system.{% else %}Porównano moce 1–15 kWp co 0,1 kWp; przy takim samym zwrocie wybrano mniejszą instalację.{% endif %}</span>
   {% else %}
-    <strong>{% if is_en %}No positive payback between 1 and 15 kWp.{% else %}Brak dodatniego zwrotu w zakresie 1–15 kWp.{% endif %}</strong>
-    <span>{% if is_en %}With these inputs, none of the tested capacities generates positive annual net savings under variant B.{% else %}Przy tych danych żadna badana moc nie daje dodatnich rocznych oszczędności netto w wariancie B.{% endif %}</span>
+    <strong class="text-[15px]">{% if is_en %}No positive payback between 1 and 15 kWp.{% else %}Brak dodatniego zwrotu w zakresie 1–15 kWp.{% endif %}</strong>
+    <span class="text-[13px] leading-[1.5]">{% if is_en %}With these inputs, none of the tested capacities generates positive annual net savings under variant B.{% else %}Przy tych danych żadna badana moc nie daje dodatnich rocznych oszczędności netto w wariancie B.{% endif %}</span>
   {% endif %}
 </section>
 {% endif %}
-<section class="metrics" aria-label="{% if is_en %}Results for the selected capacity{% else %}Wyniki dla wybranej mocy{% endif %}">
-  <article class="metric">
-    <span>{% if is_en %}Annual PV output{% else %}Roczna produkcja PV{% endif %}</span>
-    <strong>{{ selected.production_kwh|floatformat:0 }} <small>kWh</small></strong>
-    <p>{% if is_en %}PV system {{ kwp }} kWp · household use {{ consumption_kwh|floatformat:0 }} kWh/year{% else %}Instalacja {{ kwp }} kWp · zużycie domu {{ consumption_kwh|floatformat:0 }} kWh/rok{% endif %}</p>
+<section class="mb-5 grid grid-cols-4 gap-[15px] max-lg:grid-cols-2 max-sm:gap-[9px] max-xs:grid-cols-1" aria-label="{% if is_en %}Results for the selected capacity{% else %}Wyniki dla wybranej mocy{% endif %}">
+  <article class="min-h-[121px] rounded-[17px] border border-line border-t-4 border-t-sage bg-paper px-5 py-[18px] shadow-card max-sm:min-h-[105px] max-sm:p-[15px]">
+    <span class="mb-[13px] block text-xs font-bold text-slate">{% if is_en %}Annual PV output{% else %}Roczna produkcja PV{% endif %}</span>
+    <strong class="text-[27px] tracking-[-0.045em] text-charcoal max-sm:text-[21px]">{{ selected.production_kwh|floatformat:0 }} <small class="text-[13px] font-semibold tracking-normal text-slate">kWh</small></strong>
+    <p class="mb-0 mt-[7px] text-[11px] leading-[1.4] text-slate">{% if is_en %}PV system {{ kwp }} kWp · household use {{ consumption_kwh|floatformat:0 }} kWh/year{% else %}Instalacja {{ kwp }} kWp · zużycie domu {{ consumption_kwh|floatformat:0 }} kWh/rok{% endif %}</p>
   </article>
-  <article class="metric">
-    <span>{% if is_en %}Demand covered{% else %}Pokrycie zapotrzebowania{% endif %}</span>
-    <strong>{{ selected.coverage_a|floatformat:1 }}<small>%</small></strong>
-    <p>{% if is_en %}With shifted appliance use: {{ selected.coverage_b|floatformat:1 }}%{% else %}Po przesunięciu nawyków: {{ selected.coverage_b|floatformat:1 }}%{% endif %}</p>
+  <article class="min-h-[121px] rounded-[17px] border border-line border-t-4 border-t-grass bg-paper px-5 py-[18px] shadow-card max-sm:min-h-[105px] max-sm:p-[15px]">
+    <span class="mb-[13px] block text-xs font-bold text-slate">{% if is_en %}Demand covered{% else %}Pokrycie zapotrzebowania{% endif %}</span>
+    <strong class="text-[27px] tracking-[-0.045em] text-charcoal max-sm:text-[21px]">{{ selected.coverage_a|floatformat:1 }}<small class="text-[13px] font-semibold tracking-normal text-slate">%</small></strong>
+    <p class="mb-0 mt-[7px] text-[11px] leading-[1.4] text-slate">{% if is_en %}With shifted appliance use: {{ selected.coverage_b|floatformat:1 }}%{% else %}Po przesunięciu nawyków: {{ selected.coverage_b|floatformat:1 }}%{% endif %}</p>
   </article>
-  <article class="metric">
-    <span>{% if is_en %}Less electricity bought from the grid{% else %}Mniej energii z sieci{% endif %}</span>
-    <strong>{{ selected.variant_a.self_kwh|floatformat:0 }} <small>kWh/{% if is_en %}year{% else %}rok{% endif %}</small></strong>
-    <p>{% if is_en %}Scenario B: {{ selected.variant_b.self_kwh|floatformat:0 }} kWh/year{% else %}Wariant B: {{ selected.variant_b.self_kwh|floatformat:0 }} kWh/rok{% endif %}</p>
+  <article class="min-h-[121px] rounded-[17px] border border-line border-t-4 border-t-chartreuse bg-paper px-5 py-[18px] shadow-card max-sm:min-h-[105px] max-sm:p-[15px]">
+    <span class="mb-[13px] block text-xs font-bold text-slate">{% if is_en %}Less electricity bought from the grid{% else %}Mniej energii z sieci{% endif %}</span>
+    <strong class="text-[27px] tracking-[-0.045em] text-charcoal max-sm:text-[21px]">{{ selected.variant_a.self_kwh|floatformat:0 }} <small class="text-[13px] font-semibold tracking-normal text-slate">kWh/{% if is_en %}year{% else %}rok{% endif %}</small></strong>
+    <p class="mb-0 mt-[7px] text-[11px] leading-[1.4] text-slate">{% if is_en %}Scenario B: {{ selected.variant_b.self_kwh|floatformat:0 }} kWh/year{% else %}Wariant B: {{ selected.variant_b.self_kwh|floatformat:0 }} kWh/rok{% endif %}</p>
   </article>
-  <article class="metric">
-    <span>{% if is_en %}Payback A → B{% else %}Czas zwrotu A → B{% endif %}</span>
-    <strong>{% if selected.variant_a.payback_years %}{{ selected.variant_a.payback_years|floatformat:1 }}{% else %}–{% endif %} → {% if selected.variant_b.payback_years %}{{ selected.variant_b.payback_years|floatformat:1 }}{% else %}–{% endif %} <small>{% if is_en %}years{% else %}lat{% endif %}</small></strong>
-    <p>{% if is_en %}Investment {{ selected.investment_eur|floatformat:0 }} € · savings B {{ selected.variant_b.savings|floatformat:0 }} €/year{% else %}Inwestycja {{ selected.investment_eur|floatformat:0 }} € · oszczędności B {{ selected.variant_b.savings|floatformat:0 }} €/rok{% endif %}</p>
+  <article class="min-h-[121px] rounded-[17px] border border-line border-t-4 border-t-charcoal bg-paper px-5 py-[18px] shadow-card max-sm:min-h-[105px] max-sm:p-[15px]">
+    <span class="mb-[13px] block text-xs font-bold text-slate">{% if is_en %}Payback A → B{% else %}Czas zwrotu A → B{% endif %}</span>
+    <strong class="text-[27px] tracking-[-0.045em] text-charcoal max-sm:text-[21px]">{% if selected.variant_a.payback_years %}{{ selected.variant_a.payback_years|floatformat:1 }}{% else %}–{% endif %} → {% if selected.variant_b.payback_years %}{{ selected.variant_b.payback_years|floatformat:1 }}{% else %}–{% endif %} <small class="text-[13px] font-semibold tracking-normal text-slate">{% if is_en %}years{% else %}lat{% endif %}</small></strong>
+    <p class="mb-0 mt-[7px] text-[11px] leading-[1.4] text-slate">{% if is_en %}Investment {{ selected.investment_eur|floatformat:0 }} € · savings B {{ selected.variant_b.savings|floatformat:0 }} €/year{% else %}Inwestycja {{ selected.investment_eur|floatformat:0 }} € · oszczędności B {{ selected.variant_b.savings|floatformat:0 }} €/rok{% endif %}</p>
   </article>
 </section>
 
-<section class="panel pv-daily-summary" aria-label="{% if is_en %}Daily household use and battery{% else %}Dzienne zużycie budynku i magazyn{% endif %}">
-  <div><span>{% if is_en %}Average daily household use{% else %}Średnie dzienne zużycie budynku{% endif %}</span><strong>{{ daily_average_kwh|floatformat:1 }} kWh</strong><small>{% if is_en %}from {{ consumption_kwh|floatformat:0 }} kWh in the model year{% else %}z {{ consumption_kwh|floatformat:0 }} kWh w roku modelowym{% endif %}</small></div>
+<section class="mb-5 grid grid-cols-4 gap-px rounded-[17px] border border-line bg-paper p-[7px] shadow-card max-lg:grid-cols-2 max-xs:grid-cols-1" aria-label="{% if is_en %}Daily household use and battery{% else %}Dzienne zużycie budynku i magazyn{% endif %}">
+  <div class="min-w-0 px-3.5 py-3"><span class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}Average daily household use{% else %}Średnie dzienne zużycie budynku{% endif %}</span><strong class="my-[5px] block text-lg tracking-[-0.025em] text-charcoal max-sm:text-[15px]">{{ daily_average_kwh|floatformat:1 }} kWh</strong><small class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}from {{ consumption_kwh|floatformat:0 }} kWh in the model year{% else %}z {{ consumption_kwh|floatformat:0 }} kWh w roku modelowym{% endif %}</small></div>
   {% if battery_enabled %}
-  <div><span>{% if is_en %}Battery · capacity and power{% else %}Magazyn · pojemność i moc{% endif %}</span><strong>{{ storage.capacity_kwh }} kWh · {{ storage.power_kw }} kW</strong><small>{% if is_en %}purchase price {{ storage.cost_eur|floatformat:0 }} € included in the investment{% else %}zakup {{ storage.cost_eur|floatformat:0 }} € w inwestycji{% endif %}</small></div>
-  <div><span>{% if is_en %}Energy delivered by battery{% else %}Energia oddana z magazynu{% endif %}</span><strong>{{ selected.variant_b.battery_delivered_kwh|floatformat:0 }} kWh/{% if is_en %}year{% else %}rok{% endif %}</strong><small>{% if is_en %}variant B · after 10% losses{% else %}wariant B · po stratach 10%{% endif %}</small></div>
+  <div class="min-w-0 px-3.5 py-3"><span class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}Battery · capacity and power{% else %}Magazyn · pojemność i moc{% endif %}</span><strong class="my-[5px] block text-lg tracking-[-0.025em] text-charcoal max-sm:text-[15px]">{{ storage.capacity_kwh }} kWh · {{ storage.power_kw }} kW</strong><small class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}purchase price {{ storage.cost_eur|floatformat:0 }} € included in the investment{% else %}zakup {{ storage.cost_eur|floatformat:0 }} € w inwestycji{% endif %}</small></div>
+  <div class="min-w-0 px-3.5 py-3"><span class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}Energy delivered by battery{% else %}Energia oddana z magazynu{% endif %}</span><strong class="my-[5px] block text-lg tracking-[-0.025em] text-charcoal max-sm:text-[15px]">{{ selected.variant_b.battery_delivered_kwh|floatformat:0 }} kWh/{% if is_en %}year{% else %}rok{% endif %}</strong><small class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}variant B · after 10% losses{% else %}wariant B · po stratach 10%{% endif %}</small></div>
   {% else %}
-  <div><span>{% if is_en %}Battery storage{% else %}Magazyn energii{% endif %}</span><strong>{% if is_en %}No battery{% else %}Bez magazynu{% endif %}</strong><small>{% if is_en %}Enter a capacity and purchase price to compare.{% else %}Wpisz pojemność i cenę zakupu, aby porównać.{% endif %}</small></div>
+  <div class="min-w-0 px-3.5 py-3"><span class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}Battery storage{% else %}Magazyn energii{% endif %}</span><strong class="my-[5px] block text-lg tracking-[-0.025em] text-charcoal max-sm:text-[15px]">{% if is_en %}No battery{% else %}Bez magazynu{% endif %}</strong><small class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}Enter a capacity and purchase price to compare.{% else %}Wpisz pojemność i cenę zakupu, aby porównać.{% endif %}</small></div>
   {% endif %}
-  <div><span>{% if is_en %}Remaining grid purchases · B{% else %}Pozostały zakup z sieci · B{% endif %}</span><strong>{{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/{% if is_en %}year{% else %}rok{% endif %}</strong><small>{% if is_en %}100% coverage requires 0 kWh bought from the grid{% else %}100% pokrycia wymaga 0 kWh zakupu{% endif %}</small></div>
+  <div class="min-w-0 px-3.5 py-3"><span class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}Remaining grid purchases · B{% else %}Pozostały zakup z sieci · B{% endif %}</span><strong class="my-[5px] block text-lg tracking-[-0.025em] text-charcoal max-sm:text-[15px]">{{ selected.variant_b.grid_kwh|floatformat:0 }} kWh/{% if is_en %}year{% else %}rok{% endif %}</strong><small class="block text-[11px] leading-[1.45] text-slate">{% if is_en %}100% coverage requires 0 kWh bought from the grid{% else %}100% pokrycia wymaga 0 kWh zakupu{% endif %}</small></div>
 </section>
 
-<details class="panel table-panel collapsible-panel" aria-labelledby="variants-heading">
-  <summary class="section-heading">
+<details class="group mb-5 overflow-hidden rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="variants-heading">
+  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
-      <p class="eyebrow">{% if is_en %}CAPACITY COMPARISON{% else %}PORÓWNANIE MOCY{% endif %}</p>
-      <h2 id="variants-heading">{% if is_en %}PV system options{% else %}Warianty instalacji{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}CAPACITY COMPARISON{% else %}PORÓWNANIE MOCY{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="variants-heading">{% if is_en %}PV system options{% else %}Warianty instalacji{% endif %}</h2>
     </div>
-    <span class="muted">{% if is_en %}A: current schedule · B: shifted appliances{% if battery_enabled %} · battery {{ storage.capacity_kwh }} kWh{% endif %}{% else %}A: obecne nawyki · B: po przesunięciu urządzeń{% if battery_enabled %} · magazyn {{ storage.capacity_kwh }} kWh{% endif %}{% endif %}</span>
+    <span class="text-xs text-slate">{% if is_en %}A: current schedule · B: shifted appliances{% if battery_enabled %} · battery {{ storage.capacity_kwh }} kWh{% endif %}{% else %}A: obecne nawyki · B: po przesunięciu urządzeń{% if battery_enabled %} · magazyn {{ storage.capacity_kwh }} kWh{% endif %}{% endif %}</span>
   </summary>
-  <div class="table-scroll">
-    <table>
+  <div class="overflow-x-auto px-[22px] pt-2.5 max-sm:px-3 max-sm:pt-2">
+    <table class="data-table">
       <thead>
         <tr>
           {% if is_en %}
@@ -146,16 +146,16 @@
       <tbody>
         {% for result in comparison %}
         <tr>
-          <td class="timestamp">{{ result.kwp }} kWp</td>
-          <td class="number">{{ result.production_kwh|floatformat:0 }} kWh</td>
-          <td class="number">{{ result.coverage_a|floatformat:1 }}%</td>
-          <td class="number">{{ result.coverage_b|floatformat:1 }}%</td>
-          <td class="number">{{ result.variant_a.self_kwh|floatformat:0 }} kWh</td>
-          <td class="number">{{ result.variant_b.self_kwh|floatformat:0 }} kWh</td>
-          <td class="number">{{ result.variant_a.savings|floatformat:0 }} €</td>
-          <td class="number">{{ result.variant_b.savings|floatformat:0 }} €</td>
-          <td class="number total">{% if result.variant_a.payback_years %}{{ result.variant_a.payback_years|floatformat:1 }} {% if is_en %}years{% else %}l.{% endif %}{% else %}–{% endif %}</td>
-          <td class="number total">{% if result.variant_b.payback_years %}{{ result.variant_b.payback_years|floatformat:1 }} {% if is_en %}years{% else %}l.{% endif %}{% else %}–{% endif %}</td>
+          <td class="font-extrabold text-charcoal">{{ result.kwp }} kWp</td>
+          <td class="tabular-nums">{{ result.production_kwh|floatformat:0 }} kWh</td>
+          <td class="tabular-nums">{{ result.coverage_a|floatformat:1 }}%</td>
+          <td class="tabular-nums">{{ result.coverage_b|floatformat:1 }}%</td>
+          <td class="tabular-nums">{{ result.variant_a.self_kwh|floatformat:0 }} kWh</td>
+          <td class="tabular-nums">{{ result.variant_b.self_kwh|floatformat:0 }} kWh</td>
+          <td class="tabular-nums">{{ result.variant_a.savings|floatformat:0 }} €</td>
+          <td class="tabular-nums">{{ result.variant_b.savings|floatformat:0 }} €</td>
+          <td class="font-extrabold tabular-nums text-charcoal">{% if result.variant_a.payback_years %}{{ result.variant_a.payback_years|floatformat:1 }} {% if is_en %}years{% else %}l.{% endif %}{% else %}–{% endif %}</td>
+          <td class="font-extrabold tabular-nums text-charcoal">{% if result.variant_b.payback_years %}{{ result.variant_b.payback_years|floatformat:1 }} {% if is_en %}years{% else %}l.{% endif %}{% else %}–{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -163,27 +163,27 @@
   </div>
 </details>
 
-<section class="panel chart-panel" aria-labelledby="week-heading">
-  <div class="section-heading">
+<section class="mb-5 rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="week-heading">
+  <div class="flex items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
-      <p class="eyebrow">{% if is_en %}ONE CHART · ONE WEEK{% else %}JEDEN WYKRES · TYDZIEŃ{% endif %}</p>
-      <h2 id="week-heading">{% if is_en %}Household use, PV output and grid purchases before and after shifting{% else %}Zużycie, produkcja PV i zakup z sieci przed oraz po zmianie{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}ONE CHART · ONE WEEK{% else %}JEDEN WYKRES · TYDZIEŃ{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="week-heading">{% if is_en %}Household use, PV output and grid purchases before and after shifting{% else %}Zużycie, produkcja PV i zakup z sieci przed oraz po zmianie{% endif %}</h2>
     </div>
-    <span class="muted">{% if is_en %}PV system {{ kwp }} kWp{% if battery_enabled %} + battery {{ storage.capacity_kwh }} kWh{% endif %} · first full week of the month{% else %}Instalacja {{ kwp }} kWp{% if battery_enabled %} + magazyn {{ storage.capacity_kwh }} kWh{% endif %} · pierwszy pełny tydzień miesiąca{% endif %}</span>
+    <span class="text-xs text-slate">{% if is_en %}PV system {{ kwp }} kWp{% if battery_enabled %} + battery {{ storage.capacity_kwh }} kWh{% endif %} · first full week of the month{% else %}Instalacja {{ kwp }} kWp{% if battery_enabled %} + magazyn {{ storage.capacity_kwh }} kWh{% endif %} · pierwszy pełny tydzień miesiąca{% endif %}</span>
   </div>
-  <div class="plot">{{ pv_chart|safe }}</div>
+  <div class="plot px-3 pb-2">{{ pv_chart|safe }}</div>
 </section>
 
-<details class="panel table-panel collapsible-panel" aria-labelledby="daily-heading">
-  <summary class="section-heading">
+<details class="group mb-5 overflow-hidden rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="daily-heading">
+  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
-      <p class="eyebrow">{% if is_en %}DAILY BALANCE{% else %}BILANS DZIENNY{% endif %}</p>
-      <h2 id="daily-heading">{% if is_en %}Household use in the selected week{% else %}Zużycie budynku w wybranym tygodniu{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}DAILY BALANCE{% else %}BILANS DZIENNY{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="daily-heading">{% if is_en %}Household use in the selected week{% else %}Zużycie budynku w wybranym tygodniu{% endif %}</h2>
     </div>
-    <span class="muted">{% if is_en %}Hourly totals for each day · kWh{% else %}Suma godzin każdego dnia · kWh{% endif %}</span>
+    <span class="text-xs text-slate">{% if is_en %}Hourly totals for each day · kWh{% else %}Suma godzin każdego dnia · kWh{% endif %}</span>
   </summary>
-  <div class="table-scroll">
-    <table>
+  <div class="overflow-x-auto px-[22px] pt-2.5 max-sm:px-3 max-sm:pt-2">
+    <table class="data-table">
       <thead>
         <tr>
           {% if is_en %}
@@ -196,11 +196,11 @@
       <tbody>
         {% for day in week_days %}
         <tr>
-          <td class="timestamp">{{ day.day|date:"d.m.Y" }}</td>
-          <td class="number">{{ day.consumption_kwh|floatformat:1 }}</td>
-          <td class="number">{{ day.production_kwh|floatformat:1 }}</td>
-          <td class="number">{{ day.grid_a_kwh|floatformat:1 }}</td>
-          <td class="number total">{{ day.grid_b_kwh|floatformat:1 }}</td>
+          <td class="font-extrabold text-charcoal">{{ day.day|date:"d.m.Y" }}</td>
+          <td class="tabular-nums">{{ day.consumption_kwh|floatformat:1 }}</td>
+          <td class="tabular-nums">{{ day.production_kwh|floatformat:1 }}</td>
+          <td class="tabular-nums">{{ day.grid_a_kwh|floatformat:1 }}</td>
+          <td class="font-extrabold tabular-nums text-charcoal">{{ day.grid_b_kwh|floatformat:1 }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -208,35 +208,35 @@
   </div>
 </details>
 
-<details class="panel chart-panel collapsible-panel" aria-labelledby="reco-heading">
-  <summary class="section-heading">
+<details class="group mb-5 rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="reco-heading">
+  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
-      <p class="eyebrow">{% if is_en %}APPLIANCE CALCULATIONS{% else %}OBLICZENIE DLA URZĄDZEŃ{% endif %}</p>
-      <h2 id="reco-heading">{% if is_en %}Effect of shifting appliance use{% else %}Efekt zmiany godziny pracy{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}APPLIANCE CALCULATIONS{% else %}OBLICZENIE DLA URZĄDZEŃ{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="reco-heading">{% if is_en %}Effect of shifting appliance use{% else %}Efekt zmiany godziny pracy{% endif %}</h2>
     </div>
-    <span class="muted">{% if is_en %}Annual result for {{ kwp }} kWp and the selected battery{% else %}Roczny wynik dla {{ kwp }} kWp i wskazanego magazynu{% endif %}</span>
+    <span class="text-xs text-slate">{% if is_en %}Annual result for {{ kwp }} kWp and the selected battery{% else %}Roczny wynik dla {{ kwp }} kWp i wskazanego magazynu{% endif %}</span>
   </summary>
-  <div class="device-results">
+  <div class="grid grid-cols-3 gap-3 px-[30px] pt-3 max-lg:grid-cols-1 max-sm:px-[17px]">
     {% for effect in effects %}
-    <article class="device-result">
-      <h3>{{ effect.device }}</h3>
-      <div><span>{% if is_en %}Less grid electricity{% else %}Mniej z sieci{% endif %}</span><strong>{{ effect.grid_saved_kwh|floatformat:1 }} <small>kWh/{% if is_en %}year{% else %}rok{% endif %}</small></strong></div>
-      <div><span>{% if is_en %}Change in savings{% else %}Zmiana oszczędności{% endif %}</span><strong>{{ effect.money_saved|floatformat:1 }} <small>€/{% if is_en %}year{% else %}rok{% endif %}</small></strong></div>
-      <p>{% if is_en %}{{ effect.moved_kwh|floatformat:0 }} kWh of appliance cycles began outside the 9:00–15:00 window.{% else %}{{ effect.moved_kwh|floatformat:0 }} kWh cykli zaczynało się poza oknem 9:00–15:00.{% endif %}</p>
-      <div class="device-advice">
-        <h4>{{ effect.advice.headline }}</h4>
-        <p>{{ effect.advice.action }}</p>
-        <p class="device-advice-comfort">{{ effect.advice.comfort }}</p>
+    <article class="grid min-w-0 grid-cols-2 gap-[9px] rounded-[13px] border border-line border-t-4 bg-white/[0.88] p-4 {% if forloop.counter == 1 %}border-t-grass{% elif forloop.counter == 2 %}border-t-sage{% else %}border-t-chartreuse{% endif %}">
+      <h3 class="col-span-2 m-0 mb-[3px] text-[15px] text-charcoal">{{ effect.device }}</h3>
+      <div><span class="block text-[11px] font-bold text-slate">{% if is_en %}Less grid electricity{% else %}Mniej z sieci{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ effect.grid_saved_kwh|floatformat:1 }} <small class="text-[11px] font-[650] tracking-normal">kWh/{% if is_en %}year{% else %}rok{% endif %}</small></strong></div>
+      <div><span class="block text-[11px] font-bold text-slate">{% if is_en %}Change in savings{% else %}Zmiana oszczędności{% endif %}</span><strong class="mt-1 block text-xl tracking-[-0.04em] text-charcoal">{{ effect.money_saved|floatformat:1 }} <small class="text-[11px] font-[650] tracking-normal">€/{% if is_en %}year{% else %}rok{% endif %}</small></strong></div>
+      <p class="col-span-2 m-0 border-t border-line pt-2 text-[11px] leading-[1.4] text-slate">{% if is_en %}{{ effect.moved_kwh|floatformat:0 }} kWh of appliance cycles began outside the 9:00–15:00 window.{% else %}{{ effect.moved_kwh|floatformat:0 }} kWh cykli zaczynało się poza oknem 9:00–15:00.{% endif %}</p>
+      <div class="col-span-2 rounded-[9px] bg-sage/[0.12] px-3 py-2.5">
+        <h4 class="m-0 mb-[5px] text-xs font-extrabold text-charcoal">{{ effect.advice.headline }}</h4>
+        <p class="m-0 text-xs leading-[1.5] text-charcoal">{{ effect.advice.action }}</p>
+        <p class="m-0 mt-1.5 text-[11px] leading-[1.5] text-slate">{{ effect.advice.comfort }}</p>
       </div>
     </article>
     {% endfor %}
   </div>
-  <p class="device-note">{% if is_en %}Each appliance is compared separately with scenario A. The target hour has the highest solar irradiance between 9:00 and 15:00. A positive result means a benefit; shifting within this window may also reduce grid purchases.{% else %}Każde urządzenie porównano osobno z wariantem A. Godzina docelowa ma najwyższe promieniowanie w oknie 9:00–15:00. Dodatni wynik oznacza korzyść; zmiana w obrębie tego okna też może zmniejszyć zakup.{% endif %}</p>
+  <p class="m-0 px-[30px] pb-[22px] pt-3.5 text-xs leading-[1.5] text-charcoal max-sm:px-[17px]">{% if is_en %}Each appliance is compared separately with scenario A. The target hour has the highest solar irradiance between 9:00 and 15:00. A positive result means a benefit; shifting within this window may also reduce grid purchases.{% else %}Każde urządzenie porównano osobno z wariantem A. Godzina docelowa ma najwyższe promieniowanie w oknie 9:00–15:00. Dodatni wynik oznacza korzyść; zmiana w obrębie tego okna też może zmniejszyć zakup.{% endif %}</p>
 </details>
 
 {% endif %}
 <script>
-  document.querySelectorAll('.suggestions').forEach(function (group) {
+  document.querySelectorAll('[data-target]').forEach(function (group) {
     var input = document.getElementById(group.dataset.target);
     if (!input) return;
     group.querySelectorAll('.suggestion-chip').forEach(function (chip) {

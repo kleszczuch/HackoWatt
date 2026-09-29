@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import include, path
 
 from energy.views import (
@@ -18,3 +19,6 @@ urlpatterns = [
     path("api/v1/", include("energy.api_urls")),
     path("switch-scenario/<int:scenario_id>/", switch_scenario_view, name="switch_scenario"),
 ]
+
+if settings.DEBUG:
+    urlpatterns += [path("__reload__/", include("django_browser_reload.urls"))]

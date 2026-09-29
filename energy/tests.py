@@ -667,15 +667,9 @@ class ViewTests(SimpleTestCase):
         response = self.client.get(
             reverse("hourly_history"), {"start": "2026-09-20", "end": "2026-09-21"}
         )
-        self.assertContains(
-            response,
-            '<details class="panel filter-panel collapsible-panel" '
-            'aria-labelledby="filter-heading" >',
-        )
-        self.assertContains(
-            response,
-            '<details class="panel table-panel collapsible-panel" aria-labelledby="table-heading">',
-        )
+        self.assertContains(response, '<details class="group mb-5 ')
+        self.assertContains(response, 'aria-labelledby="filter-heading" >')
+        self.assertContains(response, 'aria-labelledby="table-heading">')
 
         invalid = self.client.get(
             reverse("hourly_history"), {"start": "2026-09-21", "end": "2026-09-20"}
@@ -783,31 +777,18 @@ class ViewTests(SimpleTestCase):
     def test_pv_form_has_suggestion_chips_and_collapsible_sections(self):
         response = self.client.get(reverse("pv_simulator"))
         self.assertContains(response, 'data-target="id_kwp"')
-        self.assertContains(response, 'class="suggestion-chip" data-value="25"')
-        self.assertContains(response, 'class="suggestion-chip" data-value="150"')
+        self.assertContains(response, "suggestion-chip")
+        self.assertContains(response, 'data-value="25"')
+        self.assertContains(response, 'data-value="150"')
         self.assertContains(response, 'data-target="id_magazyn_kwh"')
-        self.assertContains(response, 'class="suggestion-chip" data-value="500"')
+        self.assertContains(response, 'data-value="500"')
         self.assertContains(response, 'data-target="id_magazyn_moc_kw"')
         self.assertNotContains(response, 'data-target="id_magazyn_koszt_eur"')
 
-        self.assertContains(
-            response,
-            '<details class="panel filter-panel collapsible-panel" '
-            'aria-labelledby="pv-form-heading" >',
-        )
-        self.assertContains(
-            response,
-            '<details class="panel table-panel collapsible-panel" '
-            'aria-labelledby="variants-heading">',
-        )
-        self.assertContains(
-            response,
-            '<details class="panel table-panel collapsible-panel" aria-labelledby="daily-heading">',
-        )
-        self.assertContains(
-            response,
-            '<details class="panel chart-panel collapsible-panel" aria-labelledby="reco-heading">',
-        )
+        self.assertContains(response, 'aria-labelledby="pv-form-heading" >')
+        self.assertContains(response, 'aria-labelledby="variants-heading">')
+        self.assertContains(response, 'aria-labelledby="daily-heading">')
+        self.assertContains(response, 'aria-labelledby="reco-heading">')
 
         invalid = self.client.get(reverse("pv_simulator"), {"kwp": "bad"})
         self.assertContains(invalid, 'aria-labelledby="pv-form-heading" open>')

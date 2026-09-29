@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/**
+  * Source paths scanned by Tailwind for class usage.
+  * Python files in the energy app are required: chart legend markup
+  * with Tailwind classes is generated in energy/views.py.
+  */
+@source "../../../energy/**/*.{html,py,js}";
+@source "../../templates/**/*.html";
+
+@theme {
+  --color-charcoal: #545454;
+  --color-slate: #69747c;
+  --color-sage: #6baa75;
+  --color-grass: #84dd63;
+  --color-chartreuse: #cbff4d;
+  --color-paper: rgba(255, 255, 255, 0.94);
+  --color-line: rgba(84, 84, 84, 0.2);
+  --color-cream: #f7f6ed;
+
+  --shadow-card: 0 12px 36px rgba(84, 84, 84, 0.08);
+
+  --font-sans: Inter, "Segoe UI", Arial, sans-serif;
+
+  --breakpoint-xs: 430px;
+  --breakpoint-sm: 620px;
+  --breakpoint-md: 750px;
+  --breakpoint-lg: 900px;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-synthesis: none;
+  }
+
+  body {
+    background: var(--color-cream) var(--page-background) center center / cover fixed no-repeat;
+  }
+
+  :is(a, button, input, select, summary):focus-visible {
+    outline: 3px solid var(--color-charcoal);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 6px var(--color-chartreuse);
+  }
+
+  ::selection {
+    background: var(--color-chartreuse);
+    color: var(--color-charcoal);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+@layer components {
+  /* Plotly keeps inline widths; the wrapper must stretch the graph div. */
+  .plot .plotly-graph-div {
+    width: 100% !important;
+  }
+
+  .interactive-chart .plotly-graph-div .nsewdrag {
+    cursor: grab !important;
+  }
+
+  .interactive-chart .plotly-graph-div:active .nsewdrag {
+    cursor: grabbing !important;
+  }
+
+  /* Buttons. */
+  .btn {
+    @apply inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-[10px] border px-[18px] text-center text-xs font-extrabold leading-[1.2] no-underline transition-[transform,box-shadow,background-color] duration-150;
+  }
+
+  .btn:hover {
+    @apply -translate-y-px shadow-[0_5px_0_rgba(84,84,84,0.15)];
+  }
+
+  .btn:active {
+    @apply translate-y-0 shadow-none;
+  }
+
+  .btn-primary {
+    @apply border-charcoal bg-chartreuse text-charcoal hover:bg-grass;
+  }
+
+  .btn-secondary {
+    @apply border-charcoal bg-paper text-charcoal hover:bg-chartreuse;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn {
+      transition: none;
+    }
+  }
+
+  /* Form fields: widgets are rendered by Django forms without class hooks. */
+  .field {
+    @apply flex flex-col gap-[7px];
+  }
+
+  .field label {
+    @apply text-[11px] font-extrabold uppercase tracking-[0.06em] text-charcoal;
+  }
+
+  .field :is(input, select) {
+    @apply h-[42px] min-w-[155px] rounded-[10px] border border-slate bg-white px-3 text-[13px] font-[650] text-charcoal;
+  }
+
+  @media (max-width: 620px) {
+    .field,
+    .field :is(input, select) {
+      width: 100%;
+    }
+  }
+
+  /* Data tables on the hourly and PV pages. */
+  .data-table {
+    @apply w-full border-collapse whitespace-nowrap text-xs;
+  }
+
+  .data-table th {
+    @apply border-b border-line bg-sage/[0.12] px-[11px] py-[13px] text-right text-[10px] font-extrabold uppercase tracking-[0.06em] text-charcoal;
+  }
+
+  .data-table th:first-child,
+  .data-table th:nth-child(2) {
+    text-align: left;
+  }
+
+  .data-table td {
+    @apply border-b border-line px-[11px] py-3 text-right text-charcoal;
+  }
+
+  .data-table td:first-child,
+  .data-table td:nth-child(2) {
+    text-align: left;
+  }
+
+  .data-table tbody tr:hover {
+    @apply bg-chartreuse/[0.14];
+  }
+
+  /* The hidden attribute must beat the flex display of the dropdown menu. */
+  .scenario-menu[hidden] {
+    display: none;
+  }
+
+  /* Compact header and footer on the dashboard page. */
+  .dashboard-page .shell > header {
+    min-height: 62px;
+  }
+
+  .dashboard-page .shell > footer {
+    padding: 8px 0 12px;
+  }
+}

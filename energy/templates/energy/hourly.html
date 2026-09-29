@@ -2,50 +2,50 @@
 {% load energy_labels %}
 {% block title %}{% if is_en %}eko-dziki · Hourly data{% else %}eko-dziki · Przegląd godzinowy{% endif %}{% endblock %}
 {% block content %}
-<section class="hourly-heading">
+<section class="flex items-center justify-between px-0.5 pb-5 pt-[30px] max-md:flex-col max-md:items-start max-md:gap-3.5">
   <div>
-    <p class="eyebrow">{% if is_en %}EXACT VALUES · SIMULATION{% else %}DOKŁADNE WARTOŚCI · SYMULACJA{% endif %}</p>
-    <h1>{% if is_en %}Hourly data{% else %}Przegląd godzinowy{% endif %}</h1>
-    <p>{% if is_en %}Every hour and consumption category from the saved simulation history.{% else %}Każda godzina i kategoria zużycia z zapisanej historii symulacji.{% endif %}</p>
+    <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}EXACT VALUES · SIMULATION{% else %}DOKŁADNE WARTOŚCI · SYMULACJA{% endif %}</p>
+    <h1 class="m-0 text-[38px] tracking-[-0.05em] text-charcoal max-md:text-[31px]">{% if is_en %}Hourly data{% else %}Przegląd godzinowy{% endif %}</h1>
+    <p class="mb-0 mt-[7px] text-[13px] text-charcoal">{% if is_en %}Every hour and consumption category from the saved simulation history.{% else %}Każda godzina i kategoria zużycia z zapisanej historii symulacji.{% endif %}</p>
   </div>
-  <a class="button secondary" href="{% url 'dashboard' %}">{% if is_en %}← Dashboard{% else %}← Pulpit{% endif %}</a>
+  <a class="btn btn-secondary" href="{% url 'dashboard' %}">{% if is_en %}← Dashboard{% else %}← Pulpit{% endif %}</a>
 </section>
-<details class="panel filter-panel collapsible-panel" aria-labelledby="filter-heading" {% if not form.is_valid %}open{% endif %}>
-  <summary class="section-heading compact">
+<details class="group mb-5 rounded-[17px] border border-line bg-paper px-[30px] py-[25px] shadow-card max-sm:p-[18px]" aria-labelledby="filter-heading" {% if not form.is_valid %}open{% endif %}>
+  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] pb-[19px] after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-0 max-lg:flex-col max-lg:items-start max-lg:gap-[5px]">
     <div>
-      <p class="eyebrow">{% if is_en %}SELECT DATA{% else %}WYBIERZ DANE{% endif %}</p>
-      <h2 id="filter-heading">{% if is_en %}Date range{% else %}Zakres dat{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}SELECT DATA{% else %}WYBIERZ DANE{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="filter-heading">{% if is_en %}Date range{% else %}Zakres dat{% endif %}</h2>
     </div>
   </summary>
-  <form class="filter-form" method="get" action="{% url 'hourly_history' %}">
+  <form class="flex flex-wrap items-end gap-3" method="get" action="{% url 'hourly_history' %}">
     <div class="field"><label for="{{ form.start.id_for_label }}">{% if is_en %}History from{% else %}Historia od{% endif %}</label>{{ form.start }}</div>
     <div class="field"><label for="{{ form.end.id_for_label }}">{% if is_en %}History to{% else %}Historia do{% endif %}</label>{{ form.end }}</div>
-    <button class="button primary" type="submit">{% if is_en %}Show hours →{% else %}Pokaż godziny →{% endif %}</button>
-    {% if form.is_valid %}{% if rolling_days %}<a class="button secondary" href="{% url 'export_csv' %}?dni={{ rolling_days }}">{% if is_en %}Download CSV{% else %}Pobierz CSV{% endif %}</a>{% else %}<a class="button secondary" href="{% url 'export_csv' %}?start={{ start }}&amp;end={{ end }}">{% if is_en %}Download CSV{% else %}Pobierz CSV{% endif %}</a>{% endif %}{% endif %}
+    <button class="btn btn-primary max-sm:flex-1" type="submit">{% if is_en %}Show hours →{% else %}Pokaż godziny →{% endif %}</button>
+    {% if form.is_valid %}{% if rolling_days %}<a class="btn btn-secondary max-sm:flex-1" href="{% url 'export_csv' %}?dni={{ rolling_days }}">{% if is_en %}Download CSV{% else %}Pobierz CSV{% endif %}</a>{% else %}<a class="btn btn-secondary max-sm:flex-1" href="{% url 'export_csv' %}?start={{ start }}&amp;end={{ end }}">{% if is_en %}Download CSV{% else %}Pobierz CSV{% endif %}</a>{% endif %}{% endif %}
   </form>
-  {% if form.errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}{{ form.start.errors }}{{ form.end.errors }}</div>{% endif %}
+  {% if form.errors %}<div class="mt-[13px] text-[13px] font-bold text-charcoal [&_ul]:m-0 [&_ul]:pl-[18px]" role="alert">{{ form.non_field_errors }}{{ form.start.errors }}{{ form.end.errors }}</div>{% endif %}
 </details>
 {% if form.is_valid %}
-<section class="panel chart-panel" aria-labelledby="history-heading">
-  <div class="section-heading">
+<section class="mb-5 rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="history-heading">
+  <div class="flex items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
-      <p class="eyebrow">{% if is_en %}HISTORY · SIMULATION{% else %}HISTORIA · SYMULACJA{% endif %}</p>
-      <h2 id="history-heading">{% if is_en %}Energy use and temperature{% else %}Zużycie i temperatura{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}HISTORY · SIMULATION{% else %}HISTORIA · SYMULACJA{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="history-heading">{% if is_en %}Energy use and temperature{% else %}Zużycie i temperatura{% endif %}</h2>
     </div>
-    <span class="muted">{% if rolling_days %}{% if is_en %}Last {{ rolling_days }} days · {% else %}Ostatnie {{ rolling_days }} dni · {% endif %}{% endif %}{{ selected_count }} {% if is_en %}hours{% else %}godzin{% endif %} · {{ selected_total|floatformat:1 }} kWh</span>
+    <span class="text-xs text-slate">{% if rolling_days %}{% if is_en %}Last {{ rolling_days }} days · {% else %}Ostatnie {{ rolling_days }} dni · {% endif %}{% endif %}{{ selected_count }} {% if is_en %}hours{% else %}godzin{% endif %} · {{ selected_total|floatformat:1 }} kWh</span>
   </div>
-  <div class="plot">{{ history_chart|safe }}</div>
+  <div class="plot px-3 pb-2">{{ history_chart|safe }}</div>
 </section>
-<details class="panel table-panel collapsible-panel" aria-labelledby="table-heading">
-  <summary class="section-heading">
+<details class="group mb-5 overflow-hidden rounded-[17px] border border-line bg-paper shadow-card" aria-labelledby="table-heading">
+  <summary class="flex cursor-pointer list-none items-center justify-between gap-[18px] px-[30px] pb-2 pt-6 after:ml-auto after:shrink-0 after:text-sm after:text-slate after:content-['▸'] group-open:after:content-['▾'] group-not-open:pb-6 max-lg:flex-col max-lg:items-start max-lg:gap-[5px] max-sm:px-[17px] max-sm:pb-[7px] max-sm:pt-[19px]">
     <div>
-      <p class="eyebrow">{% if is_en %}EXACT VALUES{% else %}DOKŁADNE WARTOŚCI{% endif %}</p>
-      <h2 id="table-heading">{% if is_en %}Hourly history{% else %}Historia godzinowa{% endif %}</h2>
+      <p class="m-0 mb-2 text-[11px] font-[850] uppercase tracking-[0.16em] text-charcoal">{% if is_en %}EXACT VALUES{% else %}DOKŁADNE WARTOŚCI{% endif %}</p>
+      <h2 class="m-0 text-xl tracking-[-0.035em] text-charcoal" id="table-heading">{% if is_en %}Hourly history{% else %}Historia godzinowa{% endif %}</h2>
     </div>
-    <span class="muted">{{ selected_count }} {% if is_en %}records · all values in kWh{% else %}rekordów · wszystkie wartości w kWh{% endif %}</span>
+    <span class="text-xs text-slate">{{ selected_count }} {% if is_en %}records · all values in kWh{% else %}rekordów · wszystkie wartości w kWh{% endif %}</span>
   </summary>
-  <div class="table-scroll">
-    <table>
+  <div class="overflow-x-auto px-[22px] pt-2.5 max-sm:px-3 max-sm:pt-2">
+    <table class="data-table">
       <thead>
         <tr>
           <th>{% if is_en %}Date and time{% else %}Data i godzina{% endif %}</th>
@@ -56,19 +56,19 @@
       </thead>
       <tbody>
         {% for record in page %}<tr>
-          <td class="timestamp">{{ record.timestamp|date:"d.m.Y H:i" }}</td>
-          {% for value in record.categories %}<td class="number">{{ value }}</td>{% endfor %}
-          <td class="number total">{{ record.total }}</td>
+          <td class="font-extrabold text-charcoal">{{ record.timestamp|date:"d.m.Y H:i" }}</td>
+          {% for value in record.categories %}<td class="tabular-nums">{{ value }}</td>{% endfor %}
+          <td class="font-extrabold tabular-nums text-charcoal">{{ record.total }}</td>
           <td>{% if is_en %}{{ record.events|english_events }}{% else %}{{ record.events }}{% endif %}</td>
-        </tr>{% empty %}<tr><td colspan="9" class="table-empty">{% if is_en %}No hourly data for this range.{% else %}Brak godzin dla tego zakresu.{% endif %}</td></tr>{% endfor %}
+        </tr>{% empty %}<tr><td colspan="9" class="py-7 !text-center">{% if is_en %}No hourly data for this range.{% else %}Brak godzin dla tego zakresu.{% endif %}</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="{% if is_en %}Table pages{% else %}Strony tabeli{% endif %}">
+  {% if page.paginator.num_pages > 1 %}<nav class="flex items-center justify-between px-[30px] py-[17px] text-xs text-slate max-sm:flex-col max-sm:items-start max-sm:gap-2 max-sm:p-3.5" aria-label="{% if is_en %}Table pages{% else %}Strony tabeli{% endif %}">
     <span>{% if is_en %}Page {{ page.number }} of {{ page.paginator.num_pages }}{% else %}Strona {{ page.number }} z {{ page.paginator.num_pages }}{% endif %}</span>
-    <div>
-      {% if page.has_previous %}<a class="button secondary" href="?{% if rolling_days %}dni={{ rolling_days }}{% else %}start={{ start }}&amp;end={{ end }}{% endif %}&amp;page={{ page.previous_page_number }}">{% if is_en %}← Previous{% else %}← Poprzednia{% endif %}</a>{% endif %}
-      {% if page.has_next %}<a class="button secondary" href="?{% if rolling_days %}dni={{ rolling_days }}{% else %}start={{ start }}&amp;end={{ end }}{% endif %}&amp;page={{ page.next_page_number }}">{% if is_en %}Next →{% else %}Następna →{% endif %}</a>{% endif %}
+    <div class="flex gap-2">
+      {% if page.has_previous %}<a class="btn btn-secondary min-h-[34px]" href="?{% if rolling_days %}dni={{ rolling_days }}{% else %}start={{ start }}&amp;end={{ end }}{% endif %}&amp;page={{ page.previous_page_number }}">{% if is_en %}← Previous{% else %}← Poprzednia{% endif %}</a>{% endif %}
+      {% if page.has_next %}<a class="btn btn-secondary min-h-[34px]" href="?{% if rolling_days %}dni={{ rolling_days }}{% else %}start={{ start }}&amp;end={{ end }}{% endif %}&amp;page={{ page.next_page_number }}">{% if is_en %}Next →{% else %}Następna →{% endif %}</a>{% endif %}
     </div>
   </nav>{% endif %}
 </details>

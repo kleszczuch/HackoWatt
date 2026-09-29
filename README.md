@@ -366,6 +366,42 @@ Walidacja specyfikacji OpenSpec:
 ```bash
 openspec validate magazyn-energii-pv --strict
 ```
+
+---
+
+# Style (Tailwind CSS)
+
+Style są budowane przez **Tailwind CSS 4** zintegrowany z Django przez pakiet
+`django-tailwind` (aplikacja `theme/`, wariant standalone — nie wymaga npm).
+
+Plik wejściowy z tokenami EKO (kolory, cień kart, font, breakpointy
+430/620/750/900 px) i nielicznymi komponentami (`btn`, `field`, `data-table`):
+
+```text
+theme/static_src/src/styles.css
+```
+
+Zbudowany CSS (`theme/static/css/dist/styles.css`) jest commitowany, więc
+zwykłe `runserver` działa bez dodatkowych kroków. Po zmianach w szablonach,
+`energy/views.py` (legenda wykresów) lub `styles.css` trzeba CSS przebudować.
+
+Develop z automatycznym przebudowaniem i przeładowaniem przeglądarki
+(django-browser-reload, tryb DEBUG):
+
+```bash
+uv run python manage.py tailwind start
+```
+
+Jednorazowy build produkcyjny (minifikacja):
+
+```bash
+uv run python manage.py tailwind build
+```
+
+Przy wdrożeniu produkcyjnym należy dodatkowo wykonać `collectstatic`.
+
+Ważne: klasy Tailwind muszą występować w kodzie jako pełne, statyczne napisy —
+także w `energy/views.py` — bo Tailwind wykrywa je skanując pliki źródłowe.
 ---
 
 # Ograniczenia
@@ -395,6 +431,7 @@ Projekt wykorzystuje m.in.:
 * **Pandas**
 * **NumPy**
 * **Plotly**
+* **Tailwind CSS 4 (django-tailwind)**
 * **scikit-learn**
 * **XGBoost**
 * **django-cors-headers**
